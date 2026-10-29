@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.30
+**Version:** 0.31
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-10-26
+**Last updated:** 2026-10-28
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -932,6 +932,10 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.31** — **Protocol specification v0.18 → v0.19.** No codec change: **D84–D88** give
+  meanings to values the codec already carries, and the W4 vectors are unchanged. §7.1 of
+  the spec now names `include/lran/schema/` and `src/schema/`, where the schemas are.
 
 - **v0.30** — **GateLink's block grows to 25 rows** with `bms_retry_s`. §4 records the
   readback it costs: 240 bytes, still two messages. No API changes.

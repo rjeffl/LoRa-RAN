@@ -6,7 +6,7 @@ specific to GateLink's firmware.
 **Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.43, §5
 for the architecture and §8 for the milestones.
 **Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.23.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.18** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.19** (`ver = 2`).
 **Session state:** `docs/gatelink/HANDOFF.md`. Start there.
 
 ## What exists here today

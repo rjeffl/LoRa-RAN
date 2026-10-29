@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.14
+**Version:** 0.15
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
-**Last updated:** 2026-10-15
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
+**Last updated:** 2026-10-28
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -228,6 +228,10 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.15** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.18 → v0.19**. Spec §10.1's true-entropy rule now covers a roll's `ctx_id` as well as
+  the boot's (**D87**), which binds WellLink when it is built.
 
 - **v0.14** — **Citation refresh; no requirement changed.** Protocol specification
   **v0.17 → v0.18**. D78's `ACTUATOR_FAULT` answers any command whose output write failed,

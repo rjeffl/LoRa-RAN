@@ -1,7 +1,7 @@
 {
   "name": "lran-config",
   "version": "0.1.0",
-  "description": "LRAN runtime configuration: the hand-written parameter table every other copy is derived from (D44), and the store that applies a CONFIG set and answers a readback. Arduino-free; persistence is injected. Binding specification: LRAN-Protocol-Specification v0.18 (ver = 2).",
+  "description": "LRAN runtime configuration: the hand-written parameter table every other copy is derived from (D44), and the store that applies a CONFIG set and answers a readback. Arduino-free; persistence is injected. Binding specification: LRAN-Protocol-Specification v0.19 (ver = 2).",
   "keywords": ["lran", "configuration", "home-assistant"],
   "license": "MIT",
   "frameworks": "*",

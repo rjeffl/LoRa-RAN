@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.19
+**Version:** 0.20
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-28
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -351,7 +351,9 @@ publish and when** (Protocol Spec §16.4).
   `mppt_tracker` is one, and an `mppt_err` of `0xFF` is not a charger error (spec §7.2.2,
   **D79**). An input a node says it does not sense is another: while `node_flags` bit 7
   is set, the FIRE, hard-shutdown and keypad-hold entities are unavailable (spec §7.2.8,
-  **D80**).
+  **D80**). A `cell_temp_c` of `INT8_MIN` publishes `null` (spec §7.2.3, **D84**). While
+  `bms_alarms` is `UINT16_MAX`, `alarms` and the four flags from `bms_flags` bits 1–5
+  publish `null`, not `false` (spec §7.2.7, **D85**).
 - **R-5.2d. Propagate synthetic marking.** Frames marked as debug-synthetic SHALL be
   marked as such all the way into HA history.
 - **R-5.2e. Event topics are never retained** (Protocol Spec §16.3), and the bridge SHALL
@@ -515,6 +517,12 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 ---
 
 ## 9. Changelog
+
+- **v0.20** — **Protocol specification v0.18 → v0.19.** R-5.2c takes **D84**'s
+  `INT8_MIN` for `cell_temp_c` and **D85**: the battery flags from `bms_flags` bits 1–5
+  publish `null` while `bms_alarms` is `UINT16_MAX`. **D86**'s `detail` meanings and
+  **D88**'s rewording of D49 need no requirement here. Neither null rule is built; that
+  is the bridge handoff's group 5.
 
 - **v0.19** — **Protocol specification v0.17 → v0.18.** R-3.1g takes **D78**: an
   `ACTUATOR_FAULT` is reported and never resent. R-5.2c takes **D79**'s `0xFF` and
