@@ -5,7 +5,8 @@ Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at t
 H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the alert
 levels and the message catalog, on 2026-10-27 at the end of H5, on 2026-10-28 at the
 end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operator
-chose Fluvy (task H11), and on 2026-10-30 at the end of H11.**
+chose Fluvy (task H11), on 2026-10-30 at the end of H11, and on 2026-10-30 after the
+Fluvy port review.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -31,6 +32,7 @@ entity. H10, the port to production, waits on bridge task B6.
 |---|---|
 | **H8** Tier 5 approach prompt | Plan §9.5, §7.3; §11's H8 row |
 | **H10** Port to production | Plan §12; §8.3's porting issues; §11's H10 row |
+| The Fluvy review's open decisions | `briefs/2026-10-30-fluvy-port-review.md`, *Recommendations*; plan §8.1, §8.3 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -42,11 +44,23 @@ section and *The next job*.
 dashboard, as the reminders do. Its trigger needs a tracked `person`, which the sandbox
 does not have, so the sandbox can check the push but not the trigger.
 
+**The Gate dashboard's Open gate and Close gate tiles have not been pressed.** Before
+production, turn GateLink's relay dry-run on and press each once, as H6 did: `cmd/ack`
+should carry `result` 16 and the gate should not move. The review brief's other three
+open decisions wait on the operator: the SOC gauge's bands, alert snooze on the Gate
+dashboard, and the Restore defaults dialog.
+
 **H7's SOC and yield figures are unchecked with real values.** Rerun
 `automation.lran_4_morning_report` through `automation.trigger` once GateLink's BMS and
 MPPT readings are available.
 
 ## What the last session established
+
+- **The Gate dashboard's Open and Close are named tiles** (plan v0.17, §8.1, §8.3;
+  engineering log, 2026-10-30, named tiles). Fluvy's cover card draws them as bare arrows.
+  **Neither tile has been pressed**: dry-run is off, so repeat H6's dry-run check first.
+  The review brief, `briefs/2026-10-30-fluvy-port-review.md`, lists four open decisions:
+  the SOC gauge's bands, alert snooze, the Restore defaults dialog and mixed-unit charts.
 
 - **H11 is met** (plan v0.16, §8.3; engineering log, 2026-10-30, H11). Fluvy v1.11.3
   runs on the sandbox, the theme is the default and its *Scope* is `everywhere`. The
@@ -227,7 +241,9 @@ those two targets changed, which plan §7.3 names.
 
 - **From 2026-10-30 the sandbox runs Fluvy**, theme and cards. A screenshot from before
   then shows HA's default theme and core cards, and the Gate dashboard's gate controls
-  asked for confirmation.
+  asked for confirmation. Until a later commit the same day, the Gate dashboard's open and
+  close were the cover card's arrows; from then they are tiles named *Open gate* and
+  *Close gate*.
 
 - **From 2026-10-27 a muted alert leaves a logbook entry**, marked `(alerts muted, not
   pushed)`. Before then, muting left no trace of a `normal` or `low` alert.

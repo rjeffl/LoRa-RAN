@@ -751,3 +751,31 @@ only.
 H11 found that Fluvy capitalises a text state. Under Fluvy's theme the HA card shows the
 commit as `addfd6b` and the OTA slot as `app0`, checked in a render. Plan §8.3 records the
 choice.
+
+## 2026-10-30 — Open and close as named tiles; a review of the Fluvy port
+
+**Fluvy's cover card cannot label its buttons.** Its source fixes the open button's glyph
+as an up arrow and the close button's as a down arrow (`cover-card.ts`). The words reach
+only `aria-label` and `title` (`actions()` in `packages/ui/src/parts.ts`), and no card
+option changes either. A tooltip never shows on a phone.
+
+**A Fluvy scenes card takes any entity once a tile names its own `tap_action`.** Its
+singular sibling, the scene card, throws on a domain other than scene, script, button,
+input-button or automation. Three layouts were rendered on a temporary storage dashboard,
+`lran-gate-buttons-test`, then deleted. The operator chose the scenes card: a Fluvy tile
+for the cover's state, then *Open gate* and *Close gate* tiles calling
+`cover.open_cover` and `cover.close_cover`. Plan v0.17 records it in §8.1 and §8.3.
+
+**The Gate view rendered at the mobile preset, 390×844**, with both tiles labelled. At
+that width each tile drops its subtitle and keeps its name.
+
+**Not checked: a press.** GateLink's relay dry-run is off by operator request, so a press
+would move the gate. H6's check, a command with dry-run on and `cmd/ack` reading `result`
+16, has not been repeated on the new tiles. A scenes tile also does not grey out at the end
+of travel, as the cover card's buttons did.
+
+**The review** is
+[`briefs/2026-10-30-fluvy-port-review.md`](./briefs/2026-10-30-fluvy-port-review.md). It
+found Fluvy's `battery` gauge colours a warning below 40 % and danger below 20 %, where
+LRAN's SOC alarm defaults to 25 %. Four of the Gate dashboard's six alerts can be snoozed
+by the viewer. Neither is changed yet.

@@ -68,12 +68,41 @@ views:
             grid_options:
               columns: full
           # The cover's state carries the direction the bridge infers (spec 8.3): open,
-          # opening, closing or closed. The raw gate state is on the LRAN dashboard. Its
-          # open and close send at once, with no confirmation (plan 2).
-          - type: custom:fluvy-cover-card
+          # opening, closing or closed. The raw gate state is on the LRAN dashboard.
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: cover.gatelink_gate
             name: Gate
-            variant: compact
+            tap_action:
+              action: more-info
+            grid_options:
+              columns: 12
+          # Open and close as words, because Fluvy's cover card draws them as up and down
+          # arrows with no option to label them (plan 8.3). A scenes card takes any entity
+          # once each tile names its own tap action. Both send at once, with no
+          # confirmation (plan 2), and neither greys out at the end of travel, so Open on
+          # an open gate is still a relay pulse (S-8).
+          - type: custom:fluvy-scenes-card
+            columns: 2
+            scenes:
+              - entity: cover.gatelink_gate
+                name: Open gate
+                icon: mdi:gate-open
+                subtitle: Opens the gate
+                tap_action:
+                  action: perform-action
+                  perform_action: cover.open_cover
+                  target:
+                    entity_id: cover.gatelink_gate
+              - entity: cover.gatelink_gate
+                name: Close gate
+                icon: mdi:gate
+                subtitle: Closes the gate
+                tap_action:
+                  action: perform-action
+                  perform_action: cover.close_cover
+                  target:
+                    entity_id: cover.gatelink_gate
             grid_options:
               columns: 12
           - type: custom:fluvy-tile-card

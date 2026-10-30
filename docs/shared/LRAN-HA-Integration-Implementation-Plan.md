@@ -1,7 +1,7 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.16
+**Version:** 0.17
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
@@ -59,8 +59,8 @@ together with the entities. The bridge handoff asked for this plan before GL8.
 | Fluvy version | **Pinned at v1.11.3**, the latest release on 2026-10-30. Three releases came out on 2026-10-28, so an update is taken deliberately, once the sandbox has run it |
 | Fluvy scope | **Everywhere.** Fluvy's *Scope* setting restyles the sidebar and HA's own pages as well as the dashboards, on the sandbox as on production |
 | Dashboard source | **YAML-mode files in the repository, unchanged** (§6). Fluvy's card editors cannot save to a YAML dashboard, so its cards are written from its documentation |
-| Gate command confirmation | **Not required** (operator, 2026-10-30). Fluvy's cover card sends open and close with no confirmation dialog. The gate's own controls have never asked for one |
-| Gate control entity | **Fix it in the bridge.** Discovery publishes the D8 `cover` and hold `switch` (§5, task F1). Dashboards use the four command buttons until F1 lands |
+| Gate command confirmation | **Not required** (operator, 2026-10-30). The dashboard's Open gate and Close gate tiles send with no confirmation dialog (§8.1). The gate's own controls have never asked for one |
+| Gate control entity | **Fix it in the bridge.** Discovery publishes the D8 `cover` and hold `switch` (§5, task F1). F1 was built 2026-10-28, and the dashboards use the cover and the switch in place of the four command buttons |
 | Automation tiers | **All five:** alerts, health, reminders, reports, convenience (§9) |
 | Notification channels | **Companion-app push now; SMTP email later, behind a switch.** Email is built and tested, then held off by `input_boolean.lran_email_enabled` until the operator turns it on. **No SMS:** push replaces it |
 | Units | **The bridge keeps publishing mV and mA**, GateLink's native units on the wire. The Gate dashboard shows V and A through HA-side conversion (§7.4). The LRAN dashboard shows mV and mA |
@@ -409,8 +409,10 @@ From top to bottom:
    GateLink unavailable; charging inhibited; battery protection. The card hides while all
    are clear. FIRE and the held-open vehicle cannot be snoozed. Charging inhibited reads
    GateLink's derived indication (R-6.4a), which still reads while VE.Direct is stale.
-2. **Gate control.** A Fluvy cover card, whose state carries the direction, with open and
-   close buttons that send at once (§2), and the movement cause beneath. A tile toggles
+2. **Gate control.** A Fluvy tile on the cover, whose state carries the direction, then
+   two tiles named *Open gate* and *Close gate* that send at once (§2), and the movement
+   cause beneath. They are a Fluvy scenes card, because the cover card labels its buttons
+   with arrows only (§8.3). A tile toggles
    the "Hold gate open" switch, also without confirmation. Hold source shows only while
    the gate is held.
 3. **Last vehicle.** Time and direction, and today's traversal count.
@@ -474,12 +476,13 @@ cannot save to a YAML dashboard.
 | `gauge` | `custom:fluvy-gauge-card`, `gauge: battery` |
 | `history-graph`, and a line `statistics-graph` up to 90 days | `custom:fluvy-chart-card` |
 | A bar `statistics-graph` of `change` | `custom:fluvy-history-bars-card` |
-| The cover tile and the Open and Close tiles | `custom:fluvy-cover-card`, `variant: compact` |
+| The cover tile | `custom:fluvy-tile-card`, `size: compact` |
+| The Open and Close tiles | `custom:fluvy-scenes-card`, one tile per command, each with its own `tap_action` |
 | A conditional `ha-alert` banner, and the *Alerts off* template | `custom:fluvy-alerts-card` |
 
 **What Fluvy makes redundant** is in the dashboards alone: the seven conditional
-`ha-alert` banners, the Jinja markdown card that named every alert set to `Off`, and the
-Open and Close tiles. No package file loses anything. Fluvy's alerts card draws a
+`ha-alert` banners and the Jinja markdown card that named every alert set to `Off`. No
+package file loses anything. Fluvy's alerts card draws a
 condition but sends nothing, so every automation stays. No derived sensor of §7.4 goes
 either. The automations or the reports read most of them. Fluvy's `unit` key converts
 energy, power, volume and distance, not voltage, so the V sensors stay. Net power, draw,
@@ -505,8 +508,11 @@ statistics.
   which shows `addfd6b`.
 - **An alert shows its name, not a sentence.** The explanation each banner carried, such
   as *A power cycle loses them*, is gone, and the alert's sheet lists the entity instead.
-- **GateLink's cover has no stop and no position.** The compact cover card draws open and
-  close alone, so no unsupported control shows.
+- **Fluvy's cover card labels open and close with arrows only.** Its buttons are fixed
+  up and down glyphs, the words only a tooltip (`actions()` in `packages/ui/src/parts.ts`),
+  which a phone never shows. By operator choice, 2026-10-30, the Gate dashboard uses a
+  scenes card with two named tiles instead. A scenes tile does not grey out at the end of
+  travel, as the cover card's buttons do, so Open on an open gate is still a relay pulse.
 - **Unverified:** how the chart card scales series in different units on one plot. The
   24 h and 7 d power charts mix %, mV, mA, W and °F, and the bench had no BMS or MPPT
   readings to show it.
@@ -567,8 +573,8 @@ replaces the earlier push.
 ### 9.3 Tier 3 — reminders
 
 Each reminder is a plain push, and tapping it opens the Gate dashboard (`/lran-gate`).
-**The gate closes only when a person presses Close there** (S-8), which asks for
-confirmation first. No automation in the reminders commands the gate.
+**The gate closes only when a person presses Close there** (S-8). The press sends at
+once, with no confirmation (§2). No automation in the reminders commands the gate.
 
 **A push carries no action, by operator choice on 2026-10-28.** v0.10 gave each reminder a
 **Close gate** action, marked iOS's `authenticationRequired`, and a handler that pressed
@@ -722,6 +728,7 @@ cover when it is.
 | 0.14 | 2026-10-28 | Bridge tasks F1–F4 built (§5). The Gate dashboard uses the cover and the hold switch (§8.1). The Power, Events and Maintenance views gain the pack temperatures, SOC source, last boot, the two event entities, BMS polling and *Restore defaults* (§8.2). The morning report reads discovery's yield-yesterday sensor (§9.4) |
 | 0.15 | 2026-10-30 | By operator choice, §2 adopts Fluvy for production: its cards throughout, pinned at v1.11.3, applied everywhere, with the dashboards still YAML-mode files and no confirmation on gate commands. §11 adds task H11; H10 depends on it. §12 adds the Fluvy install as step 3 |
 | 0.16 | 2026-10-30 | H11 done. §8 moves the three dashboards to Fluvy's cards, and §8.3 maps each card, names what Fluvy makes redundant and lists the porting issues. By operator choice, the firmware rows stay on HA's `entities` card, because Fluvy capitalises the commit hash. §12 step 3 sets the theme and Fluvy's *Scope* |
+| 0.17 | 2026-10-30 | Stale lines after the Fluvy port: §2's gate control row says F1 is built and the dashboards use the cover and the switch, and §9.3 says Close sends with no confirmation, as §2 chose in v0.15. By operator choice, §8.1's Open and Close are a Fluvy scenes card of two named tiles, because the cover card labels them with arrows only; §8.3 maps it |
 | 0.13 | 2026-10-28 | Protocol specification v0.18 → v0.19. §9's `lran_2_mppt_error` row says spec §8.9 now defines `MPPT_ERROR`'s and `BMS_ALARM`'s `detail` (**D86**). The MPPT alert does not read it yet, and the BMS alert shows it raw |
 | 0.11 | 2026-10-28 | By operator choice, H6 drops the **Close gate** action and its handler, and §9.5 the **Open gate** action: an action is easy to miss and adds little. A reminder opens the Gate dashboard instead (§3, §9.3, §9.5). §7.3's script takes `url` in place of `actions`. H9 done |
 | 0.10 | 2026-10-28 | H6 built, not verified. §9.3 states what counts as open and as away, and that the handler skips a closed gate and needs an unlocked iOS phone |
