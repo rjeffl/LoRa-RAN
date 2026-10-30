@@ -48,6 +48,12 @@ MPPT readings are available.
 
 ## What the last session established
 
+- **The Gate dashboard's Open and Close are named tiles** (plan v0.17, §8.1, §8.3;
+  engineering log, 2026-10-30, named tiles). Fluvy's cover card draws them as bare arrows.
+  **Neither tile has been pressed**: dry-run is off, so repeat H6's dry-run check first.
+  The review brief, `briefs/2026-10-30-fluvy-port-review.md`, lists four open decisions:
+  the SOC gauge's bands, alert snooze, the Restore defaults dialog and mixed-unit charts.
+
 - **H11 is met** (plan v0.16, §8.3; engineering log, 2026-10-30, H11). Fluvy v1.11.3
   runs on the sandbox, the theme is the default and its *Scope* is `everywhere`. The
   three dashboards use Fluvy's cards, with the entity IDs unchanged, and every view
@@ -227,7 +233,9 @@ those two targets changed, which plan §7.3 names.
 
 - **From 2026-10-30 the sandbox runs Fluvy**, theme and cards. A screenshot from before
   then shows HA's default theme and core cards, and the Gate dashboard's gate controls
-  asked for confirmation.
+  asked for confirmation. Until a later commit the same day, the Gate dashboard's open and
+  close were the cover card's arrows; from then they are tiles named *Open gate* and
+  *Close gate*.
 
 - **From 2026-10-27 a muted alert leaves a logbook entry**, marked `(alerts muted, not
   pushed)`. Before then, muting left no trace of a `normal` or `low` alert.

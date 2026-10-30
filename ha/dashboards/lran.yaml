@@ -7,8 +7,8 @@
 #
 # Three views here; the fourth, Maintenance, is lran-maintenance.yaml, because it is
 # admin only and HA gates by dashboard. Every entity plan 4 lists appears on one of the
-# two, apart from the four command buttons, which stay on the Gate dashboard: each press
-# is a relay pulse at the gate (H3's acceptance).
+# two, apart from the gate cover and the hold switch. They stay on the Gate dashboard,
+# because each command is a relay pulse at the gate (H3's acceptance).
 #
 # Graphs read the raw mV and mA sensors, not the rescaled V sensors, which the recorder
 # excludes (plan 10). Graphs beyond 10 days read long-term statistics, because the
@@ -528,7 +528,7 @@ views:
               - entity: sensor.gatelink_last_boot
                 name: Last boot
           # A boot loop shows as a run of boots (spec 8.14). Each boot's reset cause
-          # reaches the logbook through lran_2_node_boot (plan 9.2) once H5 lands.
+          # reaches the logbook through lran_2_node_boot (plan 9.2).
           - type: custom:fluvy-history-bars-card
             entity: sensor.gatelink_boot_count
             name: GateLink boots per day, 30 days
