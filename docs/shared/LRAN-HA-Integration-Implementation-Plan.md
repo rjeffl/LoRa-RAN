@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.15
+**Version:** 0.16
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen 2026-10-30, task H11 not started
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30
 **Last updated:** 2026-10-30
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -394,25 +394,24 @@ pass.
 
 ## 8. Dashboards
 
-Both dashboards use core cards only: `tile`, `entities`, `glance`, `gauge`,
-`history-graph`, `statistics-graph`, `logbook`, `conditional`, `markdown`, and `heading`
-for section titles. Sections
-view layout, so the Gate dashboard reflows to one column on a phone.
+The dashboards use Fluvy's cards wherever Fluvy has one (§2, task H11), and HA's own
+cards elsewhere: `sections` views and `grid` sections, `conditional`, `logbook`,
+`markdown` for fixed text, and `statistics-graph` for a year of min, mean and max. §8.3
+gives the mapping and what it cost. A sections view reflows to one column on a phone.
 
 ### 8.1 Gate (daily use, phone first)
 
 From top to bottom:
 
-1. **Alert banners**, each a `conditional` card shown only while its condition holds: FIRE
-   input asserted; vehicle while held open; hard-shutdown latch; GateLink unavailable;
-   charging inhibited; battery protection. Each is an `ha-alert` in a text-only markdown
-   card. Charging inhibited reads GateLink's derived indication (R-6.4a), which still
-   reads while VE.Direct is stale.
-2. **Gate control.** A tile for the cover, whose state carries the direction, with the
-   movement cause beneath. Open and Close tiles call the cover's actions, and a tile
-   toggles the "Hold gate open" switch. Each asks for confirmation, because each is a relay
-   pulse at the gate, and the cover tile's own buttons cannot ask. Hold source shows only
-   while the gate is held.
+1. **Alert banners**, one Fluvy alerts card that shows each alert only while its
+   condition holds: FIRE input asserted; vehicle while held open; hard-shutdown latch;
+   GateLink unavailable; charging inhibited; battery protection. The card hides while all
+   are clear. FIRE and the held-open vehicle cannot be snoozed. Charging inhibited reads
+   GateLink's derived indication (R-6.4a), which still reads while VE.Direct is stale.
+2. **Gate control.** A Fluvy cover card, whose state carries the direction, with open and
+   close buttons that send at once (§2), and the movement cause beneath. A tile toggles
+   the "Hold gate open" switch, also without confirmation. Hold source shows only while
+   the gate is held.
 3. **Last vehicle.** Time and direction, and today's traversal count.
 4. **Power at a glance.** SOC gauge, pack voltage in V, PV power, net power, and the MPPT
    charge state.
@@ -432,7 +431,7 @@ thresholds are helpers (§7.1), so the bands would drift from them.
 
 | View | Contents |
 |---|---|
-| **Power** | SOC, pack voltage and current, the four cells and their spread, cycles, protection and charge-inhibit flags. PV power and voltage, yield today and total, charge state, charger error. Enclosure, MPPT and the four pack temperatures. SOC source. Graphs: `history-graph` for 24 h and 7 d; `statistics-graph` for 30 d and 1 y of SOC, enclosure temperature (min, mean, max) and daily yield |
+| **Power** | SOC, pack voltage and current, the four cells and their spread, cycles, protection and charge-inhibit flags. PV power and voltage, yield today and total, charge state, charger error. Enclosure, MPPT and the four pack temperatures. SOC source. Graphs: 24 h and 7 d of history; 30 d and 1 y of SOC and enclosure temperature (min, mean, max); daily yield for 30 d and monthly for 1 y |
 | **Network** | Bridge frames received, transmitted and discarded. GateLink RSSI, SNR, missed polls and last seen, with 7 d history. PHY settings, protocol version, unsupported-version flag. Firmware version, commit and OTA slot. BMS BLE RSSI as a 30 d statistics graph, which is the trend M23 reads. WellLink rows, unavailable until it is deployed |
 | **Events** | A `logbook` card of LRAN events and gate state changes. Traversals per day for 30 d. Node boots with their reset cause, which is how a boot loop shows (spec §8.14) |
 | **Maintenance** | `require_admin`. The *Alerts* card: a level selector per alert, mute, email and *Restore default levels* (§7.5). The configuration `number` entities, grouped by node and by subsystem. The deployed, dry-run, buzzer, BMS polling and MPPT write-enable switches. Request status, request configuration and *Restore defaults*, which asks first. The MPPT configuration readback. Configuration persisted, shown first, because `off` means the node is running unsaved settings |
@@ -451,11 +450,65 @@ no state class, so HA keeps no long-term statistics for it, and its recorder his
 logs each entry against itself (§7.3).
 
 **The gate controls are not on the LRAN dashboard.** Each one is a relay pulse at the
-gate, and the Gate dashboard already carries them, each behind a confirmation.
+gate, and the Gate dashboard already carries them.
 
 **The Maintenance view carries an MPPT write-enable warning.** Charge-controller writes
 are a battery-affecting path (GateLink PRD **S-11**). The switch shows with a markdown card
 above it stating that, and the view is admin only.
+
+### 8.3 Fluvy's cards, and what the port cost
+
+H11 moved the three dashboards to Fluvy v1.11.3 on 2026-10-30, with every entity ID
+unchanged. The cards are written from Fluvy's documentation, because its card editors
+cannot save to a YAML dashboard.
+
+| LRAN card | Fluvy card |
+|---|---|
+| `tile` | `custom:fluvy-tile-card`, `size: compact` |
+| `heading` | `custom:fluvy-heading-card`, with `grid_options: {columns: full}` |
+| `entities`, read-only rows | `custom:fluvy-entities-card` |
+| `entities`, settable rows | `custom:fluvy-helpers-card`: a stepper per number, chips per select, a switch per boolean |
+| `entities`, button and script rows | `custom:fluvy-actions-card` |
+| The *Restore defaults* button row | `custom:fluvy-scene-card`, whose `tap_action` keeps the confirmation |
+| `gauge` | `custom:fluvy-gauge-card`, `gauge: battery` |
+| `history-graph`, and a line `statistics-graph` up to 90 days | `custom:fluvy-chart-card` |
+| A bar `statistics-graph` of `change` | `custom:fluvy-history-bars-card` |
+| The cover tile and the Open and Close tiles | `custom:fluvy-cover-card`, `variant: compact` |
+| A conditional `ha-alert` banner, and the *Alerts off* template | `custom:fluvy-alerts-card` |
+
+**What Fluvy makes redundant** is in the dashboards alone: the seven conditional
+`ha-alert` banners, the Jinja markdown card that named every alert set to `Off`, and the
+Open and Close tiles. No package file loses anything. Fluvy's alerts card draws a
+condition but sends nothing, so every automation stays. No derived sensor of §7.4 goes
+either. The automations or the reports read most of them. Fluvy's `unit` key converts
+energy, power, volume and distance, not voltage, so the V sensors stay. Net power, draw,
+autonomy and link quality are computed, and Fluvy computes nothing beyond its card
+statistics.
+
+**Porting issues found:**
+
+- **Fluvy's *Scope* defaults to `dashboards`**, which styles only dashboards whose path
+  starts `fluvy-`. Ours do not, so the house setting must be `everywhere` (§2, §12). It is
+  stored in HA's frontend system data under the key `fluvy`, and *everywhere* applies
+  only to a user whose HA theme is Fluvy.
+- **Fluvy's chart card reads at most 90 days** (`LONGEST` in its `span.ts`). The two
+  1-year min, mean and max graphs stay HA's `statistics-graph`. The 1-year yield is a
+  history-bars card of 12 months.
+- **Fluvy's entities card shows a number as a value, not a control**, and has no section
+  or divider rows. Settings moved to helpers cards, one per former section.
+- **A Fluvy heading takes one grid cell**, where HA's takes the row, so each heading has
+  `columns: full`.
+- **Fluvy capitalises a text state.** The bridge's firmware commit reads `Addfd6b` and its
+  OTA slot `App0`. A commit hash is case-significant, so the Network view misstates it.
+- **An alert shows its name, not a sentence.** The explanation each banner carried, such
+  as *A power cycle loses them*, is gone, and the alert's sheet lists the entity instead.
+- **GateLink's cover has no stop and no position.** The compact cover card draws open and
+  close alone, so no unsupported control shows.
+- **Unverified:** how the chart card scales series in different units on one plot. The
+  24 h and 7 d power charts mix %, mV, mA, W and °F, and the bench had no BMS or MPPT
+  readings to show it.
+- **ha-mcp still cannot render `lran-maintenance`**, which is admin only. H11 rendered a
+  copy as a temporary non-admin storage dashboard, then deleted it.
 
 ## 9. Automations
 
@@ -635,7 +688,8 @@ cover when it is.
 3. Install HACS, then Fluvy v1.11.3 through HACS (§2), and add the Fluvy integration.
    Fluvy registers its own dashboard resource while resources are in storage mode, as on
    the sandbox. `configuration.yaml` needs `frontend: themes: !include_dir_merge_named
-   themes`.
+   themes`. Set the default theme to Fluvy, for light and dark, and Fluvy's house *Scope*
+   to `everywhere` in its settings panel, or the LRAN dashboards stay unstyled (§8.3).
 4. Add the §6 blocks to `configuration.yaml`, check the configuration, and restart.
 5. Run `tools/ha/check_entities.py --server ha-prod`. **A missing entity ID means the
    production registry named something differently, or the bridge runs firmware older
@@ -664,6 +718,7 @@ cover when it is.
 | 0.12 | 2026-10-28 | H6 and H7 done. §9.4 reads long-term statistics through `recorder.get_statistics`, and states its three approximations. By operator choice, `lran_notify` notes every alert for the morning report (§7.3, §7.1), and yesterday's yield comes from a package MQTT sensor until bridge task F4 adds it to discovery (§5). §7.4 adds the MPPT charge-state `history_stats` sensors |
 | 0.14 | 2026-10-28 | Bridge tasks F1–F4 built (§5). The Gate dashboard uses the cover and the hold switch (§8.1). The Power, Events and Maintenance views gain the pack temperatures, SOC source, last boot, the two event entities, BMS polling and *Restore defaults* (§8.2). The morning report reads discovery's yield-yesterday sensor (§9.4) |
 | 0.15 | 2026-10-30 | By operator choice, §2 adopts Fluvy for production: its cards throughout, pinned at v1.11.3, applied everywhere, with the dashboards still YAML-mode files and no confirmation on gate commands. §11 adds task H11; H10 depends on it. §12 adds the Fluvy install as step 3 |
+| 0.16 | 2026-10-30 | H11 done. §8 moves the three dashboards to Fluvy's cards, and §8.3 maps each card, names what Fluvy makes redundant and lists the porting issues. §12 step 3 sets the theme and Fluvy's *Scope* |
 | 0.13 | 2026-10-28 | Protocol specification v0.18 → v0.19. §9's `lran_2_mppt_error` row says spec §8.9 now defines `MPPT_ERROR`'s and `BMS_ALARM`'s `detail` (**D86**). The MPPT alert does not read it yet, and the BMS alert shows it raw |
 | 0.11 | 2026-10-28 | By operator choice, H6 drops the **Close gate** action and its handler, and §9.5 the **Open gate** action: an action is easy to miss and adds little. A reminder opens the Gate dashboard instead (§3, §9.3, §9.5). §7.3's script takes `url` in place of `actions`. H9 done |
 | 0.10 | 2026-10-28 | H6 built, not verified. §9.3 states what counts as open and as away, and that the handler skips a closed gate and needs an unlocked iOS phone |

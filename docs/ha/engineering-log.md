@@ -696,3 +696,51 @@ Its resource URL carries the build, `/fluvy-frontend/<version>-<build>/`, so a Y
 
 **Nothing is installed or changed on the sandbox yet.** The session stopped here at the
 operator's request, to resume H11 from the handoff.
+
+## 2026-10-30 — H11: Fluvy installed on the sandbox, and the three dashboards on its cards
+
+**Fluvy v1.11.3 is installed through HACS**, with its integration added and HA restarted.
+It registered its own resource, `/fluvy-frontend/1.11.3-2cfe827a/fluvy.js`, and wrote the
+theme `Fluvy`, now the backend default for light and dark.
+
+**Fluvy's *Scope* defaults to `dashboards`, not `everywhere`**, and in that scope it styles
+only dashboards whose path starts `fluvy-`. Plan §2 asks for everywhere, so the house
+setting was written through HA's `frontend/set_system_data`, key `fluvy`, value
+`{"version": 3, "scope": "everywhere"}`. Fluvy parses that record field by field, so a
+partial one is safe. On production the settings panel's *Scope* tab does the same.
+
+**Every card rendered as an error placeholder until Puppet restarted.** The engine kept a
+browser from before HA's restart, with the old frontend loaded. Restarting the
+`0f1cc410_puppet` app fixed it, and a Fluvy update will need the same.
+
+**What the renders showed**, each fixed in the YAML before the next render:
+
+- A Fluvy heading takes one grid cell, where HA's takes the row. In the three-column
+  sections it pushed the charts sideways, so each heading has `columns: full`.
+- Fluvy's tile defaults to its large size. The tiles are `size: compact`.
+- Fluvy's chart card reads at most 90 days: the 1-year graphs drew 90. Fluvy's source
+  states the limit (`LONGEST` in `packages/cards/src/chart/data/span.ts`), so the two
+  1-year min, mean and max graphs stay HA's `statistics-graph`.
+- Fluvy's entities card shows a `number` as a value, not a control. Settings are helpers
+  cards, which draw a stepper per number, chips per select and a switch per boolean.
+- Fluvy capitalises a text state: the bridge commit `addfd6b` reads `Addfd6b`, and the OTA
+  slot `app0` reads `App0`. Left as it is, and listed in plan §8.3.
+
+**An alert matcher matches `unavailable` only when it names it.** Fluvy's `match.ts`
+says so, and a render confirmed it. A test alert on `sensor.gatelink_battery`, which is
+unavailable on the bench, showed as a row with its entity and age. That is how the Gate
+dashboard's *GateLink unavailable* alert reads `sensor.gatelink_gate`, and why the binary
+sensors' alerts stay quiet while GateLink is gone.
+
+**`lran-maintenance` was rendered as a copy.** ha-mcp's Puppet user is not an admin, so
+the config went to a temporary non-admin storage dashboard, `lran-h11-render`, which was
+screenshotted and then deleted.
+
+**The checks.** `check_entities.py` passes against the sandbox, 221 IDs and one prefix,
+and each dashboard names the same entity IDs as before the port. Every view rendered.
+The Gate view was also rendered at phone width.
+
+**Not checked:** whether the chart card puts series in different units on one scale. The
+24 h and 7 d power charts mix %, mV, mA, W and °F, and the bench has no BMS or MPPT
+readings. Nor are HA's own pages checked under Fluvy's theme: Puppet renders dashboards
+only.

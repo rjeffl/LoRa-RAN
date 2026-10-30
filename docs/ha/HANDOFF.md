@@ -4,8 +4,8 @@
 Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at the end of
 H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the alert
 levels and the message catalog, on 2026-10-27 at the end of H5, on 2026-10-28 at the
-end of H4b, on 2026-10-28 after the bench checks, and on 2026-10-30 after the operator
-chose Fluvy (task H11), before anything was installed.**
+end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operator
+chose Fluvy (task H11), and on 2026-10-30 at the end of H11.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,18 +19,18 @@ chose Fluvy (task H11), before anything was installed.**
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H11.
+Continue from docs/ha/HANDOFF.md: task H8.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5, H6, H7 and H9 are done. **H11, Fluvy, is next**; its
-decisions are taken and nothing is installed yet. H8 needs production `person` entities,
-so the sandbox can build it but not verify its trigger.
+cited below as *plan*. H4, H4b, H5, H6, H7, H9 and H11 are done. **H8 is next**, and the
+sandbox can build it but not verify its trigger, because it needs a production `person`
+entity. H10, the port to production, waits on bridge task B6.
 
 | Task | Read |
 |---|---|
-| **H11** Fluvy on the sandbox, and the dashboards on its cards | Plan §2, §6, §11's H11 row, §12; *Fluvy*, below; Fluvy's card and installation guides (`acosta290/fluvy`, `cards.md` and `installation.md` under its docs folder) |
 | **H8** Tier 5 approach prompt | Plan §9.5, §7.3; §11's H8 row |
+| **H10** Port to production | Plan §12; §8.3's porting issues; §11's H10 row |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -38,19 +38,9 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H11, Fluvy** (plan §2, §11). The operator's choices of 2026-10-30, all in plan §2:
-Fluvy's cards throughout, pinned at v1.11.3, applied everywhere, the dashboards kept as
-YAML-mode files, and no confirmation on gate commands. The steps:
-
-1. Install Fluvy v1.11.3 through ha-mcp's `ha_manage_hacs` (`repository_id` `1390720234`,
-   `version` `v1.11.3`), restart, add the integration with `ha_set_integration`
-   (`domain` `fluvy`), and set the theme and *Scope* to everywhere.
-2. On a branch, move each card in `gate.yaml`, `lran.yaml` and `lran-maintenance.yaml` to
-   its Fluvy equivalent, keeping the entity IDs. Copy to `/Volumes/config/dashboards/lran/`
-   and check each view with `ha_config_get_dashboard(..., include_screenshot=True)`.
-3. Name in the plan each LRAN template, banner or automation Fluvy makes redundant, and
-   each porting issue found. The alerts card against the Gate dashboard's conditional
-   banners is the first candidate. Notifications, reports and the event filter stay.
+**A Fluvy decision for the operator** (plan §8.3). Fluvy capitalises a text state, so
+the Network view shows the bridge's commit as `Addfd6b`. Keep it, or show the firmware
+rows on HA's own entities card.
 
 **H8, the approach prompt** (plan §9.5). It sends a plain push that opens the Gate
 dashboard, as the reminders do. Its trigger needs a tracked `person`, which the sandbox
@@ -62,9 +52,10 @@ MPPT readings are available.
 
 ## What the last session established
 
-- **The operator chose Fluvy for production on 2026-10-30** (plan v0.15, §2; engineering
-  log, 2026-10-30). Nothing is installed on the sandbox yet. The research is under
-  *Fluvy*, below.
+- **H11 is met** (plan v0.16, §8.3; engineering log, 2026-10-30, H11). Fluvy v1.11.3
+  runs on the sandbox, the theme is the default and its *Scope* is `everywhere`. The
+  three dashboards use Fluvy's cards, with the entity IDs unchanged, and every view
+  renders. Plan §8.3 maps each card and lists the porting issues.
 
 - **H7 is met** (engineering log, 2026-10-28, H7). The reports read long-term statistics
   through `recorder.get_statistics`; plan §9.4 states the method and its three
@@ -144,31 +135,18 @@ MPPT readings are available.
 ## Fluvy
 
 Read 2026-10-30 from `acosta290/fluvy` on GitHub, its README and `docs/`. Fetch a doc with
-`gh api repos/acosta290/fluvy/contents/docs/<name>.md --jq .content | base64 -d`.
+`gh api "repos/acosta290/fluvy/contents/docs/<name>.md?ref=v1.11.3" --jq .content | base64 -d`.
+Its source answers what the docs leave out, such as the alert matcher in
+`packages/cards/src/alerts/match.ts`.
 
 - **It is a HACS integration, not a HACS theme**: one install brings the theme, 63 cards,
-  a settings panel and a dashboard resource. It needs HA 2026.9 and HACS 2.0; the sandbox
-  runs HA 2026.10.4 and has HACS, and HACS lists Fluvy as `1390720234`. GPL-3.0, one
+  a settings panel and a dashboard resource. HACS lists it as `1390720234`. GPL-3.0, one
   maintainer, no network calls of its own.
-- **The sandbox needs no `configuration.yaml` edit.** It already includes the themes
-  folder, and its Lovelace resources are in storage mode, so Fluvy registers its own
-  versioned resource. A YAML `lovelace: resources:` block would need a hand edit after
-  every Fluvy update, because the resource URL carries the build.
-- **Card mapping, first pass.** `grid`, `conditional` and the `sections` view stay HA's
-  own. The rest map as follows:
-
-  | LRAN card | Fluvy card |
-  |---|---|
-  | `tile` | `custom:fluvy-tile-card` |
-  | `heading` | `custom:fluvy-heading-card` |
-  | `entities` | `custom:fluvy-entities-card`, with `rows` |
-  | `gauge` | `custom:fluvy-gauge-card`; `gauge: battery` reads a SOC |
-  | `statistics-graph`, `history-graph`, line and bar graphs | `custom:fluvy-chart-card` or `custom:fluvy-history-bars-card` |
-  | The conditional `ha-alert` banners | `custom:fluvy-alerts-card`, with its own matchers and `severity` |
-  | The gate's Open and Close tiles | `custom:fluvy-cover-card` |
-
-- **Fluvy's alerts card snoozes per user and can escalate.** Whether its matchers can
-  replace `templates.yaml`'s derived sensors, or only the banners, is H11's to find out.
+- **The card mapping is plan §8.3.** Fluvy's card editors cannot save to a YAML
+  dashboard, so a card is written from Fluvy's card guide, `cards.md` in its docs folder.
+- **Fluvy's house settings live in HA's frontend system data**, key `fluvy`, read and
+  written with `frontend/get_system_data` and `frontend/set_system_data` through
+  `ha_call_service(ws_command=…)`.
 
 ## Read these, in this order
 
@@ -184,7 +162,7 @@ Read 2026-10-30 from `acosta290/fluvy` on GitHub, its README and `docs/`. Fetch 
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9 |
+| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11 |
 | Queue | H8, then H10 at the port. Bridge tasks F1 to F4 are built (plan §5) |
 
 ```bash
@@ -251,12 +229,21 @@ those two targets changed, which plan §7.3 names.
 
 ## Behaviour that changed, and will make older artifacts read differently
 
+- **From 2026-10-30 the sandbox runs Fluvy**, theme and cards. A screenshot from before
+  then shows HA's default theme and core cards, and the Gate dashboard's gate controls
+  asked for confirmation.
+
 - **From 2026-10-27 a muted alert leaves a logbook entry**, marked `(alerts muted, not
   pushed)`. Before then, muting left no trace of a `normal` or `low` alert.
 - **From 2026-10-25 the sandbox registry has no `simnode_*` devices.** A screenshot or entity
   count from before then includes their 48 entities.
 
 ## Traps that cost real time here
+
+- **After a Fluvy install or update, restart the Puppet app** (`0f1cc410_puppet`). Its
+  browser keeps the old frontend, and every Fluvy card renders as an error placeholder.
+- **A Fluvy heading needs `grid_options: {columns: full}`**, or it takes one grid cell and
+  pushes the cards beside it (plan §8.3).
 
 - **A node's `availability` is retained, so it outlives the bridge.** When the bridge
   comes back, `binary_sensor.lran_gatelink_online` reads the stale value first, then the
@@ -292,12 +279,11 @@ those two targets changed, which plan §7.3 names.
 
 ## Open, and not closable from here
 
-- **Fluvy porting issues found before install.** Its cover card draws open, stop and
-  close and a position ruler; GateLink's cover has no stop and no position, so how the
-  card draws an unsupported feature needs checking. A Fluvy update can change a card
-  under a YAML dashboard nobody re-checks, so each update needs a sandbox render check
-  before production takes it. Plan §2's *core cards only* reasoning, no HACS dependency,
-  no longer holds.
+- **A Fluvy update can change a card under a YAML dashboard nobody re-checks**, so each
+  update needs a render of every view on the sandbox before production takes it.
+- **Two things are unverified under Fluvy.** How its chart card scales series in
+  different units needs BMS and MPPT readings. HA's own pages need a browser, because
+  Puppet renders dashboards only.
 - **The 08:00:08 2026-10-28 `lran_notify` run has no logbook entry in ha-mcp's read**,
   though its trace reached `logbook.log`. Not chased.
 - **Real SMTP.** Needs an account in the sandbox's `site.yaml` and `secrets.yaml`, or waits
@@ -330,10 +316,9 @@ those two targets changed, which plan §7.3 names.
   which parses every package and dashboard. Whether the IDs exist needs ha-mcp, so that
   half runs by hand, on each install.
 - **ha-mcp cannot render `lran-maintenance`.** Its screenshot returns HA's home page,
-  which is what a non-admin user gets for an admin-only dashboard. Making Puppet's user an
-  admin would fix it; whether to is the operator's call.
-- **The `write-clearly` skill is not installed on the Mac**, though CLAUDE.md requires it
-  for every prose change. H3's prose was written without it.
+  which is what a non-admin user gets for an admin-only dashboard. H11 rendered a copy as
+  a temporary non-admin storage dashboard instead. Making Puppet's user an admin would
+  fix it; whether to is the operator's call.
 - **Puppet on production** is a decision for H10: its port takes no authentication, and
   production's network may be less trusted than the sandbox's.
 
