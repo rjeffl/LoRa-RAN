@@ -666,3 +666,33 @@ moved `counter.lran_gatelink_traversals_today` to 1. Its follow-up at 21:59:42, 
 **`ha_config_set_automation(run_actions=True)` is refused** while ha-mcp's strict
 best-practices mode is on, until the skill's acknowledgment key is passed.
 `automation.trigger` through `ha_call_service` runs an automation without it.
+
+## 2026-10-30 — Fluvy chosen for production; H11's decisions, before any install
+
+**The operator wants production HA to run Fluvy** (`acosta290/fluvy`), its theme and its
+cards, and the LRAN dashboards moved to them. Plan v0.15 records the choices in §2 and
+adds task H11.
+
+**Fluvy is a HACS integration**, not a theme. One install brings the theme, 63 cards, a
+settings panel and its own dashboard resource. It needs HA 2026.9 and HACS 2.0. The latest
+release on 2026-10-30 was v1.11.3, and three releases came out on 2026-10-28.
+
+**The sandbox needs no `configuration.yaml` edit for it.** `frontend: themes:
+!include_dir_merge_named themes` is already there. Lovelace resources are in storage
+mode, because `configuration.yaml` names dashboards only, so Fluvy writes its own resource.
+Its resource URL carries the build, `/fluvy-frontend/<version>-<build>/`, so a YAML
+`resources:` block would need a hand edit after every update. The sandbox runs HA
+2026.10.4, and HACS lists Fluvy as `1390720234`.
+
+**The operator's choices**, asked before any install:
+
+- Fluvy's cards throughout, for one look, superseding plan §2's *core cards only* of
+  2026-10-25.
+- Pinned at v1.11.3.
+- Applied everywhere, HA's own pages included.
+- The dashboards stay YAML-mode files in the repository.
+- No confirmation on gate commands. Fluvy's cover card cannot ask one, and the gate's own
+  controls never have.
+
+**Nothing is installed or changed on the sandbox yet.** The session stopped here at the
+operator's request, to resume H11 from the handoff.

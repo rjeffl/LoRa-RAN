@@ -4,7 +4,8 @@
 Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at the end of
 H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the alert
 levels and the message catalog, on 2026-10-27 at the end of H5, on 2026-10-28 at the
-end of H4b, and on 2026-10-28 after the bench checks.**
+end of H4b, on 2026-10-28 after the bench checks, and on 2026-10-30 after the operator
+chose Fluvy (task H11), before anything was installed.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,15 +19,17 @@ end of H4b, and on 2026-10-28 after the bench checks.**
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H8.
+Continue from docs/ha/HANDOFF.md: task H11.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5, H6, H7 and H9 are done. H8 needs production `person`
-entities, so the sandbox can build it but not verify its trigger.
+cited below as *plan*. H4, H4b, H5, H6, H7 and H9 are done. **H11, Fluvy, is next**; its
+decisions are taken and nothing is installed yet. H8 needs production `person` entities,
+so the sandbox can build it but not verify its trigger.
 
 | Task | Read |
 |---|---|
+| **H11** Fluvy on the sandbox, and the dashboards on its cards | Plan §2, §6, §11's H11 row, §12; *Fluvy*, below; Fluvy's card and installation guides (`acosta290/fluvy`, `cards.md` and `installation.md` under its docs folder) |
 | **H8** Tier 5 approach prompt | Plan §9.5, §7.3; §11's H8 row |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -34,6 +37,20 @@ pushing and opening the PR. Merge it once the operator accepts it, then rewrite 
 section and *The next job*.
 
 ## The next job, in one place
+
+**H11, Fluvy** (plan §2, §11). The operator's choices of 2026-10-30, all in plan §2:
+Fluvy's cards throughout, pinned at v1.11.3, applied everywhere, the dashboards kept as
+YAML-mode files, and no confirmation on gate commands. The steps:
+
+1. Install Fluvy v1.11.3 through ha-mcp's `ha_manage_hacs` (`repository_id` `1390720234`,
+   `version` `v1.11.3`), restart, add the integration with `ha_set_integration`
+   (`domain` `fluvy`), and set the theme and *Scope* to everywhere.
+2. On a branch, move each card in `gate.yaml`, `lran.yaml` and `lran-maintenance.yaml` to
+   its Fluvy equivalent, keeping the entity IDs. Copy to `/Volumes/config/dashboards/lran/`
+   and check each view with `ha_config_get_dashboard(..., include_screenshot=True)`.
+3. Name in the plan each LRAN template, banner or automation Fluvy makes redundant, and
+   each porting issue found. The alerts card against the Gate dashboard's conditional
+   banners is the first candidate. Notifications, reports and the event filter stay.
 
 **H8, the approach prompt** (plan §9.5). It sends a plain push that opens the Gate
 dashboard, as the reminders do. Its trigger needs a tracked `person`, which the sandbox
@@ -44,6 +61,10 @@ does not have, so the sandbox can check the push but not the trigger.
 MPPT readings are available.
 
 ## What the last session established
+
+- **The operator chose Fluvy for production on 2026-10-30** (plan v0.15, §2; engineering
+  log, 2026-10-30). Nothing is installed on the sandbox yet. The research is under
+  *Fluvy*, below.
 
 - **H7 is met** (engineering log, 2026-10-28, H7). The reports read long-term statistics
   through `recorder.get_statistics`; plan §9.4 states the method and its three
@@ -119,6 +140,35 @@ MPPT readings are available.
 - **A session can now see a dashboard rendered**, through ha-mcp's screenshot beta and the
   Puppet app (engineering log, 2026-10-26, render check). H4 and later tasks check banners
   and cards this way rather than asking the operator.
+
+## Fluvy
+
+Read 2026-10-30 from `acosta290/fluvy` on GitHub, its README and `docs/`. Fetch a doc with
+`gh api repos/acosta290/fluvy/contents/docs/<name>.md --jq .content | base64 -d`.
+
+- **It is a HACS integration, not a HACS theme**: one install brings the theme, 63 cards,
+  a settings panel and a dashboard resource. It needs HA 2026.9 and HACS 2.0; the sandbox
+  runs HA 2026.10.4 and has HACS, and HACS lists Fluvy as `1390720234`. GPL-3.0, one
+  maintainer, no network calls of its own.
+- **The sandbox needs no `configuration.yaml` edit.** It already includes the themes
+  folder, and its Lovelace resources are in storage mode, so Fluvy registers its own
+  versioned resource. A YAML `lovelace: resources:` block would need a hand edit after
+  every Fluvy update, because the resource URL carries the build.
+- **Card mapping, first pass.** `grid`, `conditional` and the `sections` view stay HA's
+  own. The rest map as follows:
+
+  | LRAN card | Fluvy card |
+  |---|---|
+  | `tile` | `custom:fluvy-tile-card` |
+  | `heading` | `custom:fluvy-heading-card` |
+  | `entities` | `custom:fluvy-entities-card`, with `rows` |
+  | `gauge` | `custom:fluvy-gauge-card`; `gauge: battery` reads a SOC |
+  | `statistics-graph`, `history-graph`, line and bar graphs | `custom:fluvy-chart-card` or `custom:fluvy-history-bars-card` |
+  | The conditional `ha-alert` banners | `custom:fluvy-alerts-card`, with its own matchers and `severity` |
+  | The gate's Open and Close tiles | `custom:fluvy-cover-card` |
+
+- **Fluvy's alerts card snoozes per user and can escalate.** Whether its matchers can
+  replace `templates.yaml`'s derived sensors, or only the banners, is H11's to find out.
 
 ## Read these, in this order
 
@@ -242,10 +292,16 @@ those two targets changed, which plan §7.3 names.
 
 ## Open, and not closable from here
 
+- **Fluvy porting issues found before install.** Its cover card draws open, stop and
+  close and a position ruler; GateLink's cover has no stop and no position, so how the
+  card draws an unsupported feature needs checking. A Fluvy update can change a card
+  under a YAML dashboard nobody re-checks, so each update needs a sandbox render check
+  before production takes it. Plan §2's *core cards only* reasoning, no HACS dependency,
+  no longer holds.
 - **The 08:00:08 2026-10-28 `lran_notify` run has no logbook entry in ha-mcp's read**,
   though its trace reached `logbook.log`. Not chased.
 - **Real SMTP.** Needs an account in the sandbox's `site.yaml` and `secrets.yaml`, or waits
-  for production (plan §12, step 6).
+  for production (plan §12, step 7).
 - **Forcing a state has no ha-mcp route.** An event alert needs none: `mqtt.publish`
   injects the event (H4). An alert on a sensor's state needs none either: H5 moved its
   threshold instead. A banner check still needs one. The operator chose a test-only

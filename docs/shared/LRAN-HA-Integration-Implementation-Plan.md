@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.14
+**Version:** 0.15
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28
-**Last updated:** 2026-10-28
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen 2026-10-30, task H11 not started
+**Last updated:** 2026-10-30
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
@@ -55,7 +55,11 @@ together with the entities. The bridge handoff asked for this plan before GL8.
 | Question | Choice |
 |---|---|
 | Dashboard layout | **Two dashboards.** *Gate* for daily use; *LRAN* with Power, Network, Events and Maintenance views. On 2026-10-26 the operator moved Maintenance to a third, admin-only dashboard, because HA cannot gate a view (§8.2) |
-| Card set | **Core cards only.** Nothing to install on production, and no HACS dependency to keep current |
+| Card set | ~~**Core cards only.** Nothing to install on production, and no HACS dependency to keep current~~ **Superseded 2026-10-30:** the operator chose Fluvy (`acosta290/fluvy`) for production, theme and cards, for one look across HA. The LRAN dashboards use Fluvy's cards wherever Fluvy has one (task H11) |
+| Fluvy version | **Pinned at v1.11.3**, the latest release on 2026-10-30. Three releases came out on 2026-10-28, so an update is taken deliberately, once the sandbox has run it |
+| Fluvy scope | **Everywhere.** Fluvy's *Scope* setting restyles the sidebar and HA's own pages as well as the dashboards, on the sandbox as on production |
+| Dashboard source | **YAML-mode files in the repository, unchanged** (§6). Fluvy's card editors cannot save to a YAML dashboard, so its cards are written from its documentation |
+| Gate command confirmation | **Not required** (operator, 2026-10-30). Fluvy's cover card sends open and close with no confirmation dialog. The gate's own controls have never asked for one |
 | Gate control entity | **Fix it in the bridge.** Discovery publishes the D8 `cover` and hold `switch` (§5, task F1). Dashboards use the four command buttons until F1 lands |
 | Automation tiers | **All five:** alerts, health, reminders, reports, convenience (§9) |
 | Notification channels | **Companion-app push now; SMTP email later, behind a switch.** Email is built and tested, then held off by `input_boolean.lran_email_enabled` until the operator turns it on. **No SMS:** push replaces it |
@@ -613,7 +617,8 @@ from the YAML.
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal. **Met 2026-10-28**: both reports rendered, with statistics from the sandbox, and reached the phone. SOC and yesterday's yield read `not reported`, because the bench's BMS and MPPT readings were unavailable. A bench traversal counted once, and its follow-up did not |
 | **H8** | Tier 5 approach prompt | H6; production `person` entities | Tapping the prompt opens the Gate dashboard. Voice control uses F1's cover |
 | **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Met 2026-10-28** against the sandbox, once its bridge ran 760e9a3 |
-| **H10** | Port to production | H1–H9; bridge **B6** | §12's procedure, then GL8 |
+| **H10** | Port to production | H1–H9, H11; bridge **B6** | §12's procedure, then GL8 |
+| **H11** | Fluvy: install it on the sandbox, and move the three dashboards to its cards (§2) | H2, H3; F1 | Fluvy v1.11.3 is installed through HACS, and its theme applies everywhere. Each card in the three dashboards is a Fluvy card where Fluvy has one, with the entity IDs unchanged, and `check_entities.py` passes. Each view renders in a screenshot. The plan names each LRAN template, banner or automation that Fluvy makes redundant, and each porting issue found |
 
 **F1 to F4 are bridge tasks** (§5), built 2026-10-28. H2's Gate dashboard moved to the
 cover and hold switch in the same change. H6's reminders read `sensor.gatelink_gate` and
@@ -627,13 +632,17 @@ cover when it is.
 2. Copy `ha/packages/lran/` to `packages/lran/` and `ha/dashboards/` to `dashboards/lran/`
    in the production config directory, matching the paths in §6. Write
    `site.yaml` from `site.yaml.example` with the production notify targets.
-3. Add the §6 blocks to `configuration.yaml`, check the configuration, and restart.
-4. Run `tools/ha/check_entities.py --server ha-prod`. **A missing entity ID means the
+3. Install HACS, then Fluvy v1.11.3 through HACS (§2), and add the Fluvy integration.
+   Fluvy registers its own dashboard resource while resources are in storage mode, as on
+   the sandbox. `configuration.yaml` needs `frontend: themes: !include_dir_merge_named
+   themes`.
+4. Add the §6 blocks to `configuration.yaml`, check the configuration, and restart.
+5. Run `tools/ha/check_entities.py --server ha-prod`. **A missing entity ID means the
    production registry named something differently, or the bridge runs firmware older
    than the repository's discovery.** Rename a production entity to match the repository,
    rather than editing the YAML for one install. Reflash a bridge that is behind.
-5. Verify tier 1 on production with relay dry-run on, as part of GL8.
-6. Turn on `input_boolean.lran_email_enabled` when the operator is ready for email.
+6. Verify tier 1 on production with relay dry-run on, as part of GL8.
+7. Turn on `input_boolean.lran_email_enabled` when the operator is ready for email.
 
 ## 13. Open questions
 
@@ -654,6 +663,7 @@ cover when it is.
 | 0.7 | 2026-10-27 | H5 done. By operator choice, every selector gains `Low` (§7.5), and an alert with two levels is two alerts (§9.2). §7.3 logs a muted alert, for S-14. §9.2's state alerts use template triggers, and §7.1 adds the boot-time helper. §7.5 states that a selector added after the seed starts at `Off` |
 | 0.12 | 2026-10-28 | H6 and H7 done. §9.4 reads long-term statistics through `recorder.get_statistics`, and states its three approximations. By operator choice, `lran_notify` notes every alert for the morning report (§7.3, §7.1), and yesterday's yield comes from a package MQTT sensor until bridge task F4 adds it to discovery (§5). §7.4 adds the MPPT charge-state `history_stats` sensors |
 | 0.14 | 2026-10-28 | Bridge tasks F1–F4 built (§5). The Gate dashboard uses the cover and the hold switch (§8.1). The Power, Events and Maintenance views gain the pack temperatures, SOC source, last boot, the two event entities, BMS polling and *Restore defaults* (§8.2). The morning report reads discovery's yield-yesterday sensor (§9.4) |
+| 0.15 | 2026-10-30 | By operator choice, §2 adopts Fluvy for production: its cards throughout, pinned at v1.11.3, applied everywhere, with the dashboards still YAML-mode files and no confirmation on gate commands. §11 adds task H11; H10 depends on it. §12 adds the Fluvy install as step 3 |
 | 0.13 | 2026-10-28 | Protocol specification v0.18 → v0.19. §9's `lran_2_mppt_error` row says spec §8.9 now defines `MPPT_ERROR`'s and `BMS_ALARM`'s `detail` (**D86**). The MPPT alert does not read it yet, and the BMS alert shows it raw |
 | 0.11 | 2026-10-28 | By operator choice, H6 drops the **Close gate** action and its handler, and §9.5 the **Open gate** action: an action is easy to miss and adds little. A reminder opens the Gate dashboard instead (§3, §9.3, §9.5). §7.3's script takes `url` in place of `actions`. H9 done |
 | 0.10 | 2026-10-28 | H6 built, not verified. §9.3 states what counts as open and as away, and that the handler skips a closed gate and needs an unlocked iOS phone |
