@@ -396,7 +396,8 @@ pass.
 
 The dashboards use Fluvy's cards wherever Fluvy has one (§2, task H11), and HA's own
 cards elsewhere: `sections` views and `grid` sections, `conditional`, `logbook`,
-`markdown` for fixed text, and `statistics-graph` for a year of min, mean and max. §8.3
+`markdown` for fixed text, `statistics-graph` for a year of min, mean and max, and
+`entities` for the firmware rows. §8.3
 gives the mapping and what it cost. A sections view reflows to one column on a phone.
 
 ### 8.1 Gate (daily use, phone first)
@@ -498,8 +499,10 @@ statistics.
   or divider rows. Settings moved to helpers cards, one per former section.
 - **A Fluvy heading takes one grid cell**, where HA's takes the row, so each heading has
   `columns: full`.
-- **Fluvy capitalises a text state.** The bridge's firmware commit reads `Addfd6b` and its
-  OTA slot `App0`. A commit hash is case-significant, so the Network view misstates it.
+- **Fluvy capitalises a text state.** On a Fluvy card the bridge's firmware commit reads
+  `Addfd6b` and its OTA slot `App0`, and a commit hash is case-significant. By operator
+  choice, 2026-10-30, the Network view's firmware rows stay on HA's own `entities` card,
+  which shows `addfd6b`.
 - **An alert shows its name, not a sentence.** The explanation each banner carried, such
   as *A power cycle loses them*, is gone, and the alert's sheet lists the entity instead.
 - **GateLink's cover has no stop and no position.** The compact cover card draws open and
@@ -718,7 +721,7 @@ cover when it is.
 | 0.12 | 2026-10-28 | H6 and H7 done. §9.4 reads long-term statistics through `recorder.get_statistics`, and states its three approximations. By operator choice, `lran_notify` notes every alert for the morning report (§7.3, §7.1), and yesterday's yield comes from a package MQTT sensor until bridge task F4 adds it to discovery (§5). §7.4 adds the MPPT charge-state `history_stats` sensors |
 | 0.14 | 2026-10-28 | Bridge tasks F1–F4 built (§5). The Gate dashboard uses the cover and the hold switch (§8.1). The Power, Events and Maintenance views gain the pack temperatures, SOC source, last boot, the two event entities, BMS polling and *Restore defaults* (§8.2). The morning report reads discovery's yield-yesterday sensor (§9.4) |
 | 0.15 | 2026-10-30 | By operator choice, §2 adopts Fluvy for production: its cards throughout, pinned at v1.11.3, applied everywhere, with the dashboards still YAML-mode files and no confirmation on gate commands. §11 adds task H11; H10 depends on it. §12 adds the Fluvy install as step 3 |
-| 0.16 | 2026-10-30 | H11 done. §8 moves the three dashboards to Fluvy's cards, and §8.3 maps each card, names what Fluvy makes redundant and lists the porting issues. §12 step 3 sets the theme and Fluvy's *Scope* |
+| 0.16 | 2026-10-30 | H11 done. §8 moves the three dashboards to Fluvy's cards, and §8.3 maps each card, names what Fluvy makes redundant and lists the porting issues. By operator choice, the firmware rows stay on HA's `entities` card, because Fluvy capitalises the commit hash. §12 step 3 sets the theme and Fluvy's *Scope* |
 | 0.13 | 2026-10-28 | Protocol specification v0.18 → v0.19. §9's `lran_2_mppt_error` row says spec §8.9 now defines `MPPT_ERROR`'s and `BMS_ALARM`'s `detail` (**D86**). The MPPT alert does not read it yet, and the BMS alert shows it raw |
 | 0.11 | 2026-10-28 | By operator choice, H6 drops the **Close gate** action and its handler, and §9.5 the **Open gate** action: an action is easy to miss and adds little. A reminder opens the Gate dashboard instead (§3, §9.3, §9.5). §7.3's script takes `url` in place of `actions`. H9 done |
 | 0.10 | 2026-10-28 | H6 built, not verified. §9.3 states what counts as open and as away, and that the handler skips a closed gate and needs an unlocked iOS phone |

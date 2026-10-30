@@ -38,10 +38,6 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**A Fluvy decision for the operator** (plan §8.3). Fluvy capitalises a text state, so
-the Network view shows the bridge's commit as `Addfd6b`. Keep it, or show the firmware
-rows on HA's own entities card.
-
 **H8, the approach prompt** (plan §9.5). It sends a plain push that opens the Gate
 dashboard, as the reminders do. Its trigger needs a tracked `person`, which the sandbox
 does not have, so the sandbox can check the push but not the trigger.

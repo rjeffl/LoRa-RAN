@@ -313,11 +313,11 @@ views:
                 name: Frames transmitted
               - entity: sensor.lora_bridge_frames_discarded
                 name: Frames discarded
-          # Fluvy's entities card has no section row, so the firmware rows are a card of
-          # their own.
-          - type: custom:fluvy-entities-card
+          # HA's own entities card, by operator choice (plan 8.3): Fluvy's capitalises a
+          # text state, which would show the commit hash as Addfd6b.
+          - type: entities
             title: Firmware
-            rows:
+            entities:
               - entity: sensor.lora_bridge_firmware_version
                 name: Version
               - entity: sensor.lora_bridge_firmware_commit

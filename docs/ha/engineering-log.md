@@ -744,3 +744,10 @@ The Gate view was also rendered at phone width.
 24 h and 7 d power charts mix %, mV, mA, W and °F, and the bench has no BMS or MPPT
 readings. Nor are HA's own pages checked under Fluvy's theme: Puppet renders dashboards
 only.
+
+## 2026-10-30 — The firmware rows go back to HA's own entities card
+
+**The operator chose HA's `entities` card for the Network view's firmware rows**, after
+H11 found that Fluvy capitalises a text state. Under Fluvy's theme the HA card shows the
+commit as `addfd6b` and the OTA slot as `app0`, checked in a render. Plan §8.3 records the
+choice.
