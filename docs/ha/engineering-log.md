@@ -666,3 +666,88 @@ moved `counter.lran_gatelink_traversals_today` to 1. Its follow-up at 21:59:42, 
 **`ha_config_set_automation(run_actions=True)` is refused** while ha-mcp's strict
 best-practices mode is on, until the skill's acknowledgment key is passed.
 `automation.trigger` through `ha_call_service` runs an automation without it.
+
+## 2026-10-30 — Fluvy chosen for production; H11's decisions, before any install
+
+**The operator wants production HA to run Fluvy** (`acosta290/fluvy`), its theme and its
+cards, and the LRAN dashboards moved to them. Plan v0.15 records the choices in §2 and
+adds task H11.
+
+**Fluvy is a HACS integration**, not a theme. One install brings the theme, 63 cards, a
+settings panel and its own dashboard resource. It needs HA 2026.9 and HACS 2.0. The latest
+release on 2026-10-30 was v1.11.3, and three releases came out on 2026-10-28.
+
+**The sandbox needs no `configuration.yaml` edit for it.** `frontend: themes:
+!include_dir_merge_named themes` is already there. Lovelace resources are in storage
+mode, because `configuration.yaml` names dashboards only, so Fluvy writes its own resource.
+Its resource URL carries the build, `/fluvy-frontend/<version>-<build>/`, so a YAML
+`resources:` block would need a hand edit after every update. The sandbox runs HA
+2026.10.4, and HACS lists Fluvy as `1390720234`.
+
+**The operator's choices**, asked before any install:
+
+- Fluvy's cards throughout, for one look, superseding plan §2's *core cards only* of
+  2026-10-25.
+- Pinned at v1.11.3.
+- Applied everywhere, HA's own pages included.
+- The dashboards stay YAML-mode files in the repository.
+- No confirmation on gate commands. Fluvy's cover card cannot ask one, and the gate's own
+  controls never have.
+
+**Nothing is installed or changed on the sandbox yet.** The session stopped here at the
+operator's request, to resume H11 from the handoff.
+
+## 2026-10-30 — H11: Fluvy installed on the sandbox, and the three dashboards on its cards
+
+**Fluvy v1.11.3 is installed through HACS**, with its integration added and HA restarted.
+It registered its own resource, `/fluvy-frontend/1.11.3-2cfe827a/fluvy.js`, and wrote the
+theme `Fluvy`, now the backend default for light and dark.
+
+**Fluvy's *Scope* defaults to `dashboards`, not `everywhere`**, and in that scope it styles
+only dashboards whose path starts `fluvy-`. Plan §2 asks for everywhere, so the house
+setting was written through HA's `frontend/set_system_data`, key `fluvy`, value
+`{"version": 3, "scope": "everywhere"}`. Fluvy parses that record field by field, so a
+partial one is safe. On production the settings panel's *Scope* tab does the same.
+
+**Every card rendered as an error placeholder until Puppet restarted.** The engine kept a
+browser from before HA's restart, with the old frontend loaded. Restarting the
+`0f1cc410_puppet` app fixed it, and a Fluvy update will need the same.
+
+**What the renders showed**, each fixed in the YAML before the next render:
+
+- A Fluvy heading takes one grid cell, where HA's takes the row. In the three-column
+  sections it pushed the charts sideways, so each heading has `columns: full`.
+- Fluvy's tile defaults to its large size. The tiles are `size: compact`.
+- Fluvy's chart card reads at most 90 days: the 1-year graphs drew 90. Fluvy's source
+  states the limit (`LONGEST` in `packages/cards/src/chart/data/span.ts`), so the two
+  1-year min, mean and max graphs stay HA's `statistics-graph`.
+- Fluvy's entities card shows a `number` as a value, not a control. Settings are helpers
+  cards, which draw a stepper per number, chips per select and a switch per boolean.
+- Fluvy capitalises a text state: the bridge commit `addfd6b` reads `Addfd6b`, and the OTA
+  slot `app0` reads `App0`. Left as it is, and listed in plan §8.3.
+
+**An alert matcher matches `unavailable` only when it names it.** Fluvy's `match.ts`
+says so, and a render confirmed it. A test alert on `sensor.gatelink_battery`, which is
+unavailable on the bench, showed as a row with its entity and age. That is how the Gate
+dashboard's *GateLink unavailable* alert reads `sensor.gatelink_gate`, and why the binary
+sensors' alerts stay quiet while GateLink is gone.
+
+**`lran-maintenance` was rendered as a copy.** ha-mcp's Puppet user is not an admin, so
+the config went to a temporary non-admin storage dashboard, `lran-h11-render`, which was
+screenshotted and then deleted.
+
+**The checks.** `check_entities.py` passes against the sandbox, 221 IDs and one prefix,
+and each dashboard names the same entity IDs as before the port. Every view rendered.
+The Gate view was also rendered at phone width.
+
+**Not checked:** whether the chart card puts series in different units on one scale. The
+24 h and 7 d power charts mix %, mV, mA, W and °F, and the bench has no BMS or MPPT
+readings. Nor are HA's own pages checked under Fluvy's theme: Puppet renders dashboards
+only.
+
+## 2026-10-30 — The firmware rows go back to HA's own entities card
+
+**The operator chose HA's `entities` card for the Network view's firmware rows**, after
+H11 found that Fluvy capitalises a text state. Under Fluvy's theme the HA card shows the
+commit as `addfd6b` and the OTA slot as `app0`, checked in a render. Plan §8.3 records the
+choice.
