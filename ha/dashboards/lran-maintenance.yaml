@@ -9,6 +9,10 @@
 # and HA gates by dashboard (require_admin in the lovelace block), not by view. A view's
 # only gate is a list of user IDs, which differ on every install (engineering log,
 # 2026-10-26).
+#
+# Fluvy's cards wherever Fluvy has one (plan 2, task H11). A setting is a helpers-card
+# row, because Fluvy's entities card shows a number as a value and not a control; a
+# button is an actions-card row. The two fixed-text notes stay HA markdown cards.
 
 title: LRAN maintenance
 views:
@@ -20,23 +24,21 @@ views:
     sections:
       - type: grid
         cards:
-          - type: heading
-            heading: GateLink state
+          - type: custom:fluvy-heading-card
+            title: GateLink state
+            grid_options:
+              columns: full
           # First, because off means the node is running settings it has not saved
           # (plan 8.2), and a power cycle would lose them.
-          - type: conditional
-            conditions:
-              - condition: state
+          - type: custom:fluvy-alerts-card
+            variant: rows
+            alerts:
+              - name: Configuration not persisted
                 entity: binary_sensor.gatelink_configuration_persisted
                 state: "off"
-            card:
-              type: markdown
-              text_only: true
-              content: >-
-                <ha-alert alert-type="warning" title="Configuration not persisted">GateLink
-                is running settings it has not saved. A power cycle loses them.</ha-alert>
-          - type: entities
-            entities:
+                severity: warning
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: binary_sensor.gatelink_configuration_persisted
                 name: Configuration persisted
               - entity: binary_sensor.gatelink_relay_dry_run
@@ -45,35 +47,40 @@ views:
                 name: Deployed
               - entity: switch.gatelink_buzzer_enable
                 name: Buzzer
+              # SET_BMS_POLLING (R-3.4e). GateLink polls again after a reboot (R-3.4a).
+              - entity: switch.gatelink_bms_polling
+                name: BMS polling
+          - type: custom:fluvy-actions-card
+            title: Requests
+            rows:
               - entity: button.gatelink_request_status
                 name: Request status
               - entity: button.gatelink_request_configuration
                 name: Request configuration
-              # SET_BMS_POLLING (R-3.4e). GateLink polls again after a reboot (R-3.4a).
-              - entity: switch.gatelink_bms_polling
-                name: BMS polling
-              # Every GateLink setting back to its default, at once, so it asks first.
-              - type: button
-                entity: button.gatelink_restore_defaults
-                name: Restore defaults
-                action_name: Restore
-                tap_action:
-                  action: perform-action
-                  perform_action: button.press
-                  target:
-                    entity_id: button.gatelink_restore_defaults
-                  confirmation:
-                    text: Restore every GateLink setting to its default?
+          # Every GateLink setting back to its default, at once, so it asks first. A scene
+          # card, because the actions card's rows take no tap action to confirm.
+          - type: custom:fluvy-scene-card
+            entity: button.gatelink_restore_defaults
+            name: Restore defaults
+            grid_options:
+              columns: 12
+            tap_action:
+              action: perform-action
+              perform_action: button.press
+              target:
+                entity_id: button.gatelink_restore_defaults
+              confirmation:
+                text: Restore every GateLink setting to its default?
           # Charge-controller writes are a battery-affecting path (GateLink PRD S-11), so
-          # the switch sits under a statement of that.
+          # the switch sits under a statement of that. Fluvy has no card for fixed text.
           - type: markdown
             text_only: true
             content: >-
               <ha-alert alert-type="warning" title="MPPT writes">Turning this on lets the
               bridge write the charge controller's configuration. A wrong value can damage
               the pack (GateLink PRD S-11).</ha-alert>
-          - type: entities
-            entities:
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: switch.gatelink_mppt_write_enable
                 name: MPPT write enable
 
@@ -81,28 +88,33 @@ views:
       # that hides a fault rather than shows one (plan 7.5).
       - type: grid
         cards:
-          - type: heading
-            heading: Alerts
-          # Names every alert set to Off, so one left off after bench work is seen.
-          - type: markdown
-            text_only: true
-            content: >-
-              {% set off = states.input_select
-                 | selectattr('entity_id', 'match', 'input_select.lran_alert_')
-                 | selectattr('state', 'eq', 'Off') | map(attribute='name') | list %}
-              {% if off %}<ha-alert alert-type="warning" title="Alerts off">{{ off | join(', ') }}
-              {{ 'sends' if off | count == 1 else 'send' }} no push or email. The logbook
-              still records {{ 'it' if off | count == 1 else 'them' }}.</ha-alert>{% endif %}
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: Alerts
+            grid_options:
+              columns: full
+          # Counts every alert set to Off, and its sheet names them, so one left off after
+          # bench work is seen. An Off alert sends no push or email; the logbook still
+          # records it.
+          - type: custom:fluvy-alerts-card
+            variant: rows
+            alerts:
+              - name: Alerts off
+                entity_id: input_select.lran_alert_*
+                state: "Off"
+                severity: warning
+          # Fluvy's helpers card has no section row, so each tier is a card of its own.
+          - type: custom:fluvy-helpers-card
+            title: Alerts
+            rows:
               - entity: input_select.lran_alert_fire
               - entity: input_select.lran_alert_vehicle_while_held
               - entity: input_select.lran_alert_hard_shutdown
               - entity: input_select.lran_alert_bms_alarm
               - entity: input_select.lran_alert_gatelink_offline
               - entity: input_select.lran_alert_bridge_offline
-              - type: section
-                label: Health
+          - type: custom:fluvy-helpers-card
+            title: Health
+            rows:
               - entity: input_select.lran_alert_soc_low
               - entity: input_select.lran_alert_soc_alarm
               - entity: input_select.lran_alert_charge_inhibited
@@ -112,23 +124,29 @@ views:
               - entity: input_select.lran_alert_node_boot
               - entity: input_select.lran_alert_node_boot_loop
               - entity: input_select.lran_alert_phy_reverted
-              - type: section
-                label: Reminders
+          - type: custom:fluvy-helpers-card
+            title: Reminders
+            rows:
               - entity: input_select.lran_alert_held_open_long
               - entity: input_select.lran_alert_open_at_night
               - entity: input_select.lran_alert_open_nobody_home
-              - type: section
-                label: Reports
+          - type: custom:fluvy-helpers-card
+            title: Reports
+            rows:
               - entity: input_select.lran_alert_morning_report
               - entity: input_select.lran_alert_weekly_battery
-              - type: divider
+          - type: custom:fluvy-helpers-card
+            title: Delivery
+            rows:
               - entity: input_boolean.lran_alerts_muted
                 name: Mute normal and low alerts
               - entity: input_boolean.lran_email_enabled
                 name: Email alerts
+          - type: custom:fluvy-actions-card
+            title: Levels
+            rows:
               - entity: script.lran_alert_levels_default
                 name: Restore default levels
-                action_name: Restore
           - type: markdown
             content: >-
               **Off** logs only, marked as not pushed. **Low** logs only. **Normal**
@@ -139,10 +157,12 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: MPPT configuration
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: MPPT configuration
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.gatelink_system_voltage_setting
                 name: System voltage
               - entity: sensor.gatelink_battery_type
@@ -166,10 +186,13 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: LRAN thresholds
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: LRAN thresholds
+            grid_options:
+              columns: full
+          - type: custom:fluvy-helpers-card
+            title: Thresholds
+            rows:
               - entity: input_number.lran_soc_warn_pct
                 name: SOC warning
               - entity: input_number.lran_soc_alarm_pct
@@ -187,11 +210,13 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: Bridge configuration
-          - type: entities
+          - type: custom:fluvy-heading-card
+            title: Bridge configuration
+            grid_options:
+              columns: full
+          - type: custom:fluvy-helpers-card
             title: Radio
-            entities:
+            rows:
               - entity: number.lora_bridge_freq_hz
                 name: Frequency
               - entity: number.lora_bridge_spreading_factor
@@ -208,9 +233,9 @@ views:
                 name: Backoff max
               - entity: number.lora_bridge_cad_retries
                 name: CAD retries
-          - type: entities
+          - type: custom:fluvy-helpers-card
             title: Link timing
-            entities:
+            rows:
               - entity: number.lora_bridge_poll_reply_timeout_ms
                 name: Poll reply timeout
               - entity: number.lora_bridge_missed_poll_threshold
@@ -229,9 +254,9 @@ views:
                 name: Fragment reassembly timeout
               - entity: number.lora_bridge_error_min_interval_ms
                 name: Error minimum interval
-          - type: entities
+          - type: custom:fluvy-helpers-card
             title: Publishing and power
-            entities:
+            rows:
               - entity: number.lora_bridge_republish_interval_s
                 name: Republish interval
               - entity: number.lora_bridge_diag_interval_s
@@ -249,11 +274,13 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: GateLink configuration
-          - type: entities
+          - type: custom:fluvy-heading-card
+            title: GateLink configuration
+            grid_options:
+              columns: full
+          - type: custom:fluvy-helpers-card
             title: Link
-            entities:
+            rows:
               - entity: number.gatelink_poll_interval_s
                 name: Poll interval
               - entity: number.gatelink_backoff_max_ms
@@ -270,9 +297,9 @@ views:
                 name: Watchdog timeout
               - entity: number.gatelink_display_timeout_s
                 name: Display timeout
-          - type: entities
+          - type: custom:fluvy-helpers-card
             title: Gate and relay
-            entities:
+            rows:
               - entity: number.gatelink_relay_pulse_ms
                 name: Relay pulse
               - entity: number.gatelink_relay_min_spacing_ms
@@ -297,9 +324,9 @@ views:
                 name: Held-open alert repeat
               - entity: number.gatelink_inject_spacing_ms
                 name: Inject spacing
-          - type: entities
+          - type: custom:fluvy-helpers-card
             title: Power
-            entities:
+            rows:
               - entity: number.gatelink_bms_poll_s
                 name: BMS poll
               - entity: number.gatelink_bms_window_max_ms
@@ -322,16 +349,22 @@ views:
       # Unavailable until WellLink is deployed.
       - type: grid
         cards:
-          - type: heading
-            heading: WellLink configuration
-          - type: entities
-            entities:
-              - entity: switch.welllink_deployed
-                name: Deployed
+          - type: custom:fluvy-heading-card
+            title: WellLink configuration
+            grid_options:
+              columns: full
+          - type: custom:fluvy-actions-card
+            title: Requests
+            rows:
               - entity: button.welllink_request_status
                 name: Request status
               - entity: button.welllink_request_configuration
                 name: Request configuration
+          - type: custom:fluvy-helpers-card
+            title: Settings
+            rows:
+              - entity: switch.welllink_deployed
+                name: Deployed
               - entity: number.welllink_poll_interval_s
                 name: Poll interval
               - entity: number.welllink_backoff_max_ms

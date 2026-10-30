@@ -11,8 +11,14 @@
 # is a relay pulse at the gate (H3's acceptance).
 #
 # Graphs read the raw mV and mA sensors, not the rescaled V sensors, which the recorder
-# excludes (plan 10). Graphs beyond 10 days are statistics-graph cards: they read
-# long-term statistics, and the recorder's history ends at purge_keep_days (plan 10).
+# excludes (plan 10). Graphs beyond 10 days read long-term statistics, because the
+# recorder's history ends at purge_keep_days (plan 10).
+#
+# Fluvy's cards wherever Fluvy has one (plan 2, task H11): a history graph or a line
+# statistics graph is a chart card, a bar statistics graph a history-bars card. A year
+# of min, mean and max stays HA's statistics-graph: Fluvy's chart card reads at most 90
+# days. The logbook stays HA's own, as Fluvy has none. A Fluvy heading takes one grid
+# cell where HA's takes the row, hence columns: full.
 
 title: LRAN
 views:
@@ -24,17 +30,20 @@ views:
     sections:
       - type: grid
         cards:
-          - type: heading
-            heading: Battery
+          - type: custom:fluvy-heading-card
+            title: Battery
+            grid_options:
+              columns: full
           # No severity bands, as on the Gate dashboard: the SOC thresholds are helpers
           # (plan 7.1), and fixed bands would drift from them.
-          - type: gauge
+          - type: custom:fluvy-gauge-card
             entity: sensor.gatelink_battery
+            gauge: battery
             name: State of charge
             min: 0
             max: 100
-          - type: entities
-            entities:
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.gatelink_pack_voltage
                 name: Pack voltage
               - entity: sensor.gatelink_pack_current
@@ -49,9 +58,9 @@ views:
                 name: Drawn since charging
               - entity: sensor.gatelink_bms_reading_age
                 name: BMS reading age
-          - type: entities
+          - type: custom:fluvy-entities-card
             title: Cells
-            entities:
+            rows:
               - entity: sensor.gatelink_cell_1_voltage
                 name: Cell 1
               - entity: sensor.gatelink_cell_2_voltage
@@ -64,9 +73,9 @@ views:
                 name: Spread
           # Both charge-inhibit flags: GateLink's derived indication (R-6.4a), which the
           # Gate dashboard's banner reads, and the BMS's own.
-          - type: entities
+          - type: custom:fluvy-entities-card
             title: Protection
-            entities:
+            rows:
               - entity: binary_sensor.gatelink_battery_protection
                 name: Battery protection
               - entity: binary_sensor.gatelink_charging_inhibited
@@ -76,10 +85,12 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: Solar
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: Solar
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.gatelink_pv_power
                 name: PV power
               - entity: sensor.gatelink_pv_voltage
@@ -98,9 +109,9 @@ views:
                 name: Battery current (MPPT)
               - entity: sensor.gatelink_load_current
                 name: Load output current
-          - type: entities
+          - type: custom:fluvy-entities-card
             title: Consumption
-            entities:
+            rows:
               - entity: sensor.lran_gatelink_draw_current
                 name: Draw current
               - entity: sensor.lran_gatelink_draw_7d
@@ -113,10 +124,12 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: Temperatures
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: Temperatures
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.gatelink_enclosure_temperature
                 name: Enclosure
               - entity: sensor.lran_gatelink_enclosure_temp_max_24h
@@ -141,45 +154,79 @@ views:
       - type: grid
         column_span: 3
         cards:
-          - type: heading
-            heading: Last 24 hours and 7 days
-          - type: history-graph
+          - type: custom:fluvy-heading-card
+            title: Last 24 hours and 7 days
+            grid_options:
+              columns: full
+          - type: custom:fluvy-chart-card
             title: 24 hours
-            hours_to_show: 24
-            entities: &power_history
+            span: 24h
+            series:
               - entity: sensor.gatelink_battery
                 name: SOC
+                source: history
               - entity: sensor.gatelink_pack_voltage
                 name: Pack voltage
+                source: history
               - entity: sensor.gatelink_pack_current
                 name: Pack current
+                source: history
               - entity: sensor.gatelink_pv_power
                 name: PV power
+                source: history
               - entity: sensor.gatelink_enclosure_temperature
                 name: Enclosure
+                source: history
             grid_options:
               columns: 12
-          - type: history-graph
+          - type: custom:fluvy-chart-card
             title: 7 days
-            hours_to_show: 168
-            entities: *power_history
+            span: 7d
+            series:
+              - entity: sensor.gatelink_battery
+                name: SOC
+                source: history
+              - entity: sensor.gatelink_pack_voltage
+                name: Pack voltage
+                source: history
+              - entity: sensor.gatelink_pack_current
+                name: Pack current
+                source: history
+              - entity: sensor.gatelink_pv_power
+                name: PV power
+                source: history
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure
+                source: history
             grid_options:
               columns: 12
 
       - type: grid
         column_span: 3
         cards:
-          - type: heading
-            heading: Long term
-          - type: statistics-graph
+          - type: custom:fluvy-heading-card
+            title: Long term
+            grid_options:
+              columns: full
+          - type: custom:fluvy-chart-card
             title: State of charge, 30 days
-            entities:
+            span: 30d
+            series:
               - entity: sensor.gatelink_battery
-                name: SOC
-            chart_type: line
-            period: day
-            days_to_show: 30
-            stat_types: [min, mean, max]
+                name: SOC min
+                source: statistics
+                stat: min
+                period: day
+              - entity: sensor.gatelink_battery
+                name: SOC mean
+                source: statistics
+                stat: mean
+                period: day
+              - entity: sensor.gatelink_battery
+                name: SOC max
+                source: statistics
+                stat: max
+                period: day
             grid_options:
               columns: 12
           - type: statistics-graph
@@ -193,15 +240,25 @@ views:
             stat_types: [min, mean, max]
             grid_options:
               columns: 12
-          - type: statistics-graph
+          - type: custom:fluvy-chart-card
             title: Enclosure temperature, 30 days
-            entities:
+            span: 30d
+            series:
               - entity: sensor.gatelink_enclosure_temperature
-                name: Enclosure
-            chart_type: line
-            period: day
-            days_to_show: 30
-            stat_types: [min, mean, max]
+                name: Enclosure min
+                source: statistics
+                stat: min
+                period: day
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure mean
+                source: statistics
+                stat: mean
+                period: day
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure max
+                source: statistics
+                stat: max
+                period: day
             grid_options:
               columns: 12
           - type: statistics-graph
@@ -217,26 +274,20 @@ views:
               columns: 12
           # The total's daily change rather than yield today's: the total only rises, so
           # a missed midnight reset cannot double-count a day.
-          - type: statistics-graph
-            title: Daily yield, 30 days
-            entities:
-              - entity: sensor.gatelink_solar_yield_total
-                name: Yield
-            chart_type: bar
+          - type: custom:fluvy-history-bars-card
+            entity: sensor.gatelink_solar_yield_total
+            name: Daily yield, 30 days
+            days: 30
             period: day
-            days_to_show: 30
-            stat_types: [change]
+            stat: change
             grid_options:
               columns: 12
-          - type: statistics-graph
-            title: Monthly yield, 1 year
-            entities:
-              - entity: sensor.gatelink_solar_yield_total
-                name: Yield
-            chart_type: bar
+          - type: custom:fluvy-history-bars-card
+            entity: sensor.gatelink_solar_yield_total
+            name: Monthly yield, 1 year
+            days: 12
             period: month
-            days_to_show: 365
-            stat_types: [change]
+            stat: change
             grid_options:
               columns: 12
 
@@ -250,18 +301,23 @@ views:
     sections:
       - type: grid
         cards:
-          - type: heading
-            heading: Bridge
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: Bridge
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.lora_bridge_frames_received
                 name: Frames received
               - entity: sensor.lora_bridge_frames_transmitted
                 name: Frames transmitted
               - entity: sensor.lora_bridge_frames_discarded
                 name: Frames discarded
-              - type: section
-                label: Firmware
+          # Fluvy's entities card has no section row, so the firmware rows are a card of
+          # their own.
+          - type: custom:fluvy-entities-card
+            title: Firmware
+            rows:
               - entity: sensor.lora_bridge_firmware_version
                 name: Version
               - entity: sensor.lora_bridge_firmware_commit
@@ -271,10 +327,12 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: GateLink
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: GateLink
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.lran_gatelink_link_quality
                 name: Link quality
               - entity: sensor.gatelink_rssi
@@ -291,9 +349,9 @@ views:
                 name: Unsupported version seen
               - entity: binary_sensor.gatelink_synthetic_data
                 name: Synthetic data
-          - type: entities
+          - type: custom:fluvy-entities-card
             title: PHY
-            entities:
+            rows:
               - entity: sensor.gatelink_freq_hz
                 name: Frequency
               - entity: sensor.gatelink_spreading_factor
@@ -310,10 +368,12 @@ views:
       # Unavailable until WellLink is deployed (plan 8.2).
       - type: grid
         cards:
-          - type: heading
-            heading: WellLink
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: WellLink
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.welllink_rssi
                 name: RSSI
               - entity: sensor.welllink_snr
@@ -326,9 +386,9 @@ views:
                 name: Protocol version
               - entity: sensor.welllink_unsupported_version_seen
                 name: Unsupported version seen
-          - type: entities
+          - type: custom:fluvy-entities-card
             title: PHY
-            entities:
+            rows:
               - entity: sensor.welllink_freq_hz
                 name: Frequency
               - entity: sensor.welllink_spreading_factor
@@ -345,30 +405,45 @@ views:
       - type: grid
         column_span: 3
         cards:
-          - type: heading
-            heading: History
-          - type: history-graph
+          - type: custom:fluvy-heading-card
+            title: History
+            grid_options:
+              columns: full
+          - type: custom:fluvy-chart-card
             title: GateLink link, 7 days
-            hours_to_show: 168
-            entities:
+            span: 7d
+            series:
               - entity: sensor.gatelink_rssi
                 name: RSSI
+                source: history
               - entity: sensor.gatelink_snr
                 name: SNR
+                source: history
               - entity: sensor.gatelink_missed_polls
                 name: Missed polls
+                source: history
             grid_options:
               columns: 12
           # The trend M23 reads: whether the BMS's BLE link degrades over a season.
-          - type: statistics-graph
+          - type: custom:fluvy-chart-card
             title: BMS BLE RSSI, 30 days
-            entities:
+            span: 30d
+            series:
               - entity: sensor.gatelink_bms_link_rssi
-                name: BMS BLE RSSI
-            chart_type: line
-            period: day
-            days_to_show: 30
-            stat_types: [min, mean, max]
+                name: BMS BLE RSSI min
+                source: statistics
+                stat: min
+                period: day
+              - entity: sensor.gatelink_bms_link_rssi
+                name: BMS BLE RSSI mean
+                source: statistics
+                stat: mean
+                period: day
+              - entity: sensor.gatelink_bms_link_rssi
+                name: BMS BLE RSSI max
+                source: statistics
+                stat: max
+                period: day
             grid_options:
               columns: 12
 
@@ -385,8 +460,10 @@ views:
       - type: grid
         column_span: 2
         cards:
-          - type: heading
-            heading: Logbook
+          - type: custom:fluvy-heading-card
+            title: Logbook
+            grid_options:
+              columns: full
           - type: logbook
             hours_to_show: 168
             target:
@@ -405,10 +482,12 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: Traffic
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: Traffic
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.gatelink_last_vehicle
                 name: Last vehicle
               - entity: sensor.gatelink_last_direction
@@ -417,24 +496,23 @@ views:
                 name: Traversals today
               - entity: sensor.gatelink_hold_source
                 name: Hold source
-          - type: statistics-graph
-            title: Traversals per day, 30 days
-            entities:
-              - entity: sensor.lran_gatelink_traversals
-                name: Traversals
-            chart_type: bar
+          - type: custom:fluvy-history-bars-card
+            entity: sensor.lran_gatelink_traversals
+            name: Traversals per day, 30 days
+            days: 30
             period: day
-            days_to_show: 30
-            stat_types: [change]
+            stat: change
             grid_options:
               columns: 12
 
       - type: grid
         cards:
-          - type: heading
-            heading: Gate inputs
-          - type: entities
-            entities:
+          - type: custom:fluvy-heading-card
+            title: Gate inputs
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: binary_sensor.gatelink_safety_loop
                 name: Safety loop
               - entity: binary_sensor.gatelink_exit_wand
@@ -445,20 +523,17 @@ views:
                 name: FIRE input
               - entity: binary_sensor.gatelink_hard_shutdown_latch
                 name: Hard-shutdown latch
-          - type: entities
-            entities:
+          - type: custom:fluvy-entities-card
+            rows:
               - entity: sensor.gatelink_last_boot
                 name: Last boot
           # A boot loop shows as a run of boots (spec 8.14). Each boot's reset cause
           # reaches the logbook through lran_2_node_boot (plan 9.2) once H5 lands.
-          - type: statistics-graph
-            title: GateLink boots per day, 30 days
-            entities:
-              - entity: sensor.gatelink_boot_count
-                name: Boots
-            chart_type: bar
+          - type: custom:fluvy-history-bars-card
+            entity: sensor.gatelink_boot_count
+            name: GateLink boots per day, 30 days
+            days: 30
             period: day
-            days_to_show: 30
-            stat_types: [change]
+            stat: change
             grid_options:
               columns: 12

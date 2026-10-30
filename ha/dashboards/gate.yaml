@@ -7,6 +7,9 @@
 #
 # The Gate section drives the cover and the "Hold gate open" switch (D8, GateLink PRD 7.1),
 # which replaced the four command buttons when bridge task F1 landed (plan 5).
+#
+# Fluvy's cards throughout (plan 2, task H11), written from its documentation: its card
+# editors cannot save to a YAML dashboard.
 
 title: Gate
 views:
@@ -16,93 +19,65 @@ views:
     type: sections
     max_columns: 2
     sections:
-      # Alert banners. Each shows only while its condition holds (plan 8.1, H2's acceptance).
-      # While GateLink is unavailable its binary sensors are too, so only that banner shows.
+      # Alert banners (plan 8.1, H2's acceptance), one Fluvy alerts card. Each alert shows
+      # only while its entity is in the state it names, and the card hides while all are
+      # clear. While GateLink is unavailable its binary sensors are too, and a Fluvy
+      # matcher never matches unavailable unless it names it, so only that alert shows.
+      # FIRE and the held-open vehicle cannot be snoozed, as their pushes cannot be muted
+      # (plan 7.5).
       - type: grid
         cards:
-          - type: conditional
-            conditions:
-              - condition: state
+          - type: custom:fluvy-alerts-card
+            variant: rows
+            alerts:
+              - name: FIRE input asserted
                 entity: binary_sensor.gatelink_fire_input
                 state: "on"
-            card:
-              type: markdown
-              text_only: true
-              content: >-
-                <ha-alert alert-type="error" title="FIRE input asserted">The gate
-                operator reports a fire input.</ha-alert>
-          - type: conditional
-            conditions:
-              - condition: state
+                severity: critical
+                snooze: "off"
+              - name: Vehicle while held open
                 entity: binary_sensor.gatelink_vehicle_while_held_open
                 state: "on"
-            card:
-              type: markdown
-              text_only: true
-              content: >-
-                <ha-alert alert-type="error" title="Vehicle while held open">A vehicle
-                passed while the gate was held open.</ha-alert>
-          - type: conditional
-            conditions:
-              - condition: state
+                severity: critical
+                snooze: "off"
+              - name: Hard-shutdown latch
                 entity: binary_sensor.gatelink_hard_shutdown_latch
                 state: "on"
-            card:
-              type: markdown
-              text_only: true
-              content: >-
-                <ha-alert alert-type="error" title="Hard-shutdown latch">The gate operator
-                has latched a hard shutdown.</ha-alert>
-          # Every GateLink entity follows the node's availability topic (R-3.3d), so the
-          # gate state stands for all of them.
-          - type: conditional
-            conditions:
-              - condition: state
+                severity: critical
+              # Every GateLink entity follows the node's availability topic (R-3.3d), so
+              # the gate state stands for all of them.
+              - name: GateLink unavailable
                 entity: sensor.gatelink_gate
                 state: unavailable
-            card:
-              type: markdown
-              text_only: true
-              content: >-
-                <ha-alert alert-type="warning" title="GateLink unavailable">The bridge is
-                not hearing GateLink. Gate state and commands are unavailable.</ha-alert>
-          # GateLink's derived indication (R-6.4a) rather than the BMS's own flag: it
-          # reads while VE.Direct is stale, and the BMS's flag is on the LRAN dashboard.
-          - type: conditional
-            conditions:
-              - condition: state
+                severity: warning
+              # GateLink's derived indication (R-6.4a) rather than the BMS's own flag: it
+              # reads while VE.Direct is stale, and the BMS's flag is on the LRAN dashboard.
+              - name: Charging inhibited
                 entity: binary_sensor.gatelink_charging_inhibited
                 state: "on"
-            card:
-              type: markdown
-              text_only: true
-              content: >-
-                <ha-alert alert-type="warning" title="Charging inhibited">The pack is
-                not accepting charge.</ha-alert>
-          - type: conditional
-            conditions:
-              - condition: state
+                severity: warning
+              - name: Battery protection
                 entity: binary_sensor.gatelink_battery_protection
                 state: "on"
-            card:
-              type: markdown
-              text_only: true
-              content: >-
-                <ha-alert alert-type="warning" title="Battery protection">The BMS reports
-                a protection state.</ha-alert>
+                severity: warning
 
       - type: grid
         cards:
-          - type: heading
-            heading: Gate
+          - type: custom:fluvy-heading-card
+            title: Gate
+            grid_options:
+              columns: full
           # The cover's state carries the direction the bridge infers (spec 8.3): open,
-          # opening, closing or closed. The raw gate state is on the LRAN dashboard.
-          - type: tile
+          # opening, closing or closed. The raw gate state is on the LRAN dashboard. Its
+          # open and close send at once, with no confirmation (plan 2).
+          - type: custom:fluvy-cover-card
             entity: cover.gatelink_gate
             name: Gate
+            variant: compact
             grid_options:
               columns: 12
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.gatelink_movement_cause
             name: Movement cause
             grid_options:
@@ -113,76 +88,42 @@ views:
                 entity: binary_sensor.gatelink_held_open
                 state: "on"
             card:
-              type: tile
+              type: custom:fluvy-tile-card
+              size: compact
               entity: sensor.gatelink_hold_source
               name: Held open by
               icon: mdi:gate-open
-          # Each action is a relay pulse at the gate, so every one asks first. That is why
-          # these are tiles with a confirmation rather than the cover tile's own buttons,
-          # which cannot ask.
-          - type: tile
-            entity: cover.gatelink_gate
-            name: Open
-            icon: mdi:gate-open
-            grid_options:
-              columns: 6
-            hide_state: true
-            tap_action: &open
-              action: perform-action
-              perform_action: cover.open_cover
-              target:
-                entity_id: cover.gatelink_gate
-              confirmation:
-                text: Open the gate?
-            icon_tap_action: *open
-          - type: tile
-            entity: cover.gatelink_gate
-            name: Close
-            icon: mdi:gate
-            grid_options:
-              columns: 6
-            hide_state: true
-            tap_action: &close
-              action: perform-action
-              perform_action: cover.close_cover
-              target:
-                entity_id: cover.gatelink_gate
-              confirmation:
-                text: Close the gate now?
-            icon_tap_action: *close
           # On whoever set the hold, the keypad included; off releases it (PRD 7.1).
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: switch.gatelink_hold_gate_open
             name: Hold gate open
             icon: mdi:gate-arrow-right
             grid_options:
               columns: 12
-            tap_action: &hold
-              action: perform-action
-              perform_action: switch.toggle
-              target:
-                entity_id: switch.gatelink_hold_gate_open
-              confirmation:
-                text: Change the hold on the gate?
-            icon_tap_action: *hold
 
       - type: grid
         cards:
-          - type: heading
-            heading: Last vehicle
-          - type: tile
+          - type: custom:fluvy-heading-card
+            title: Last vehicle
+            grid_options:
+              columns: full
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.gatelink_last_vehicle
             name: Time
             icon: mdi:car
             grid_options:
               columns: 6
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.gatelink_last_direction
             name: Direction
             icon: mdi:swap-horizontal
             grid_options:
               columns: 6
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: counter.lran_gatelink_traversals_today
             name: Traversals today
             icon: mdi:counter
@@ -191,35 +132,42 @@ views:
 
       - type: grid
         cards:
-          - type: heading
-            heading: Power
+          - type: custom:fluvy-heading-card
+            title: Power
+            grid_options:
+              columns: full
           # No severity bands: the SOC thresholds are helpers (plan 7.1), and a gauge's
           # bands are fixed numbers that would drift from them.
-          - type: gauge
+          - type: custom:fluvy-gauge-card
             entity: sensor.gatelink_battery
+            gauge: battery
             name: State of charge
             min: 0
             max: 100
             grid_options:
               columns: 12
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.lran_gatelink_pack_voltage_v
             name: Pack voltage
             grid_options:
               columns: 6
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.gatelink_pv_power
             name: PV power
             icon: mdi:solar-power
             grid_options:
               columns: 6
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.lran_gatelink_net_power
             name: Net power
             icon: mdi:battery-charging
             grid_options:
               columns: 6
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.gatelink_mppt_charge_state
             name: Charge state
             icon: mdi:solar-power-variant
@@ -232,9 +180,12 @@ views:
       # last_seen to avoid, so the two sit side by side instead.
       - type: grid
         cards:
-          - type: heading
-            heading: Link
-          - type: tile
+          - type: custom:fluvy-heading-card
+            title: Link
+            grid_options:
+              columns: full
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.lran_gatelink_link_quality
             name: Link quality
             grid_options:
@@ -242,12 +193,11 @@ views:
             tap_action: &network
               action: navigate
               navigation_path: /lran-detail/network
-            icon_tap_action: *network
-          - type: tile
+          - type: custom:fluvy-tile-card
+            size: compact
             entity: sensor.gatelink_last_seen
             name: Last heard
             icon: mdi:clock-outline
             grid_options:
               columns: 6
             tap_action: *network
-            icon_tap_action: *network
