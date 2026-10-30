@@ -5,7 +5,8 @@ Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at t
 H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the alert
 levels and the message catalog, on 2026-10-27 at the end of H5, on 2026-10-28 at the
 end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operator
-chose Fluvy (task H11), and on 2026-10-30 at the end of H11.**
+chose Fluvy (task H11), on 2026-10-30 at the end of H11, and on 2026-10-30 after the
+Fluvy port review.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -31,6 +32,7 @@ entity. H10, the port to production, waits on bridge task B6.
 |---|---|
 | **H8** Tier 5 approach prompt | Plan §9.5, §7.3; §11's H8 row |
 | **H10** Port to production | Plan §12; §8.3's porting issues; §11's H10 row |
+| The Fluvy review's open decisions | `briefs/2026-10-30-fluvy-port-review.md`, *Recommendations*; plan §8.1, §8.3 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -41,6 +43,12 @@ section and *The next job*.
 **H8, the approach prompt** (plan §9.5). It sends a plain push that opens the Gate
 dashboard, as the reminders do. Its trigger needs a tracked `person`, which the sandbox
 does not have, so the sandbox can check the push but not the trigger.
+
+**The Gate dashboard's Open gate and Close gate tiles have not been pressed.** Before
+production, turn GateLink's relay dry-run on and press each once, as H6 did: `cmd/ack`
+should carry `result` 16 and the gate should not move. The review brief's other three
+open decisions wait on the operator: the SOC gauge's bands, alert snooze on the Gate
+dashboard, and the Restore defaults dialog.
 
 **H7's SOC and yield figures are unchecked with real values.** Rerun
 `automation.lran_4_morning_report` through `automation.trigger` once GateLink's BMS and
