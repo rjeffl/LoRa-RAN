@@ -190,10 +190,13 @@ the bridge to the production broker (Impl Plan §11.3), and Home Assistant's ent
 registry keeps every `unique_id` it sees there, so every change to a published name went
 first. Left:
 
-6. **The operator makes the production `secrets.h`**: a new master key, the production
-   broker's credentials and WiFi. The bridge and GateLink are both built from it, and
-   GateLink's production flash is its last before it leaves the bench. A password must not
-   reach argv, a log or a committed file from then on ([`traps.md`](./traps.md)).
+6. **The production `secrets.h` exists from 2026-10-31**, and the bench file is now
+   `secrets.sandbox.h`, both gitignored. The bridge and GateLink are both built from the
+   root `secrets.h`, and GateLink's production flash is its last before it leaves the
+   bench. Neither image is built yet. The bridge's first OTA upload of a production image
+   authenticates with the sandbox `OTA_PASSWORD`, because the running image checks the
+   password it was built with. A password must not reach argv, a log or a committed file
+   from then on ([`traps.md`](./traps.md)).
 7. **At B6**: reflash the bridge against the production broker, and set `deployed` = 1 on
    `lran/gatelink/config/set` once GateLink is in the field.
 
@@ -206,8 +209,8 @@ and FIRE events firing once only, and the configuration `number` entities readin
 writing. HA dashboards and automations are planned in
 [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 whose tasks H0–H9 come before GL8. Its §5's four discovery gaps, F1–F4, were built
-2026-10-28 (engineering log, same date), the D8 `cover` and hold `switch` among them. Their
-on-air check waits for an OTA of that branch.
+2026-10-28 (engineering log, same date), the D8 `cover` and hold `switch` among them. They
+ran on the air after the OTA of `57997fa` the same day.
 
 ## Waits on GateLink or the operator
 
@@ -283,7 +286,7 @@ pio test -d lib/lran-sim -e native              # BF-7's FramePatch vs. the W4 n
 pio test -d lib/lran-config -e native           # BF-32's table and store
 pio test -d firmware/bridge -e native           # bridge host suites, test_context_roll among them
 pio test -d firmware/simnode -e native          # simnode host suites
-pio run  -d firmware/bridge -e heltec           # bridge target - NEEDS secrets.h
+pio run  -d firmware/bridge -e heltec           # bridge target - NEEDS secrets.h (production)
 pio run  -d firmware/simnode -e simnode-heltec  # NEEDS secrets.h (key only)
 pio run  -d firmware/simnode -e simnode-xiao-wio
 python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
@@ -296,6 +299,11 @@ python3 tools/simctl/test_sweep_analyze.py      # the interleaved sweep's arithm
 python3 tools/simctl/test_rxlog_analyze.py      # BF-27's frame-log arithmetic
 python3 tools/vectors/check.py                  # W4 vectors, self-check
 ```
+
+**A firmware build reads only the root `secrets.h`**, through `-I ../..`, and from
+2026-10-31 that file is production. Every image built from now on carries the production
+master, and a simnode built from it can talk to a production bridge. The bench tools
+reach the sandbox broker with `--secrets secrets.sandbox.h`.
 
 **CI runs all of these on every pull request.** Run them locally when you are about to
 spend bench time on the result. **Call `pio` and the bench tools' Python by path from a
@@ -322,8 +330,8 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `c9d3667`, flashed over USB on 2026-10-15** for group 8 (engineering
-log, *Group 8 on the bench*). **Both simnodes run `32503d5`**, flashed over USB the same
+**The bridge runs `addfd6b`, flashed over OTA on 2026-10-28** (engineering log, *A
+node's Restore defaults keeps `deployed`*). **Both simnodes run `32503d5`**, flashed over USB the same
 day (engineering log, *Group 7's bench evidence*). **`restore_defaults` cleared the
 bridge's rows**, apart from the six PHY rows. Those read `override` at Envelope A's values,
 because `restore_defaults` does not reach the PHY group. `simnode0` to `simnode2` still

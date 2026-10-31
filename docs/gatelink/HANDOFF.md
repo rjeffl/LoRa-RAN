@@ -83,8 +83,9 @@ The operator chose this on 2026-10-24: the gate is already down, the MPPT runs f
 - **Log with `bench.py --dir <soak dir> run --mqtt`** (`--dir` goes before the
   subcommand). Its lines lead with wall-clock time, and `<retained>` marks a message the
   broker replayed. Add a `--port` only for a board whose console is attached without
-  powering it. The run needs the bench `secrets.h` in that checkout, which the operator
-  copies.
+  powering it. Against the sandbox broker, pass `--secrets secrets.sandbox.h` after
+  `run`. The root `secrets.h` is production from 2026-10-31, and `bench.py` reads it by
+  default. The operator copies both files into that checkout.
 - **Start the logger outside any Claude Code session**, with `nohup`, `systemd-run --user`
   or a terminal that stays open. The first run was a session's background task, and it was
   killed when that session ended, 4.3 h before the 24 h mark.
@@ -381,12 +382,15 @@ board's are its D-pads (expansion board §6.1).
   `_ping` skips a missing socket and logs any error but `OSError`. Tested against a fake
   broker only; the restarted soak's first broker outage is the real test.
 
-- **The bench `secrets.h` is temporary.** It holds bench WiFi, the sandbox broker's
-  credentials and a bench master key, and the operator creates a production `secrets.h`
-  before the final production builds. The GateLink node key derived from the bench master
+- **The bench secrets are `secrets.sandbox.h` from 2026-10-31**, and the root `secrets.h`
+  is production, both gitignored. The production file has a new master, the production
+  broker and OTA password, and the same WiFi, which is the production network. Its
+  `LRAN_GATELINK_NODE_KEY` matches `node_key.py`'s derivation from the new master
+  (deployment brief, 2026-10-31). The GateLink node key derived from the bench master
   appeared in a session transcript on 2026-10-02. That is acceptable only because the
   bench master is replaced: **production GateLink and bridge images must be built from the
-  production `secrets.h`, with the node key derived again from its master.**
+  root `secrets.h`, and neither is built yet.** A firmware build reads only the root file,
+  so every image built from now on carries the production master.
 - **A leaked node key costs the whole fleet.** Spec §9.1 derives each key from the master
   and the node ID alone, so replacing GateLink's key means a new master and a reflash of
   every node. A per-node key generation would contain it. That is a protocol question,

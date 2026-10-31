@@ -20,7 +20,8 @@ PY=~/.platformio/penv/bin/python
 
 2. **Start the harness in the background**, with one `--port TAG=DEVICE` per board. Add
    `--mqtt` to log `lran/#` and allow `pub`. It reads the broker address and credentials
-   from `secrets.h` and never prints them.
+   from `secrets.h` and never prints them. The root `secrets.h` is production from
+   2026-10-31. For the sandbox broker, add `--secrets secrets.sandbox.h` after `run`.
 
    ```bash
    $PY tools/bench/bench.py run --port BRG=/dev/cu.usbserial-0001 --port SIM=/dev/cu.usbmodem1101 --mqtt

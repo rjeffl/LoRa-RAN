@@ -7,6 +7,7 @@
 
 # Secrets are never committed. secrets.h.example documents every field.
 secrets.h
+secrets.sandbox.h
 
 .DS_Store
 

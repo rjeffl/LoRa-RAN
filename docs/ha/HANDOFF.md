@@ -77,7 +77,9 @@ MPPT readings are available.
   with dry-run on, and GateLink's `cmd/ack` carried `result` 16, `DRY_RUN` (spec §8.2).
   The gate state did not change.
 - **`bench.py run --mqtt` reads `cmd/ack` without the bridge console.** It takes the
-  broker login from `secrets.h` and never prints it, with the operator's approval. No
+  broker login from `secrets.h` and never prints it, with the operator's approval. For the
+  sandbox broker, pass `--secrets secrets.sandbox.h`: the root `secrets.h` is production
+  from 2026-10-31. No
   serial port opens, so the bridge does not reboot. `--dir` goes before `run`.
 - **Reminders carry no action, by operator choice** (plan v0.11, §3, §9.3, §9.5;
   engineering log, 2026-10-28, bench checks). A reminder is a plain push whose tap opens
