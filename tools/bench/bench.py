@@ -43,6 +43,7 @@ import argparse
 import os
 import pathlib
 import re
+import select
 import socket
 import struct
 import sys
@@ -411,12 +412,14 @@ def cmd_attach(a):
         pattern = re.compile(a.until.encode()) if a.until else None
         end, seen = time.time() + a.seconds, b""
         while time.time() < end:
+            # select, not a sleep: nothing paces the board, so a tty queue left unread drops
+            # bytes from a file dump.
+            select.select([fd], [], [], 0.1)
             try:
                 chunk = os.read(fd, 4096)
             except BlockingIOError:
-                chunk = b""
+                continue
             if not chunk:
-                time.sleep(0.02)
                 continue
             sys.stdout.buffer.write(chunk)
             sys.stdout.buffer.flush()

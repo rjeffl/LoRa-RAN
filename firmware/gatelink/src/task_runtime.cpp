@@ -2136,6 +2136,10 @@ void fault_log_service(uint32_t* next_ms) {
 // any other pending input waits for its own turn, as a second command.
 void file_stream(const char* path, uint32_t start, uint32_t bytes) {
   static uint8_t buf[512];
+  // HWCDC discards what it is given once a write has waited out its TX timeout, 100 ms by
+  // default. Longer here, because log_task alone waits on it, and back after, so a console
+  // with no host stays cheap.
+  Serial.setTxTimeoutMs(2000);
   Crc32    crc;
   uint32_t sent = 0;
   bool     stopped = false;
@@ -2154,11 +2158,18 @@ void file_stream(const char* path, uint32_t start, uint32_t bytes) {
       failed = true;
       break;
     }
-    Serial.write(buf, got);
+    // Short writes with a pause between. 512 B a tick lost about 0.1 % of a 180 KB file, and
+    // no pause lost 15 %; this lost none in five dumps (engineering log, 2026-11-01).
+    constexpr size_t kUsbStep = 64;
+    for (size_t at = 0; at < got; at += kUsbStep) {
+      Serial.write(buf + at, got - at < kUsbStep ? got - at : kUsbStep);
+      vTaskDelay(pdMS_TO_TICKS(4));
+    }
     crc.update(buf, got);
     sent += static_cast<uint32_t>(got);
     vTaskDelay(1);
   }
+  Serial.setTxTimeoutMs(100);
   char line[96];
   const size_t n = std::snprintf(line, sizeof(line), "\nfile: %s %s, %lu bytes from %lu, crc32 %08lx", path,
                                  stopped ? "STOPPED" : failed ? "READ FAILED" : "end",
