@@ -40,7 +40,7 @@ constexpr TaskSpec kTable[kTaskCount] = {
     {TaskId::Ui, "ui", kPriorityLow, 6144, kAnyCore, 100, 0},
 
     // Leveled serial log, and the microSD log from GL1.
-    {TaskId::Log, "log", kPriorityLog, 4096, kAnyCore, 0, 0},
+    {TaskId::Log, "log", kPriorityLog, 6144, kAnyCore, 0, 0},
 };
 
 static_assert(sizeof(kTable) / sizeof(kTable[0]) == kTaskCount,
@@ -71,6 +71,16 @@ uint32_t default_period_ms(const TaskSpec& spec) {
 uint32_t param_default(uint16_t id) {
   const lran::config::ParamDef* p = find_param(id);
   return p == nullptr ? 0 : static_cast<uint32_t>(p->def);
+}
+
+bool ProgressWatch::stalled(uint32_t passes, uint32_t now_ms, uint32_t limit_ms) {
+  if (!seen_ || passes != last_) {
+    seen_  = true;
+    last_  = passes;
+    since_ = now_ms;
+    return false;
+  }
+  return now_ms - since_ >= limit_ms;
 }
 
 uint32_t watchdog_timeout_in_range(uint32_t seconds) {

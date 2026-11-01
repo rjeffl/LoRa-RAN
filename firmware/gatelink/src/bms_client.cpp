@@ -115,11 +115,18 @@ class Finder final : public NimBLEAdvertisedDeviceCallbacks {
   }
   void onResult(NimBLEAdvertisedDevice* dev) override {
     if (found_ || name_ == nullptr || !dev->haveName()) return;
-    if (std::strcmp(dev->getName().c_str(), name_) != 0) return;
+    const std::string name = dev->getName();
+    if (std::strncmp(name.c_str(), name_, std::strlen(name_)) != 0) return;
     portENTER_CRITICAL(&mux_);
+    std::strncpy(matched_, name.c_str(), sizeof(matched_) - 1);
     addr_  = dev->getAddress();
     rssi_  = static_cast<int16_t>(dev->getRSSI());
     found_ = true;
+    portEXIT_CRITICAL(&mux_);
+  }
+  void matched(char* out) const {
+    portENTER_CRITICAL(&mux_);
+    std::memcpy(out, matched_, sizeof(matched_));
     portEXIT_CRITICAL(&mux_);
   }
   bool found(NimBLEAddress* addr, int16_t* rssi) const {
@@ -136,6 +143,7 @@ class Finder final : public NimBLEAdvertisedDeviceCallbacks {
  private:
   mutable portMUX_TYPE mux_  = portMUX_INITIALIZER_UNLOCKED;
   const char*          name_ = nullptr;
+  char                 matched_[kBmsNameLen] = {0};
   volatile bool        found_ = false;
   NimBLEAddress        addr_;
   int16_t              rssi_ = 0;
@@ -327,6 +335,7 @@ BmsEnd bms_window(const BmsWindowArgs& args, BmsSnapshot* out, BmsTiming* t) {
     // PRD R-3.4b - the controller goes down between polls. clearAll frees the scan and
     // client objects too, so the heap returns to where it started.
     if (NimBLEDevice::getInitialized()) {
+      if (args.entropy != nullptr) args.entropy();  // the controller is up: spec 10.1
       drain_host_queue();
       NimBLEDevice::deinit(true);
     }
@@ -341,5 +350,7 @@ BmsRxCounters bms_rx_counters() { return g_notify.counters(); }
 BmsHeap bms_heap() { return g_heap; }
 
 BmsDrain bms_drain() { return g_drain; }
+
+void bms_matched_name(char* out) { g_finder.matched(out); }
 
 }  // namespace gatelink

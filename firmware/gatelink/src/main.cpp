@@ -16,7 +16,10 @@
 #include "task_runtime.h"
 #include "ui_pages.h"
 
-#if __has_include("secrets.h")
+// The gatelink-sandbox env names its own file; every other build reads the root secrets.h.
+#if defined(LRAN_SECRETS_FILE)
+#include LRAN_SECRETS_FILE
+#elif __has_include("secrets.h")
 #include "secrets.h"
 #else
 #error "secrets.h not found. Run `cp secrets.h.example secrets.h` at the repo root and fill it in. GateLink reads LRAN_GATELINK_NODE_KEY only. Never commit the copy."
@@ -87,7 +90,7 @@ void setup() {
       {LRAN_GATELINK_VERSION, LRAN_GATELINK_GIT, reset, kNodeKey, sizeof(kNodeKey)}, &page);
   gatelink::board_show(page);
 
-  const size_t started = gatelink::start_tasks(page, kNodeKey, sizeof(kNodeKey));
+  const size_t started = gatelink::start_tasks(page, kNodeKey, sizeof(kNodeKey), LRAN_GATELINK_GIT);
   Serial.printf("Tasks: %u of %u started\n", static_cast<unsigned>(started),
                 static_cast<unsigned>(gatelink::kTaskCount));
 }

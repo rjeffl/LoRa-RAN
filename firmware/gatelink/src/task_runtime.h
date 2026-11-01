@@ -18,7 +18,8 @@ namespace gatelink {
 // number started, which is kTaskCount unless a creation failed. ui_task draws boot_page
 // again after anything else has used the whole panel. lora_task copies the node key into
 // its context and never prints it.
-size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t node_key_len);
+size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t node_key_len,
+                   const char* git);
 
 // Sets the task watchdog's timeout to watchdog_timeout_s, held to its row's range. start_tasks()
 // calls it with the default before any task starts; the CONFIG path calls it again when

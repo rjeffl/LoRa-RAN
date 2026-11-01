@@ -109,6 +109,6 @@ struct BmsRxCounters {
 // frame. Returns the length, or 0 if `cap` is too small.
 size_t format_bms_log_line(char* out, size_t cap, uint32_t uptime_s, BmsEnd end,
                            uint32_t window_ms, const BmsTiming& t, bool abort_asked,
-                           const BmsRxCounters& k);
+                           const BmsRxCounters& k, uint32_t drain_timeouts, uint32_t drain_max_ms);
 
 }  // namespace gatelink

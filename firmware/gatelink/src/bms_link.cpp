@@ -87,8 +87,11 @@ bool reply_awaited(const uint8_t* frame, size_t len) {
     case lran::MsgType::HexRsp:
       return true;
     case lran::MsgType::Status: {
-      if (frame[11] != lran::kSchemaGateLinkStatusV1) return true;
-      constexpr size_t kReasonAt = lran::kHdrLen + 77;  // spec 7.2.4
+      if (frame[11] != lran::kSchemaGateLinkStatusV1 &&
+          frame[11] != lran::kSchemaGateLinkStatusV2) {
+        return true;
+      }
+      constexpr size_t kReasonAt = lran::kHdrLen + 77;  // spec 7.2.4; 0x13 keeps 0x10's offsets
       return len > kReasonAt &&
              frame[kReasonAt] == static_cast<uint8_t>(lran::StatusReason::PollResponse);
     }
@@ -126,19 +129,20 @@ bool bms_retry_next(BmsEnd end, bool was_retry) {
 
 size_t format_bms_log_line(char* out, size_t cap, uint32_t uptime_s, BmsEnd end,
                            uint32_t window_ms, const BmsTiming& t, bool abort_asked,
-                           const BmsRxCounters& k) {
+                           const BmsRxCounters& k, uint32_t drain_timeouts, uint32_t drain_max_ms) {
   // key=value, so the card's file reads in a text editor and splits with awk.
   const int w = std::snprintf(
       out, cap,
       "uptime_s=%lu end=%s ms=%lu init=%lu scan=%lu conn=%lu hs=%lu ans=%lu down=%lu "
-      "abort=%d frames=%lu crc=%lu bad_term=%lu undecoded=%lu",
+      "abort=%d frames=%lu crc=%lu bad_term=%lu undecoded=%lu drain_to=%lu drain_max=%lu",
       static_cast<unsigned long>(uptime_s), bms_end_name(end),
       static_cast<unsigned long>(window_ms), static_cast<unsigned long>(t.init_ms),
       static_cast<unsigned long>(t.scan_ms), static_cast<unsigned long>(t.connect_ms),
       static_cast<unsigned long>(t.handshake_ms), static_cast<unsigned long>(t.answer_ms),
       static_cast<unsigned long>(t.teardown_ms), abort_asked ? 1 : 0,
       static_cast<unsigned long>(k.frames), static_cast<unsigned long>(k.crc_errors),
-      static_cast<unsigned long>(k.bad_term), static_cast<unsigned long>(k.undecoded));
+      static_cast<unsigned long>(k.bad_term), static_cast<unsigned long>(k.undecoded),
+      static_cast<unsigned long>(drain_timeouts), static_cast<unsigned long>(drain_max_ms));
   return w > 0 && static_cast<size_t>(w) < cap ? static_cast<size_t>(w) : 0;
 }
 

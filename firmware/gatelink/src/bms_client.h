@@ -24,6 +24,7 @@ struct BmsWindowArgs {
   uint32_t    cap_ms   = 0;        // bms_window_max_ms
   bool (*stop)()       = nullptr;  // true once lora_task asks for the interlock back
   void (*log)(const char*) = nullptr;
+  void (*entropy)()    = nullptr;  // called once with the controller up: a true esp_random()
 };
 
 // Runs one window and always leaves the controller de-initialized. On BmsEnd::Read, `out`
@@ -48,5 +49,9 @@ struct BmsDrain {
   uint32_t timeouts = 0;
 };
 BmsDrain bms_drain();
+
+// The advertised name last matched, for the fault log. `out` holds kBmsNameLen bytes.
+inline constexpr size_t kBmsNameLen = 24;
+void bms_matched_name(char* out);
 
 }  // namespace gatelink

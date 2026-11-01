@@ -11,8 +11,6 @@ namespace gatelink {
 namespace {
 
 // Victron's CS codes for the two states in which the charger is trying to charge (R-6.4b).
-constexpr uint8_t kCsBulk       = 3;
-constexpr uint8_t kCsAbsorption = 4;
 
 // R-6.4b's "PV voltage at least 1 V above battery voltage" (PRD v0.23). Not PV power: a
 // battery that takes nothing leaves the MPPT harvesting 0 W (engineering log, 2026-10-27).
@@ -21,6 +19,11 @@ constexpr uint32_t kPvOverBattMv = 1000;
 // A BMS read older than this many polls no longer decides. One missed window is common
 // (BmsEnd counts them); three in a row means BLE is unavailable, which is R-6.4b's case.
 constexpr uint32_t kBmsFreshPolls = 3;
+
+// A pack sitting at the threshold must not send a STATUS and an event on every poll, which
+// is the cold morning this feature exists for. 1.0 C, in temp_dc's 0.1 C. Not a parameter,
+// because a row's name is permanent in HA (spec 16.7) and nothing here needs tuning yet.
+constexpr int32_t kBmsReleaseBandDc = 10;
 
 bool reached(uint32_t now, uint32_t since, uint32_t span) { return now - since >= span; }
 
@@ -85,8 +88,9 @@ bool ChargeInhibit::update(const MpptSnapshot& m, const BmsSnapshot& b, uint32_t
       if (b.data.temp_dc[i] < coldest) coldest = b.data.temp_dc[i];
     }
     // The pack reads in 0.1 A, so band_ma below 100 asks for an exact zero.
-    next = coldest <= static_cast<int32_t>(p.temp_c) * 10 &&
-           b.data.current_ma <= static_cast<int32_t>(p.band_ma);
+    const int32_t limit_dc = static_cast<int32_t>(p.temp_c) * 10 +
+                             (inhibited_ && source_ == ChargeSource::Bms ? kBmsReleaseBandDc : 0);
+    next = coldest <= limit_dc && b.data.current_ma <= static_cast<int32_t>(p.band_ma);
   } else if ((m.mppt_flags & kMpptFlagStale) == 0) {
     path_ = ChargeSource::VeDirect;
     next  = ved;

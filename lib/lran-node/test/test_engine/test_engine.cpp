@@ -266,6 +266,27 @@ void test_command_executes_once_and_retry_is_cached() {
   TEST_ASSERT_EQUAL_UINT32(1, r.c.executions);
 }
 
+// spec 8.2, D78 - a sequence that lost a write answers ACTUATOR_FAULT, and a retry reads the
+// result back as DUPLICATE_CACHED's detail (spec 10.4) and runs nothing.
+void test_deferred_command_reports_actuator_fault() {
+  Rig r;
+  r.app.defer = true;
+  r.command(5, Cmd::Open);
+  TEST_ASSERT_TRUE(r.c.pending.active);
+
+  r.eng.finish_command(r.c, r.app, 2000, AckResult::ActuatorFault);
+  msg::CommandAck a = r.next_ack();
+  assert_result(AckResult::ActuatorFault, a);
+  TEST_ASSERT_EQUAL_UINT8(0, a.detail);
+  TEST_ASSERT_FALSE(r.c.pending.active);
+
+  r.command(5, Cmd::Open);
+  a = r.next_ack();
+  assert_result(AckResult::DuplicateCached, a);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::ActuatorFault), a.detail);
+  TEST_ASSERT_EQUAL_INT(1, r.app.executed);
+}
+
 // Impl Plan 5.2 - a deferred command holds the gate between check() and record(). A retry
 // in that window gets no answer, a roll answers ACTUATOR_BUSY and changes nothing, and a
 // second command answers ACTUATOR_BUSY. finish_command() then records and ACKs.
@@ -627,6 +648,7 @@ int main(int, char**) {
   RUN_TEST(test_frame_for_another_node_is_counted_not_answered);
   RUN_TEST(test_command_executes_once_and_retry_is_cached);
   RUN_TEST(test_deferred_command_holds_the_execution_window);
+  RUN_TEST(test_deferred_command_reports_actuator_fault);
   RUN_TEST(test_wrong_context_is_refused_with_own_ctx);
   RUN_TEST(test_roll_context);
   RUN_TEST(test_reboot_is_owed_after_its_ack);

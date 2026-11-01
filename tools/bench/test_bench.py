@@ -220,5 +220,34 @@ class WaitTest(unittest.TestCase):
                                              "--timeout", "0.3"]), 1)
 
 
+class AttachTest(unittest.TestCase):
+    def test_sends_commands_and_stops_at_the_pattern(self):
+        import pty
+        master, slave = pty.openpty()
+        name = os.ttyname(slave)
+
+        def board():
+            got = b""
+            while b"\n" not in got:
+                got += os.read(master, 64)
+            self.assertEqual(got, b"bms\n")
+            os.write(master, b"bms: drain timeouts 0\n")
+
+        th = threading.Thread(target=board)
+        th.start()
+        out = io.BytesIO()
+        fake = type("Out", (), {"buffer": out})
+        real, sys.stdout = sys.stdout, fake
+        try:
+            rc = bench.main(["attach", name, "bms", "--until", "bms:", "--seconds", "3"])
+        finally:
+            sys.stdout = real
+        th.join()
+        os.close(master)
+        os.close(slave)
+        self.assertEqual(rc, 0)
+        self.assertIn(b"drain timeouts 0", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
