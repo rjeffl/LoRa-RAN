@@ -1079,9 +1079,20 @@ where about 0.5 Ah over 12 h is expected.
 | Fault log | `boot cause=5` after `panic`, `actuator_fault` after the F1 check |
 | Fault log rotation | With the cap set to 300 B for one image, `fault.txt` moved to `fault.old.txt` |
 
-**Not run on the air:** `MPPT_ERROR`, `ah_drawn_dah` with a real count, F7's band and F8's
-prefix match, because each needs a pack, an MPPT or the emulator. The host suites cover
-their logic.
+**Then with the simnode Heltec's BMS emulator**, `bms on` with no suffix, so it advertised
+`XDZN_001_BC2D`:
+
+| Check | Result |
+|---|---|
+| F8, a name other than `XDZN_001_49A1` | Read, and the fault log read `bms_name XDZN_001_BC2D` |
+| F7, `bms temp -1` | `INHIBITED`, and one `CHARGE_INHIBITED` with `detail` 1 |
+| F7, `bms temp 1`, inside the band | Stayed inhibited, with no second event |
+| F7, `bms temp 2`, past the band | Cleared |
+| F9, `/bms.log` after a read | `drain_to=0 drain_max=0` |
+
+**Not run on the air:** `MPPT_ERROR` and a real `ah_drawn_dah` count, because both need the
+MPPT. The host suites cover their logic. `ah_drawn_dah` has only been sent as `UINT16_MAX`,
+and R-6.4c's premise is still unmeasured.
 
 **The stack table and the static stack must agree, and no test says so.** Raising
 `log_task`'s row to 6144 alone gave `Tasks: 6 of 7 started` and no console. `start_tasks()`
