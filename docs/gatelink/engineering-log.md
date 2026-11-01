@@ -1150,3 +1150,13 @@ alone (2026-10-07). Three cases hold a relay closed past its pulse:
    path that reports every other fault. It shortens only the 1 s case, so **it is the one
    to leave out** unless a 1 s closure matters at the 1050.
 
+**The operator chose 1 and 2 and left out 3 (2026-11-01). Both pass on the bench:**
+
+- **Retry.** `relayfault off 3` failed three trailing-edge writes in an OPEN. `cmd/ack` read
+  `result` 19, the retry count read 3, and the next OPEN read `result` 0 with the count
+  unchanged. The count shows the writes, not the contact: no analyzer was on the relay.
+- **`io_task` stall.** `relay 1 2000` then `wdt iostall`: the fault log read `io_task_stall`,
+  and a `BOOT` with `reset_cause` `watchdog` came 16 s after the command, against about 12 s
+  from the two timeouts. The relay's release at `setup()` is 2026-10-07's result, not
+  measured again.
+
