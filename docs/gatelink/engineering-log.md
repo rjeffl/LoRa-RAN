@@ -1171,3 +1171,30 @@ alone (2026-10-07). Three cases hold a relay closed past its pulse:
   from the two timeouts. The relay's release at `setup()` is 2026-10-07's result, not
   measured again.
 
+## 2026-11-01 — R-6.4c's overnight check: the baseline, and what the night has to answer
+
+**The baseline is 98.9 of 100.0 Ah, read at 16:10:50 EST.** The console's `bms data`:
+
+```text
+bms: cells 4: 3338 3339 3341 3339 mV (delta 3); temps 4: 148 172 140 141 (0.1 C); pack 13350 mV 0 mA (charge flag, raw 0x4000); SOC 99%; 989/1000 (0.1 Ah); cycles 4; SOH 1000; rssi -64
+```
+
+PRD R-6.4c's premise is that this figure falls under GateLink's standing draw, which `pack_ma`
+cannot show. It expects about 0.5 Ah over 12 h, and an unchanged figure falsifies it.
+
+**Only the console can answer this tonight.** MQTT's `capacity_ah` read 100.0 at 99 % SOC,
+because `bms_link.cpp` fills `bms_capacity_dah` from the nominal capacity. Remaining capacity
+reaches the wire only as the fall in `ah_drawn`, and that field stays null until a BMS read
+happens while charging is active. This boot had none, since the MPPT read `off` with PV at
+10 mV.
+
+**USB was on the StamPLC when the baseline was read**, and the handoff records that with 12 V
+on, USB carries all but 3.1 mA of the board's load. The night's clock therefore starts when USB comes off,
+not at 16:10. The operator will unplug it and start the MQTT logger on returning to the bench,
+and move the bridge from the laptop's USB to its own supply at the same visit. The bridge's reboot
+does not touch the BMS's count.
+
+**The rest of the bench, at the same time:** GateLink online on the sandbox broker, RSSI about
+−60 dBm. The MPPT read 13330 mV and −10 mA, and the BMS 13350 mV. Those 20 mV are the two meters'
+offset at almost no current, and B1's harness measurement has to subtract them. The operator will
+connect the panel in the morning, after the read.
