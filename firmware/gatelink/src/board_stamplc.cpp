@@ -236,13 +236,70 @@ bool board_sd_begin() {
 bool board_sd_append(const char* path, const char* line) {
   SpiLock lock;
   if (!g_sd_up) return false;
-  File f = SD.open(path, FILE_APPEND, true);
+  File f = SD.open(path, FILE_APPEND, true);  // true: makes the path's directories
   if (!f) return false;
   const size_t n  = std::strlen(line);
   const bool   ok = f.write(reinterpret_cast<const uint8_t*>(line), n) == n &&
                   f.write(static_cast<uint8_t>('\n')) == 1;
   f.close();
   return ok;
+}
+
+int64_t board_sd_size(const char* path) {
+  SpiLock lock;
+  if (!g_sd_up || !SD.exists(path)) return -1;
+  File f = SD.open(path, FILE_READ);
+  if (!f) return -1;
+  const int64_t n = static_cast<int64_t>(f.size());
+  f.close();
+  return n;
+}
+
+size_t board_sd_read_at(const char* path, uint32_t offset, uint8_t* out, size_t cap) {
+  SpiLock lock;
+  if (!g_sd_up) return 0;
+  File f = SD.open(path, FILE_READ);
+  if (!f) return 0;
+  const size_t n = f.seek(offset) ? f.read(out, cap) : 0;
+  f.close();
+  return n;
+}
+
+bool board_sd_list(const char* dir, void (*entry)(const char* name, uint32_t size, bool is_dir)) {
+  // The lock is held entry by entry, because `entry` prints, and the console may block.
+  File root;
+  {
+    SpiLock lock;
+    if (!g_sd_up) return false;
+    root = SD.open(dir, FILE_READ);
+    if (!root || !root.isDirectory()) return false;
+  }
+  for (;;) {
+    char     name[64];
+    uint32_t size   = 0;
+    bool     is_dir = false;
+    {
+      SpiLock lock;
+      File    f = root.openNextFile();
+      if (!f) break;
+      std::strncpy(name, f.name(), sizeof(name) - 1);
+      name[sizeof(name) - 1] = '\0';
+      size                   = static_cast<uint32_t>(f.size());
+      is_dir                 = f.isDirectory();
+      f.close();
+    }
+    entry(name, size, is_dir);
+  }
+  SpiLock lock;
+  root.close();
+  return true;
+}
+
+void board_sd_rotate(const char* path, const char* old_path) {
+  SpiLock lock;
+  if (!g_sd_up) return;
+  if (SD.exists(old_path)) SD.remove(old_path);
+  SD.rename(path, old_path);
 }
 
 bool board_sd_mount(bool remount) {

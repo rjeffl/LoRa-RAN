@@ -90,7 +90,7 @@ void setup() {
       {LRAN_GATELINK_VERSION, LRAN_GATELINK_GIT, reset, kNodeKey, sizeof(kNodeKey)}, &page);
   gatelink::board_show(page);
 
-  const size_t started = gatelink::start_tasks(page, kNodeKey, sizeof(kNodeKey));
+  const size_t started = gatelink::start_tasks(page, kNodeKey, sizeof(kNodeKey), LRAN_GATELINK_GIT);
   Serial.printf("Tasks: %u of %u started\n", static_cast<unsigned>(started),
                 static_cast<unsigned>(gatelink::kTaskCount));
 }

@@ -113,6 +113,21 @@ bool board_sd_begin();
 // mounted or the write fell short.
 bool board_sd_append(const char* path, const char* line);
 
+// A file's size, under the SpiLock, or -1 with no card mounted or no such file.
+int64_t board_sd_size(const char* path);
+
+// Up to `cap` bytes from `offset`, opening and closing the file under one SpiLock. 0 at the
+// end of the file, with no card mounted, or on a failed read.
+size_t board_sd_read_at(const char* path, uint32_t offset, uint8_t* out, size_t cap);
+
+// Calls `entry` for each file in `dir`, under the SpiLock. False with no card mounted or no
+// such directory.
+bool board_sd_list(const char* dir, void (*entry)(const char* name, uint32_t size, bool is_dir));
+
+// Replaces `old_path` with `path`, for a log's rotation, under the SpiLock. A failure leaves
+// the log appending where it was.
+void board_sd_rotate(const char* path, const char* old_path);
+
 // Mounts the card, unmounting it first when `remount` is set, under the SpiLock. A card
 // pulled and put back answers only after SD.end() and a fresh SD.begin().
 bool board_sd_mount(bool remount);

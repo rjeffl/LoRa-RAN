@@ -173,10 +173,10 @@ void test_log_line_names_the_end_and_its_stages() {
   k.crc_errors = 1;
   char out[200];
   const size_t n = gatelink::format_bms_log_line(out, sizeof(out), 87011,
-                                                 gatelink::BmsEnd::NotFound, 3070, t, false, k);
+                                                 gatelink::BmsEnd::NotFound, 3070, t, false, k, 2, 41);
   TEST_ASSERT_EQUAL_STRING(
       "uptime_s=87011 end=not_found ms=3070 init=40 scan=3000 conn=0 hs=0 ans=0 down=25 "
-      "abort=0 frames=287 crc=1 bad_term=0 undecoded=0",
+      "abort=0 frames=287 crc=1 bad_term=0 undecoded=0 drain_to=2 drain_max=41",
       out);
   TEST_ASSERT_EQUAL(std::strlen(out), n);
 }
@@ -185,7 +185,7 @@ void test_log_line_too_long_returns_zero() {
   char out[16];
   TEST_ASSERT_EQUAL(0, gatelink::format_bms_log_line(out, sizeof(out), 1, gatelink::BmsEnd::Read,
                                                      1, gatelink::BmsTiming{}, true,
-                                                     gatelink::BmsRxCounters{}));
+                                                     gatelink::BmsRxCounters{}, 0, 0));
 }
 
 void test_tx_gate() {

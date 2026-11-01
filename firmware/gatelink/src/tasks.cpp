@@ -40,7 +40,7 @@ constexpr TaskSpec kTable[kTaskCount] = {
     {TaskId::Ui, "ui", kPriorityLow, 6144, kAnyCore, 100, 0},
 
     // Leveled serial log, and the microSD log from GL1.
-    {TaskId::Log, "log", kPriorityLog, 4096, kAnyCore, 0, 0},
+    {TaskId::Log, "log", kPriorityLog, 6144, kAnyCore, 0, 0},
 };
 
 static_assert(sizeof(kTable) / sizeof(kTable[0]) == kTaskCount,

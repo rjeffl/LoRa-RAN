@@ -45,8 +45,10 @@
 #include "gate_io.h"
 #include "gate_state.h"
 #include "gatelink_app.h"
+#include "file_dump.h"
 #include "inject.h"
 #include "mppt_error_watch.h"
+#include "roll_entropy.h"
 #include "lran/node/engine.h"
 #include "lran/node/names.h"
 #include "lran/node/phy_trial.h"
@@ -67,7 +69,7 @@ StackType_t  g_stack_lora[8192];
 StackType_t  g_stack_app[6144];
 StackType_t  g_stack_bms[6144];
 StackType_t  g_stack_ui[6144];
-StackType_t  g_stack_log[4096];
+StackType_t  g_stack_log[6144];
 
 // How often log_task prints the pass counts.
 constexpr uint32_t kAliveReportMs = 30000;
@@ -124,6 +126,9 @@ struct IoSnapshot {
   bool         cmd_write_failed = false;  // the last sequence lost a write: D78, spec 8.2
   uint32_t     cmd_i2c_failures = 0;  // expander writes a sequence lost, since boot
 };
+
+// main.cpp's alone, because version.py stamps LRAN_GATELINK_GIT into that one object.
+const char* g_git = "";
 
 portMUX_TYPE  g_io_mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -654,6 +659,22 @@ constexpr size_t kLogQueueDepth = 8;
 struct LogLine {
   char text[kLogLineLen];
 };
+// PRD R-5.4e - the fault log's lines, carried to log_task, which owns the card's log files.
+constexpr size_t      kFaultQueueDepth = 8;
+StaticQueue_t         g_fault_q_storage;
+uint8_t               g_fault_q_buf[kFaultQueueDepth * sizeof(LogLine)];
+QueueHandle_t         g_fault_q = nullptr;
+std::atomic<uint32_t> g_fault_dropped{0};  // root rule 4: a line the queue had no room for
+uint32_t              g_fault_failed = 0;  // log_task's: a line the card did not take
+
+void fault_line(const char* text) {
+  LogLine l{};
+  if (format_fault_line(l.text, sizeof(l.text), static_cast<uint32_t>(esp_timer_get_time() / 1000000), text) == 0 ||
+      xQueueSend(g_fault_q, &l, 0) != pdTRUE) {
+    g_fault_dropped.fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
 StaticQueue_t         g_log_q_storage;
 uint8_t               g_log_q_buf[kLogQueueDepth * sizeof(LogLine)];
 QueueHandle_t         g_log_q = nullptr;
@@ -668,19 +689,24 @@ class QueueSink final : public lran::node::Sink {
   }
 };
 
-uint32_t random_u32() { return esp_random(); }
-
 // PRD R-3.5h, spec 10.1. esp_random() is a true entropy source only while the RF subsystem
 // runs or bootloader_random_enable() holds the ADC's noise source on. At boot BLE has not
 // started, so start_tasks() draws this word with the source enabled, before any task runs;
 // the source must be off again before bms_task starts the controller.
 uint32_t g_boot_entropy = 0;
 
-uint32_t boot_random_u32() {
-  const uint32_t v = g_boot_entropy;
-  g_boot_entropy   = 0;
-  return v != 0 ? v : random_u32();
+// D87 - words for later rolls: start_tasks() fills it, and each BLE window tops it up.
+RollEntropy  g_roll_entropy;
+portMUX_TYPE g_roll_entropy_mux = portMUX_INITIALIZER_UNLOCKED;
+
+void roll_entropy_put(uint32_t word) {
+  portENTER_CRITICAL(&g_roll_entropy_mux);
+  g_roll_entropy.put(word);
+  portEXIT_CRITICAL(&g_roll_entropy_mux);
 }
+
+// bms_task's draw, with the controller up.
+void roll_entropy_top_up() { roll_entropy_put(esp_random()); }
 
 // spec 8.14. A REBOOT command resets through esp_restart(), which the chip reports as a
 // software reset; this word, which survives a software reset, tells the two apart.
@@ -768,6 +794,31 @@ void ble_interlock_tx_release() {
 
 namespace {
 
+// spec 10.1 - a roll's ctx_id. Held words run out only after four rolls with no window, as
+// with polling suspended. The source is then enabled for the draw, which needs BLE kept
+// from starting, so the interlock is held across it. Failing to take the interlock means
+// bms_task has it, and the controller is up or about to be.
+uint32_t roll_random_u32() {
+  portENTER_CRITICAL(&g_roll_entropy_mux);
+  const uint32_t held = g_roll_entropy.take();
+  portEXIT_CRITICAL(&g_roll_entropy_mux);
+  if (held != 0) return held;
+
+  const bool mine = !g_radio_holds && xSemaphoreTake(g_ble_mutex, 0) == pdTRUE;
+  if (!mine && !g_radio_holds) return esp_random();
+  bootloader_random_enable();
+  const uint32_t v = esp_random();
+  bootloader_random_disable();
+  if (mine) xSemaphoreGive(g_ble_mutex);
+  return v;
+}
+
+uint32_t boot_random_u32() {
+  const uint32_t v = g_boot_entropy;
+  g_boot_entropy   = 0;
+  return v != 0 ? v : roll_random_u32();
+}
+
 // What bms_task publishes, and the console's `bms` line reads.
 struct BmsView {
   BmsSnapshot snap;
@@ -827,7 +878,7 @@ lran::node::PhyTrial   g_phy(&g_phy_persist);
 
 class Node final : public RadioClient, public GateLinkPort {
  public:
-  Node() : engine_(&outbox_, &mac_, &sink_), app_(this, random_u32, &sink_) {}
+  Node() : engine_(&outbox_, &mac_, &sink_), app_(this, roll_random_u32, &sink_) {}
 
   void begin(const uint8_t* key, size_t key_len) {
     ctx_.id = lran::kNodeGateLink;
@@ -1063,6 +1114,12 @@ void lora_task(void*) {
   // spec 10.7 - STATUS with BOOT, then the BOOT event with its cause. Queued now; media
   // access sends them once the radio is up.
   const lran::ResetCause cause = reset_cause();
+  {
+    char text[64];
+    std::snprintf(text, sizeof(text), "boot cause=%u ver=%s git=%s", static_cast<unsigned>(cause),
+                  LRAN_GATELINK_VERSION, g_git);
+    fault_line(text);
+  }
   if (!g_node.engine().announce_boot(g_node.ctx(), g_node.app(), cause, now_ms())) {
     QueueSink().line("boot: announcement not queued");
   }
@@ -1104,6 +1161,7 @@ void lora_task(void*) {
     if (io.cmd_seq != cmd_seq) {
       cmd_seq = io.cmd_seq;
       if (io.cmd_write_failed) {
+        fault_line("actuator_fault");
         g_node.engine().finish_command(g_node.ctx(), g_node.app(), now, lran::AckResult::ActuatorFault);
       } else {
         g_node.engine().finish_command(g_node.ctx(), g_node.app(), now);
@@ -1132,6 +1190,12 @@ void lora_task(void*) {
         uint8_t      schema = lran::kSchemaNone;
         const size_t n = g_node.app().serialize_event(push.event, payload, sizeof(payload), &schema);
         queued = n > 0 && g_node.engine().send_event(g_node.ctx(), lran::kNodeBridge, payload, n, schema);
+        char text[64];
+        std::snprintf(text, sizeof(text), "event type=%u detail=%u id=%lu gate=%u inputs=0x%02x",
+                      push.event.event_type, push.event.detail,
+                      static_cast<unsigned long>(push.event.event_id), push.event.gate_state,
+                      push.event.input_bits);
+        fault_line(text);
       }
       if (!queued) g_node.engine().count_dropped();
     }
@@ -1150,7 +1214,7 @@ void lora_task(void*) {
       if (g_node.ctx().pending.active) {
         QueueSink().line("ctx: command in flight, not renewed");
       } else {
-        lran::node::reset_context(g_node.ctx(), random_u32);
+        lran::node::reset_context(g_node.ctx(), roll_random_u32);
         char text[48];
         std::snprintf(text, sizeof(text), "ctx: renewed, now %08lx",
                       static_cast<unsigned long>(g_node.ctx().ctx_id));
@@ -1450,7 +1514,8 @@ void bms_task(void*) {
     g_ble_holds.store(true);
 
     BmsWindowArgs args;
-    args.name     = kBmsName;
+    args.name     = kBmsNamePrefix;
+    args.entropy  = roll_entropy_top_up;
     args.start_ms = start;
     args.cap_ms   = cap;
     args.stop     = ble_stop_requested;
@@ -1496,8 +1561,17 @@ void bms_task(void*) {
     static char card[200];  // static: FATFS's open and write run on this 6 KB stack too
     const size_t len = format_bms_log_line(
         card, sizeof(card), static_cast<uint32_t>(esp_timer_get_time() / 1000000), end,
-        done - start, t, asked_at != 0, bms_rx_counters());
+        done - start, t, asked_at != 0, bms_rx_counters(), bms_drain().timeouts, bms_drain().max_ms);
     const bool logged = len > 0 && board_sd_append(kBmsLogPath, card);
+    static char name_seen[kBmsNameLen];
+    char        name[kBmsNameLen];
+    bms_matched_name(name);
+    if (name[0] != '\0' && std::strcmp(name, name_seen) != 0) {
+      std::memcpy(name_seen, name, sizeof(name_seen));
+      char text[48];
+      std::snprintf(text, sizeof(text), "bms_name %s", name);
+      fault_line(text);
+    }
     portENTER_CRITICAL(&g_bms_mux);
     ++(logged ? g_bms.card_logged : g_bms.card_failed);
     portEXIT_CRITICAL(&g_bms_mux);
@@ -1605,11 +1679,17 @@ size_t bus_line(char* line, size_t cap, const char* head) {
       ld(g_bus.sd_max_us), ld(g_bus.radio_ok), ld(g_bus.radio_bad), ld(g_bus.radio_max_us)));
 }
 
+void file_command(char* arg);
+
 void console_command(char* cmd) {
   char line[360];
   size_t n = 0;
   char* arg = std::strchr(cmd, ' ');
   if (arg != nullptr) *arg++ = '\0';
+  if (std::strcmp(cmd, "file") == 0) {
+    file_command(arg);
+    return;
+  }
   if (std::strcmp(cmd, "relay") == 0 && arg != nullptr) {
     char* rest = nullptr;
     const unsigned long k  = std::strtoul(arg, &rest, 10);
@@ -2013,9 +2093,136 @@ void console_command(char* cmd) {
     for (;;) {
     }
   } else {
-    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | lran | ved | bus <s> | wdt [stall] | restart | panic | hang");
+    n = std::snprintf(line, sizeof(line), "commands: file | relay <1-4> [ms] | in | sense | sd | beep | radio | lran | ved | bus <s> | wdt [stall] | restart | panic | hang");
   }
   write_line(line, n, sizeof(line));
+}
+
+// PRD R-5.3g, R-5.4e. log_task alone writes the fault log. The queue's lines, then the
+// counters every 12 bms_poll_s, about hourly at the default and so a parameter's multiple.
+// The counters clear at any reset, and a console attach is a reset (engineering log,
+// 2026-10-27), so the card is what a visit can still read.
+void fault_log_service(uint32_t* next_ms) {
+  LogLine l;
+  bool    wrote = false;
+  while (xQueueReceive(g_fault_q, &l, 0) == pdTRUE) {
+    if (!wrote && board_sd_size(kFaultLogPath) >= kFaultLogCapBytes) {
+      board_sd_rotate(kFaultLogPath, kFaultLogOldPath);
+    }
+    wrote = true;
+    if (!board_sd_append(kFaultLogPath, l.text)) ++g_fault_failed;
+  }
+  const uint32_t now = now_ms();
+  if (*next_ms == 0) *next_ms = now + 12 * live_param(kParamBmsPollS) * 1000;
+  if (!reached(now, *next_ms)) return;
+  *next_ms = now + 12 * live_param(kParamBmsPollS) * 1000;
+
+  const RadioStats& r = radio_stats();
+  const IoSnapshot  s = io_snapshot();
+  const BmsDrain    d = bms_drain();
+  const auto        ld = [](uint32_t x) { return static_cast<unsigned long>(x); };
+  // Two lines, because one would not fit a LogLine beside its uptime.
+  char text[kLogLineLen - 24];
+  std::snprintf(text, sizeof(text), "radio rx=%lu tx=%lu tx_err=%lu tx_to=%lu", ld(r.rx_frames),
+                ld(r.tx_frames), ld(r.tx_errors), ld(r.tx_timeouts));
+  fault_line(text);
+  std::snprintf(text, sizeof(text), "counts i2c=%lu cmd_i2c=%lu push=%lu drain=%lu drop=%lu fail=%lu",
+                ld(s.i2c_failures), ld(s.cmd_i2c_failures), ld(g_push_dropped.load()), ld(d.timeouts),
+                ld(g_fault_dropped.load()), ld(g_fault_failed));
+  fault_line(text);
+}
+
+// Streams `bytes` of a file from `start`, then its CRC (file_dump.h). A key press stops it.
+void file_stream(const char* path, uint32_t start, uint32_t bytes) {
+  static uint8_t buf[512];
+  Crc32    crc;
+  uint32_t sent = 0;
+  bool     stopped = false;
+  bool     failed  = false;
+  while (sent < bytes) {
+    if (Serial.available() > 0) {
+      stopped = true;
+      break;
+    }
+    const uint32_t left = bytes - sent;
+    const size_t   want = left < sizeof(buf) ? left : sizeof(buf);
+    // One read per lock, so the radio waits on one chunk and not the file.
+    const size_t got = board_sd_read_at(path, start + sent, buf, want);
+    if (got == 0) {
+      failed = true;
+      break;
+    }
+    Serial.write(buf, got);
+    crc.update(buf, got);
+    sent += static_cast<uint32_t>(got);
+    vTaskDelay(1);
+  }
+  while (Serial.available() > 0) Serial.read();
+  char line[96];
+  const size_t n = std::snprintf(line, sizeof(line), "\nfile: %s %s, %lu bytes from %lu, crc32 %08lx", path,
+                                 stopped ? "STOPPED" : failed ? "READ FAILED" : "end",
+                                 static_cast<unsigned long>(sent), static_cast<unsigned long>(start),
+                                 static_cast<unsigned long>(crc.value()));
+  write_line(line, n, sizeof(line));
+}
+
+void file_list_entry(const char* name, uint32_t size, bool dir) {
+  char line[96];
+  const size_t n = std::snprintf(line, sizeof(line), "file: %s%s %lu", name, dir ? "/" : "",
+                                 static_cast<unsigned long>(size));
+  write_line(line, n, sizeof(line));
+}
+
+// file ls [dir] | file cat <path> [offset] | file tail <path> [lines]. USB console only, and
+// it reads: nothing here writes to the card (PRD R-5.4e; operator, 2026-11-01).
+void file_command(char* arg) {
+  char line[96];
+  size_t n = 0;
+  char* verb = arg;
+  char* path = verb != nullptr ? std::strchr(verb, ' ') : nullptr;
+  if (path != nullptr) *path++ = '\0';
+  char* num = path != nullptr ? std::strchr(path, ' ') : nullptr;
+  if (num != nullptr) *num++ = '\0';
+
+  if (verb != nullptr && std::strcmp(verb, "ls") == 0) {
+    if (!board_sd_list(path != nullptr ? path : "/", file_list_entry)) {
+      n = std::snprintf(line, sizeof(line), "file: no card, or no such directory");
+      write_line(line, n, sizeof(line));
+    }
+    return;
+  }
+  const bool cat  = verb != nullptr && std::strcmp(verb, "cat") == 0;
+  const bool tail = verb != nullptr && std::strcmp(verb, "tail") == 0;
+  if ((!cat && !tail) || path == nullptr || path[0] != '/') {
+    n = std::snprintf(line, sizeof(line), "file: ls [dir] | cat </path> [offset] | tail </path> [lines]");
+    write_line(line, n, sizeof(line));
+    return;
+  }
+  const int64_t size = board_sd_size(path);
+  if (size < 0) {
+    n = std::snprintf(line, sizeof(line), "file: %.60s: no card, or no such file", path);
+    write_line(line, n, sizeof(line));
+    return;
+  }
+  const uint32_t total = static_cast<uint32_t>(size);
+  uint32_t       start = 0;
+  if (cat) {
+    start = num != nullptr ? static_cast<uint32_t>(std::strtoul(num, nullptr, 10)) : 0;
+    if (start > total) start = total;
+  } else {
+    const unsigned long lines = num != nullptr ? std::strtoul(num, nullptr, 10) : 20;
+    static uint8_t buf[512];
+    TailScan scan(total, lines != 0 ? static_cast<uint32_t>(lines) : 20);
+    uint32_t offset = 0;
+    size_t   want;
+    while ((want = scan.next_chunk(sizeof(buf), &offset)) != 0) {
+      if (board_sd_read_at(path, offset, buf, want) != want) break;
+      if (scan.feed(buf, want)) break;
+      vTaskDelay(1);
+    }
+    start = scan.start();
+  }
+  file_stream(path, start, total - start);
 }
 
 // GL1 - a queue of leveled lines and the microSD log arrive here. Today it runs the bench
@@ -2023,6 +2230,7 @@ void console_command(char* cmd) {
 // CDC buffer blocks the writer, and no other task may be that writer. The first report
 // waits a period, so it cannot interleave with setup()'s last banner line.
 void log_task(void*) {
+  uint32_t fault_next = 0;
   char     line[160];
   char     cmd[48];
   size_t   cmd_len    = 0;
@@ -2053,6 +2261,7 @@ void log_task(void*) {
         write_line(line, bus_line(line, sizeof(line), head), sizeof(line));
       }
     }
+    fault_log_service(&fault_next);
     LogLine engine_line;
     while (xQueueReceive(g_log_q, &engine_line, 0) == pdTRUE) {
       write_line(engine_line.text, std::strlen(engine_line.text), sizeof(engine_line.text));
@@ -2118,7 +2327,9 @@ static_assert(sizeof(StackType_t) == 1, "ESP-IDF counts stack depth in bytes (ta
 
 }  // namespace
 
-size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t node_key_len) {
+size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t node_key_len,
+                   const char* git) {
+  g_git          = git;
   g_boot_page    = boot_page;
   g_node_key     = node_key;
   g_node_key_len = node_key_len;
@@ -2126,6 +2337,7 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   g_cmd_q   = xQueueCreateStatic(1, sizeof(RelaySequence), g_cmd_q_buf, &g_cmd_q_storage);
   g_push_q  = xQueueCreateStatic(8, sizeof(Push), g_push_q_buf, &g_push_q_storage);
   g_log_q   = xQueueCreateStatic(kLogQueueDepth, sizeof(LogLine), g_log_q_buf, &g_log_q_storage);
+  g_fault_q = xQueueCreateStatic(kFaultQueueDepth, sizeof(LogLine), g_fault_q_buf, &g_fault_q_storage);
   g_hex_q   = xQueueCreateStatic(1, sizeof(HexJob), g_hex_q_buf, &g_hex_q_storage);
   g_ble_mutex = xSemaphoreCreateMutexStatic(&g_ble_mutex_storage);
   // Impl Plan 6.4 - the card before any task runs, so every task starts on its values.
@@ -2138,6 +2350,7 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   // PRD R-3.5h - the boot's ctx_id, drawn while nothing else uses the ADC or the radio.
   bootloader_random_enable();
   g_boot_entropy = esp_random();
+  while (g_roll_entropy.size() < RollEntropy::kCap) g_roll_entropy.put(esp_random());
   bootloader_random_disable();
   // Armed before any task starts, so app_task subscribes at the configured timeout. A
   // watchdog that fails to arm leaves app_task unwatched; app_task logs that.
