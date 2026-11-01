@@ -32,7 +32,7 @@ bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPP
 transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
 the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
 INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `aw drive <0|1>`, `aw redir`, `sense`, `sd`,
-`beep`, `relayfault`, `file ls`, `file cat`, `file tail`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
+`beep`, `relayfault [off <n>]`, `file ls`, `file cat`, `file tail`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall|iostall]`, `restart`, `panic`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
 refusals and commands, and `lran ctx new` takes a new `ctx_id` without announcing it, for

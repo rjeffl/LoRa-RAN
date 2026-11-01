@@ -114,6 +114,24 @@ inline constexpr uint16_t kParamWatchdogTimeoutS    = 0x1060;
 // node only a USB reflash can recover.
 uint32_t watchdog_timeout_in_range(uint32_t seconds);
 
+// F5 - whether io_task's pass count has stood still for `limit_ms`. The task watchdog watches
+// app_task alone, so app_task asks this and stops feeding it. A hung io_task with a relay
+// closed then ends in a reset, and setup() releases the relay (engineering log, 2026-11-01).
+// The first call is a baseline. A count that moves again clears it.
+class ProgressWatch {
+ public:
+  bool stalled(uint32_t passes, uint32_t now_ms, uint32_t limit_ms);
+
+ private:
+  bool     seen_  = false;
+  uint32_t last_  = 0;
+  uint32_t since_ = 0;
+};
+
+// How long io_task may stand still, in input polls. Its period is at most input_poll_ms, so
+// this tolerates a slow I2C pass, and it scales with the parameter (root rule 8).
+inline constexpr uint32_t kIoStallPolls = 20;
+
 // ---------------------------------------------------------------------------
 // The invariants. Impl Plan 5.2's rules, written so a test can fail.
 // ---------------------------------------------------------------------------

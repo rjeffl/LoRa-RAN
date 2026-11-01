@@ -86,6 +86,24 @@ void test_watchdog_timeout_is_held_to_its_range() {
   TEST_ASSERT_EQUAL_UINT32(60, watchdog_timeout_in_range(3600));
 }
 
+void test_progress_watch() {
+  gatelink::ProgressWatch w;
+  TEST_ASSERT_FALSE(w.stalled(5, 1000, 2000));  // the baseline
+  TEST_ASSERT_FALSE(w.stalled(5, 2999, 2000));
+  TEST_ASSERT_TRUE(w.stalled(5, 3000, 2000));
+  TEST_ASSERT_FALSE(w.stalled(6, 3100, 2000));  // moving again
+  TEST_ASSERT_FALSE(w.stalled(6, 5099, 2000));
+  TEST_ASSERT_TRUE(w.stalled(6, 5100, 2000));
+}
+
+// now_ms wraps at about 49 days, and a stall across it must still read as one.
+void test_progress_watch_across_the_clock_wrap() {
+  gatelink::ProgressWatch w;
+  w.stalled(5, 0xFFFFFF00u, 2000);
+  TEST_ASSERT_FALSE(w.stalled(5, 100, 2000));
+  TEST_ASSERT_TRUE(w.stalled(5, 2000, 2000));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_io_outranks_every_other_task);
@@ -100,5 +118,7 @@ int main(int, char**) {
   RUN_TEST(test_no_task_has_two_period_sources);
   RUN_TEST(test_app_feeds_well_inside_the_watchdog);
   RUN_TEST(test_watchdog_timeout_is_held_to_its_range);
+  RUN_TEST(test_progress_watch);
+  RUN_TEST(test_progress_watch_across_the_clock_wrap);
   return UNITY_END();
 }

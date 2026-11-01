@@ -124,6 +124,7 @@ struct IoSnapshot {
   uint32_t     cmd_seq       = 0;
   SequenceEnd  cmd_end       = SequenceEnd::Done;
   bool         cmd_write_failed = false;  // the last sequence lost a write: D78, spec 8.2
+  uint32_t     release_retries  = 0;  // trailing edges written again after a failed write
   uint32_t     cmd_i2c_failures = 0;  // expander writes a sequence lost, since boot
 };
 
@@ -132,13 +133,19 @@ const char* g_git = "";
 
 portMUX_TYPE  g_io_mux = portMUX_INITIALIZER_UNLOCKED;
 
-// The console's `relayfault`: how many leading edges to skip and report as failed.
+// The console's bench checks for the relay paths: leading edges to skip and report as
+// failed, trailing-edge writes to do the same, and `wdt iostall`, which parks io_task.
 std::atomic<uint32_t> g_relay_write_faults{0};
+std::atomic<uint32_t> g_relay_release_faults{0};
+std::atomic<bool>     g_io_stall{false};
 
-bool take_relay_write_fault() {
-  uint32_t left = g_relay_write_faults.load(std::memory_order_relaxed);
-  return left != 0 && g_relay_write_faults.compare_exchange_strong(left, left - 1, std::memory_order_relaxed);
+bool take_fault(std::atomic<uint32_t>& faults) {
+  uint32_t left = faults.load(std::memory_order_relaxed);
+  return left != 0 && faults.compare_exchange_strong(left, left - 1, std::memory_order_relaxed);
 }
+
+bool take_relay_write_fault() { return take_fault(g_relay_write_faults); }
+bool take_relay_release_fault() { return take_fault(g_relay_release_faults); }
 IoSnapshot    g_io;
 StaticQueue_t g_pulse_q_storage;
 uint8_t       g_pulse_q_buf[4 * sizeof(PulseRequest)];
@@ -340,6 +347,9 @@ void io_task(void*) {
   Debouncer   debounce;
   CommandSequencer sequencer;
   uint32_t         seq_i2c_failures = 0;
+  // F5 - a trailing edge whose write failed. Nothing else would write the expander again, so
+  // the relay would stay closed until the next pulse.
+  bool             release_owed = false;
 
   TickType_t last        = xTaskGetTickCount();
   uint32_t   next_poll   = now_ms();
@@ -353,6 +363,10 @@ void io_task(void*) {
   bool port1_ready = false;
 
   for (;;) {
+    if (g_io_stall.load(std::memory_order_relaxed)) {
+      vTaskDelayUntil(&last, pdMS_TO_TICKS(100));
+      continue;
+    }
     count(TaskId::Io);
     if (!port1_ready) {
       uint8_t port1 = 0;
@@ -368,8 +382,9 @@ void io_task(void*) {
 
     // The trailing edge first: it is the one with a deadline.
     if (pulser.update(now)) {
-      const bool    ok  = board_write_relays(pulser.mask());
+      const bool    ok  = !take_relay_release_fault() && board_write_relays(pulser.mask());
       const int64_t t   = esp_timer_get_time();
+      release_owed      = !ok;
       if (!ok && sequencer.running()) ++seq_i2c_failures;
       portENTER_CRITICAL(&g_io_mux);
       g_io.relays       = pulser.mask();
@@ -389,6 +404,7 @@ void io_task(void*) {
       const bool    ok = !take_relay_write_fault() && board_write_relays(pulser.mask());
       const int64_t t  = esp_timer_get_time();
       if (!ok) ++seq_i2c_failures;
+      if (ok) release_owed = false;  // this write carried the whole mask
       portENTER_CRITICAL(&g_io_mux);
       g_io.relays       = pulser.mask();
       g_io.pulse_relay  = static_cast<uint8_t>(__builtin_ctz(pulser.mask()));
@@ -419,6 +435,7 @@ void io_task(void*) {
       if (r == PulseResult::Started) {
         ok = board_write_relays(pulser.mask());
         t  = esp_timer_get_time();
+        if (ok) release_owed = false;  // this write carried the whole mask
       }
       portENTER_CRITICAL(&g_io_mux);
       g_io.pulse_relay  = req.relay;
@@ -436,6 +453,14 @@ void io_task(void*) {
 
     if (reached(now, next_poll)) {
       next_poll += poll_ms;
+      // At the poll's rate, so a dead bus costs one failed write per poll and not per wake.
+      if (release_owed) {
+        release_owed = take_relay_release_fault() || !board_write_relays(pulser.mask());
+        portENTER_CRITICAL(&g_io_mux);
+        ++g_io.release_retries;
+        if (release_owed) ++g_io.i2c_failures;
+        portEXIT_CRITICAL(&g_io_mux);
+      }
       uint8_t raw = 0;
       const bool    ok      = board_read_inputs(&raw);
       const uint8_t buttons = board_poll_buttons();
@@ -1345,13 +1370,23 @@ void app_task(void*) {
   uint8_t      inj_value = 0;
   uint32_t     starts_seen[4] = {};
   TickType_t   last = xTaskGetTickCount();
+  ProgressWatch io_watch;
+  bool          io_stall_logged = false;
   for (;;) {
     count(TaskId::App);
     if (g_wdt_stall.load(std::memory_order_relaxed)) {
       for (;;) vTaskDelay(portMAX_DELAY);
     }
-    if (watched) (void)esp_task_wdt_reset();
     const uint32_t now = now_ms();
+    // F5 - a hung io_task may hold a relay closed, and the watchdog does not watch it.
+    const bool io_stalled = io_watch.stalled(g_passes[static_cast<size_t>(TaskId::Io)].load(std::memory_order_relaxed),
+                                             now, kIoStallPolls * live_param(kParamInputPollMs));
+    if (io_stalled && !io_stall_logged) {
+      QueueSink{}.line("wdt: io_task stopped; not feeding, reset follows");
+      fault_line("io_task_stall");
+    }
+    io_stall_logged = io_stalled;
+    if (watched && !io_stalled) (void)esp_task_wdt_reset();
     service_injection(script, &inj_mask, &inj_value, now);
 
     const IoSnapshot io = io_snapshot();
@@ -1704,8 +1739,16 @@ void console_command(char* cmd) {
     }
   } else if (std::strcmp(cmd, "relayfault") == 0) {
     // D78's bench check: an expander write cannot be made to fail on demand. USB only.
-    g_relay_write_faults.store(1, std::memory_order_relaxed);
-    n = std::snprintf(line, sizeof(line), "relayfault: the next sequence's next leading edge fails");
+    // `relayfault off <n>`: the next n trailing-edge writes fail, the retries among them.
+    if (arg != nullptr && std::strncmp(arg, "off", 3) == 0) {
+      const unsigned long k = std::strtoul(arg + 3, nullptr, 10);
+      g_relay_release_faults.store(static_cast<uint32_t>(k), std::memory_order_relaxed);
+      n = std::snprintf(line, sizeof(line), "relayfault: next %lu trailing writes fail; retries so far %lu", k,
+                        static_cast<unsigned long>(io_snapshot().release_retries));
+    } else {
+      g_relay_write_faults.store(1, std::memory_order_relaxed);
+      n = std::snprintf(line, sizeof(line), "relayfault: the next sequence's next leading edge fails");
+    }
   } else if (std::strcmp(cmd, "in") == 0) {
     const IoSnapshot s = io_snapshot();
     static const char* const kEarlyOff[] = {"ok", "bus failed", "no ack"};
@@ -2072,7 +2115,11 @@ void console_command(char* cmd) {
     Serial.flush();
     esp_restart();
   } else if (std::strcmp(cmd, "wdt") == 0) {
-    if (arg != nullptr && std::strcmp(arg, "stall") == 0) {
+    if (arg != nullptr && std::strcmp(arg, "iostall") == 0) {
+      g_io_stall.store(true);
+      n = std::snprintf(line, sizeof(line), "wdt: io_task parked; reset due in about %lu s",
+                        static_cast<unsigned long>(watchdog_timeout_s() + kIoStallPolls * live_param(kParamInputPollMs) / 1000));
+    } else if (arg != nullptr && std::strcmp(arg, "stall") == 0) {
       g_wdt_stall.store(true);
       n = std::snprintf(line, sizeof(line), "wdt: app_task parked, not feeding; reset due in %lu s",
                         static_cast<unsigned long>(watchdog_timeout_s()));
@@ -2126,8 +2173,8 @@ void fault_log_service(uint32_t* next_ms) {
   std::snprintf(text, sizeof(text), "radio rx=%lu tx=%lu tx_err=%lu tx_to=%lu", ld(r.rx_frames),
                 ld(r.tx_frames), ld(r.tx_errors), ld(r.tx_timeouts));
   fault_line(text);
-  std::snprintf(text, sizeof(text), "counts i2c=%lu cmd_i2c=%lu push=%lu drain=%lu drop=%lu fail=%lu",
-                ld(s.i2c_failures), ld(s.cmd_i2c_failures), ld(g_push_dropped.load()), ld(d.timeouts),
+  std::snprintf(text, sizeof(text), "counts i2c=%lu cmd=%lu rel=%lu push=%lu drain=%lu drop=%lu fail=%lu",
+                ld(s.i2c_failures), ld(s.cmd_i2c_failures), ld(s.release_retries), ld(g_push_dropped.load()), ld(d.timeouts),
                 ld(g_fault_dropped.load()), ld(g_fault_failed));
   fault_line(text);
 }

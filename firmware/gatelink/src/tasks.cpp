@@ -73,6 +73,16 @@ uint32_t param_default(uint16_t id) {
   return p == nullptr ? 0 : static_cast<uint32_t>(p->def);
 }
 
+bool ProgressWatch::stalled(uint32_t passes, uint32_t now_ms, uint32_t limit_ms) {
+  if (!seen_ || passes != last_) {
+    seen_  = true;
+    last_  = passes;
+    since_ = now_ms;
+    return false;
+  }
+  return now_ms - since_ >= limit_ms;
+}
+
 uint32_t watchdog_timeout_in_range(uint32_t seconds) {
   const lran::config::ParamDef* p = find_param(kParamWatchdogTimeoutS);
   const uint32_t lo = static_cast<uint32_t>(p->min);
