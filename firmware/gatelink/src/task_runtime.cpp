@@ -2132,7 +2132,8 @@ void fault_log_service(uint32_t* next_ms) {
   fault_line(text);
 }
 
-// Streams `bytes` of a file from `start`, then its CRC (file_dump.h). A key press stops it.
+// Streams `bytes` of a file from `start`, then its CRC (file_dump.h). Ctrl-C stops it, and
+// any other pending input waits for its own turn, as a second command.
 void file_stream(const char* path, uint32_t start, uint32_t bytes) {
   static uint8_t buf[512];
   Crc32    crc;
@@ -2140,7 +2141,8 @@ void file_stream(const char* path, uint32_t start, uint32_t bytes) {
   bool     stopped = false;
   bool     failed  = false;
   while (sent < bytes) {
-    if (Serial.available() > 0) {
+    if (Serial.peek() == 0x03) {
+      Serial.read();
       stopped = true;
       break;
     }
@@ -2157,7 +2159,6 @@ void file_stream(const char* path, uint32_t start, uint32_t bytes) {
     sent += static_cast<uint32_t>(got);
     vTaskDelay(1);
   }
-  while (Serial.available() > 0) Serial.read();
   char line[96];
   const size_t n = std::snprintf(line, sizeof(line), "\nfile: %s %s, %lu bytes from %lu, crc32 %08lx", path,
                                  stopped ? "STOPPED" : failed ? "READ FAILED" : "end",

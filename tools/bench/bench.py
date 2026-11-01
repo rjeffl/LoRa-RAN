@@ -9,6 +9,7 @@
 #   bench.py run --port BRG=/dev/cu.usbserial-0001 --port SIM=/dev/cu.usbmodem1101 [--mqtt]
 #   bench.py send "SIM bms on 49A1" "pub lran/bridge/config/set {...}"   prints a mark id
 #   bench.py wait 'decode 0x8C' --since <mark> --timeout 30
+#   bench.py attach /dev/cu.usbmodem101 bms --until 'bms:'   a console, with no reset
 #
 # Start `run` in the background, then alternate `send` and `wait`. A soak's `run` goes
 # outside any Claude Code session, which kills its background tasks when it ends; the
@@ -386,6 +387,47 @@ def cmd_ports(_):
     return 0
 
 
+def open_raw(dev):
+    # No pyserial. Its open resets the StamPLC even with DTR and RTS held low, and a bare
+    # open() with these settings did not, on macOS (GateLink log, 2026-11-01). Not tested on
+    # Linux. HUPCL off, so the close leaves the modem lines alone too.
+    import termios
+    fd = os.open(dev, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+    t = termios.tcgetattr(fd)
+    t[0] = t[1] = t[3] = 0
+    t[2] = (t[2] | termios.CS8 | termios.CREAD | termios.CLOCAL) & ~termios.HUPCL
+    t[6][termios.VMIN] = t[6][termios.VTIME] = 0
+    termios.tcsetattr(fd, termios.TCSANOW, t)
+    return fd
+
+
+def cmd_attach(a):
+    # Reads what a reset would clear, such as GateLink's RAM counters at the gate. The console
+    # goes to stdout, so a `file cat` can be redirected and its CRC checked.
+    fd = open_raw(a.device)
+    try:
+        for line in a.lines:
+            os.write(fd, line.encode() + b"\n")
+        pattern = re.compile(a.until.encode()) if a.until else None
+        end, seen = time.time() + a.seconds, b""
+        while time.time() < end:
+            try:
+                chunk = os.read(fd, 4096)
+            except BlockingIOError:
+                chunk = b""
+            if not chunk:
+                time.sleep(0.02)
+                continue
+            sys.stdout.buffer.write(chunk)
+            sys.stdout.buffer.flush()
+            seen = (seen + chunk)[-4096:]
+            if pattern is not None and pattern.search(seen):
+                return 0
+        return 1 if pattern is not None else 0
+    finally:
+        os.close(fd)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="LRAN bench harness")
     ap.add_argument("--dir", default=DEFAULT_DIR,
@@ -406,8 +448,14 @@ def main(argv=None):
     w.add_argument("--first", action="store_true", help="print only the first --count hits")
     w.add_argument("--tail", type=int, default=15)
     sub.add_parser("ports")
+    t = sub.add_parser("attach", help="a console that does not reset the board")
+    t.add_argument("device")
+    t.add_argument("lines", nargs="*", help="commands to send")
+    t.add_argument("--seconds", type=float, default=5)
+    t.add_argument("--until", help="stop at this pattern; exit 1 if it never comes")
     a = ap.parse_args(argv)
-    return {"run": cmd_run, "send": cmd_send, "wait": cmd_wait, "ports": cmd_ports}[a.cmd](a)
+    return {"run": cmd_run, "send": cmd_send, "wait": cmd_wait, "ports": cmd_ports,
+            "attach": cmd_attach}[a.cmd](a)
 
 
 if __name__ == "__main__":

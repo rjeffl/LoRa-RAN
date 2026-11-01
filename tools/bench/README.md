@@ -81,6 +81,21 @@ nohup $PY tools/bench/bench.py --dir "$D" run --mqtt > "$D/run.out" 2>&1 &
 Ports open with DTR and RTS low. Asserting either on open resets an ESP32 through the
 adapter's auto-reset circuit, and the boot that follows is not the one under test.
 
+## Reading a console without a reset
+
+`run` opens a port through pyserial, and that resets the StamPLC, which clears its RAM
+counters. `attach` opens it with no reset, sends its commands and prints to stdout. On
+macOS the board stayed up across it; Linux is not tested (GateLink engineering log,
+2026-11-01). Quit `run` first if it holds the port.
+
+```bash
+$PY tools/bench/bench.py attach /dev/cu.usbmodem101 bms --until 'bms:'
+$PY tools/bench/bench.py attach /dev/cu.usbmodem101 'file cat /bms.log' --seconds 120 --until 'file: /bms.log' > bms.log
+```
+
+A `file cat` ends in a line with the bytes sent and their zlib CRC. Cut that line and the
+newline before it from the saved file, then compare `zlib.crc32` of the rest.
+
 ## Tests
 
 `test_bench.py` needs no board. It covers the `secrets.h` reader, the MQTT packets against
