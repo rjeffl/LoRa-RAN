@@ -1065,3 +1065,88 @@ in the 2026-10-27 read), and the soaks did not log it overnight.
 
 **Falsified by:** BMS remaining capacity unchanged across a night with GateLink's load alone,
 where about 0.5 Ah over 12 h is expected.
+
+## 2026-11-01 — The firmware freeze on the bench: `ACTUATOR_FAULT`, schema `0x13`, a fault log, and a console that does not reset
+
+**On the air, with the sandbox bridge and no MPPT or pack.** The StamPLC ran `gatelink-sandbox`.
+
+| Check | Result |
+|---|---|
+| F1, `relayfault` then `cmd/open/set` | `cmd/ack` `result` 19 (`ACTUATOR_FAULT`), `detail` 0, one attempt |
+| F1, the next OPEN | `result` 0 |
+| F2, a STATUS | `schema` 19 (`0x13`) in the bridge's frame log |
+| F4, `lran ctx new`, then a bridge reset | `ctx` renewed, then a roll `ACCEPTED` with a new value |
+| Fault log | `boot cause=5` after `panic`, `actuator_fault` after the F1 check |
+| Fault log rotation | With the cap set to 300 B for one image, `fault.txt` moved to `fault.old.txt` |
+
+**Not run on the air:** `MPPT_ERROR`, `ah_drawn_dah` with a real count, F7's band and F8's
+prefix match, because each needs a pack, an MPPT or the emulator. The host suites cover
+their logic.
+
+**The stack table and the static stack must agree, and no test says so.** Raising
+`log_task`'s row to 6144 alone gave `Tasks: 6 of 7 started` and no console. `start_tasks()`
+skips a row whose stack disagrees. The banner line is the only sign.
+
+**Opening the console resets the StamPLC through pyserial, not through the open.** This
+settles the question left open on 2026-10-27, on macOS. BOOT events over MQTT counted the
+resets across three opens of `/dev/cu.usbmodem101`:
+
+| Open | Boots |
+|---|---|
+| `os.open()` alone | 0 |
+| `os.open()`, then DTR and RTS cleared by ioctl | 0 |
+| pyserial with `dtr` and `rts` false before `open()`, as `bench.py run` does | 1 |
+
+`bench.py attach` opens the port bare and sets raw mode with `tcsetattr`, and it read the
+`bms` line with no BOOT. **So a visit can read the RAM counters, on macOS.** Linux is not
+tested, and the field laptop runs Kubuntu. **Falsified by:** a BOOT event during `attach`.
+
+**A panic's backtrace is readable over USB after the fact.** The framework's `sdkconfig`
+writes an ELF core dump to flash, and the `coredump` partition is at `0x7F0000`. After
+`panic`, `esptool read_flash 0x7F0000 0x10000` returned it. The ELF starts 20 bytes in, and
+`xtensa-esp32s3-elf-gdb` with the image's `firmware.elf` showed `console_command()` at
+`task_runtime.cpp:2088`. **The core dump is useless without the `firmware.elf` of the image
+that wrote it**, so keep the production build's. `esptool` resets the board. Whether a
+watchdog panic also writes one, given 2026-10-07's `Re-entered core dump!`, was not tried.
+
+**The console loses bytes when it is fed fast, and the CRC catches it.** `file cat` of a
+180 KB `/bms.log`, with `attach` as the reader:
+
+| Writes | Lost | CRC |
+|---|---|---|
+| 512 B a tick, 100 ms TX timeout | 7,583 B, about 4 % | fails |
+| 512 B a tick, 2 s TX timeout | 69 to 430 B, about 0.1 % | fails |
+| 128 B when the ring has room, no pause | about 25,000 B, about 15 % | fails |
+| 64 B per 4 ms, 2 s TX timeout | 0 in five dumps | matches |
+
+That last rate is about 11 KB/s, so 180 KB takes 17 s. Why feeding HWCDC faster loses more
+is not established. This may be the same loss as 2026-10-08's, unchecked.
+
+**`/config.json` holds `{}`, not 3 overrides.** The handoff's *Hardware state* was out of
+date; `file cat` showed 3 bytes. Nothing here wrote it before the `bms_poll_s` test.
+
+### F5: the relay at a watchdog reset, a proposal for the operator
+
+**The problem is wider than the brief's "about 1 s".** A reset clears a held relay only at
+`setup()`'s `board_relays_off_early()`, because a CPU reset leaves the expander's latch
+alone (2026-10-07). Three cases hold a relay closed past its pulse:
+
+| Case | Held for | Today |
+|---|---|---|
+| A panic during a pulse | Until `setup()`, about 1 s | Measured 2026-10-07 |
+| `io_task` hangs during a pulse | Without limit. The task watchdog watches `app_task` alone, so nothing fires while `app_task` runs | Read in the source, not run |
+| The trailing edge's expander write fails | Until the next relay write, because `pulser.update()` fires once and nothing retries | Read in the source, not run |
+
+**Proposal, in order of value:**
+
+1. **Retry the trailing edge.** `io_task` rewrites the mask each pass until the write lands.
+   A few lines, no wait, and it covers the case with no limit that needs no other fault.
+2. **Let `app_task` stop feeding the watchdog when `io_task`'s pass count stops moving.** A
+   hung `io_task` then resets the board. A few lines. `watchdog_timeout_s` sets the delay,
+   10 s by default.
+3. **Drop the relays from the panic path by driving GPIO 3 low**, which resets both
+   expanders with no I²C. It would wrap `esp_panic_handler` at link time, since this core
+   offers no hook. It needs one bench run on the analyzer, and the wrap is new risk in the
+   path that reports every other fault. It shortens only the 1 s case, so **it is the one
+   to leave out** unless a 1 s closure matters at the 1050.
+

@@ -1,7 +1,7 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.26
+**Version:** 0.27
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
@@ -1074,6 +1074,10 @@ implementation plan.*
 
 ## 10. Changelog
 
+- **v0.27** — R-3.5a drops "GateLink sends `0x10` until that count is built", because it now
+  sends `0x13`. **R-5.3g and R-5.4e are met in purpose, not as worded:** GateLink's fault log
+  rotates and survives a link outage, has no levels, and retains counters only as periodic
+  lines (Impl Plan §6.4).
 - **v0.26** — **§7.1's cover always closes at once**, and §7.2 drops the Close immediately
   switch (operator, 2026-10-28). ▼ sends `CLOSE` with `arg` 1, and the hold switch turned
   off is the release-only path. §7.1 also states the cover's direction inference and its

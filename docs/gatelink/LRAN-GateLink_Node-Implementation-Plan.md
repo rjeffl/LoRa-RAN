@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.46
+**Version:** 0.47
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.26
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.27
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -1123,9 +1123,13 @@ it costs a walk. So a missing card does not block a PHY change. GateLink answers
 | File | Purpose |
 |---|---|
 | `config.json` | Configuration overrides |
-| `state.json` | Last-known gate/hold state, boot counter |
-| `log/*.txt` | Rotating leveled event log |
+| `state.json` | Last-known gate/hold state, boot counter. **Not built** |
+| `log/fault.txt`, `log/fault.old.txt` | PRD R-5.4e's log: boots and their causes, events sent, `ACTUATOR_FAULT`, the pack's name when it changes, and counters every 12 `bms_poll_s`. `log_task` writes it and rotates it at 256 KB. It has no levels, and it records no receive-side or engine detail |
 | `bms.log` | One line per BLE window: `uptime_s`, how the window ended, its length and stage timings, and the notification path's cumulative counters. `bms_task` appends it after releasing the interlock. Built 2026-10-25 for the bench soak, which runs with USB unplugged and so without the console's `bms` line. It does not rotate; at one line a `bms_poll_s` of 300 it grows about 50 KB a day |
+
+**The console's `file ls`, `file cat <path> [offset]` and `file tail <path> [lines]` read
+any of these over USB**, and nothing else writes them. A dump ends in its byte count and
+zlib CRC, because the console can lose bytes. `bench.py attach` reads them with no reset.
 
 **Absent-card behaviour:** defaults apply; runtime changes are applied to RAM, ACKed with
 an explicit not-persisted status, and the condition is published as a diagnostic sensor
@@ -1594,6 +1598,9 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 ## 10. Changelog
 
+- **v0.47** — **The firmware freeze's items are built** (engineering log, 2026-11-01): §5.2's
+  `ACTUATOR_FAULT`, and §6.4's fault log and `file` command. §6.4 says `state.json` is not
+  built, and what the fault log leaves out. **PRD v0.26 → v0.27**, which records the same.
 - **v0.46** — **PRD v0.25 → v0.26.** No change here. The PRD's revision is the Home
   Assistant surface, which the bridge's discovery builds: the cover's close always sends
   `CLOSE` with `arg` 1, and the Close immediately switch is gone.

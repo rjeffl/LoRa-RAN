@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.43, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.47, §5
 for the architecture and §8 for the milestones.
-**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.23.
+**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.27.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.19** (`ver = 2`).
 **Session state:** `docs/gatelink/HANDOFF.md`. Start there.
 
@@ -32,7 +32,7 @@ bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPP
 transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
 the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
 INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `aw drive <0|1>`, `aw redir`, `sense`, `sd`,
-`beep`, `relayfault`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
+`beep`, `relayfault`, `file ls`, `file cat`, `file tail`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
 refusals and commands, and `lran ctx new` takes a new `ctx_id` without announcing it, for
@@ -78,6 +78,8 @@ is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` par
 | `bms_client.{h,cpp}` | One BLE window: controller up, scan, connect, handshake, `0x8C`, controller down | no |
 | `ble_interlock.h` | The radio's half of the LoRa/BLE interlock; `task_runtime.cpp` holds the lock | no |
 | `ved_link.{h,cpp}` | `vedirect_task`'s logic: the text cache scaled into spec §7.2.2, staleness, and one HEX transaction with its Get retry | yes |
+| `file_dump.{h,cpp}` | The `file` command's CRC and tail, and the fault log's paths and lines | yes |
+| `roll_entropy.h` | True-entropy words held for a roll's `ctx_id` (D87) | yes |
 | `ui_pages.{h,cpp}` | Panel text, and the node key's status | yes |
 | `board_stamplc.{h,cpp}` | The board layer over M5StamPLC: relays, inputs, buttons, buzzer, sensors, RTC, panel, microSD | no |
 | `spi_bus.{h,cpp}` | The one SPI lock (plan §5.2) | no |
@@ -141,6 +143,10 @@ It prints one `#define` to paste into `secrets.h`. Never paste it anywhere else.
   port it finds, and the upload fails as busy. Quit it before flashing.
 - **NimBLE's callouts must stay on `esp_timer`** (`platformio.ini` says why). On FreeRTOS
   timers, cycling the controller every poll panicked the timer task.
+- **A task's stack lives in two places**: its row in `tasks.cpp` and its array in
+  `task_runtime.cpp`. If they disagree, `start_tasks()` skips the task, and only the banner's
+  `Tasks: 6 of 7 started` says so.
+- **Opening the port with pyserial resets the board.** `bench.py attach` does not, on macOS.
 - **`Serial` is silent without `-DARDUINO_USB_CDC_ON_BOOT=1`**, while boot ROM lines still
   appear. The flag is set; do not remove it.
 - **The StamPLC and the XIAO both enumerate as `/dev/cu.usbmodem*`.** Read the banner, and
