@@ -32,6 +32,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "ah_drawn.h"
 #include "alarm_watch.h"
 #include "ble_interlock.h"
 #include "bms_client.h"
@@ -45,6 +46,7 @@
 #include "gate_state.h"
 #include "gatelink_app.h"
 #include "inject.h"
+#include "mppt_error_watch.h"
 #include "lran/node/engine.h"
 #include "lran/node/names.h"
 #include "lran/node/phy_trial.h"
@@ -119,10 +121,19 @@ struct IoSnapshot {
   // for (Impl Plan 5.2). cmd_seq is bumped once per sequence, after its last trailing edge.
   uint32_t     cmd_seq       = 0;
   SequenceEnd  cmd_end       = SequenceEnd::Done;
+  bool         cmd_write_failed = false;  // the last sequence lost a write: D78, spec 8.2
   uint32_t     cmd_i2c_failures = 0;  // expander writes a sequence lost, since boot
 };
 
 portMUX_TYPE  g_io_mux = portMUX_INITIALIZER_UNLOCKED;
+
+// The console's `relayfault`: how many leading edges to skip and report as failed.
+std::atomic<uint32_t> g_relay_write_faults{0};
+
+bool take_relay_write_fault() {
+  uint32_t left = g_relay_write_faults.load(std::memory_order_relaxed);
+  return left != 0 && g_relay_write_faults.compare_exchange_strong(left, left - 1, std::memory_order_relaxed);
+}
 IoSnapshot    g_io;
 StaticQueue_t g_pulse_q_storage;
 uint8_t       g_pulse_q_buf[4 * sizeof(PulseRequest)];
@@ -161,6 +172,8 @@ std::atomic<uint32_t> g_push_dropped{0};  // root rule 4: a push the queue had n
 // GL5 - app_task's charge-inhibited indication (PRD R-6.4a, R-6.4b), for spec 7.2.6 bit 3
 // and the console's `chg`. The source and path are ChargeSource values.
 std::atomic<bool>    g_charge_inhibited{false};
+// app_task's PRD R-6.4c count, spec 7.2.10.
+std::atomic<uint16_t> g_ah_drawn_dah{lran::kU16NotAvailable};
 std::atomic<uint8_t> g_charge_source{0};
 std::atomic<uint8_t> g_charge_path{0};
 
@@ -368,7 +381,7 @@ void io_task(void*) {
       sequencer.begin(cmd, now);
     }
     if (sequencer.service(pulser, width_ms, spacing_ms, settle_ms, now)) {
-      const bool    ok = board_write_relays(pulser.mask());
+      const bool    ok = !take_relay_write_fault() && board_write_relays(pulser.mask());
       const int64_t t  = esp_timer_get_time();
       if (!ok) ++seq_i2c_failures;
       portENTER_CRITICAL(&g_io_mux);
@@ -384,6 +397,7 @@ void io_task(void*) {
     if (sequencer.take_end(&end)) {
       portENTER_CRITICAL(&g_io_mux);
       g_io.cmd_end = end;
+      g_io.cmd_write_failed = seq_i2c_failures != 0;
       g_io.cmd_i2c_failures += seq_i2c_failures;
       ++g_io.cmd_seq;
       portEXIT_CRITICAL(&g_io_mux);
@@ -860,6 +874,7 @@ class Node final : public RadioClient, public GateLinkPort {
   }
   BmsSnapshot bms() const override { return bms_snapshot(); }
   bool charge_inhibited() const override { return g_charge_inhibited.load(std::memory_order_relaxed); }
+  uint16_t ah_drawn_dah() const override { return g_ah_drawn_dah.load(std::memory_order_relaxed); }
   void bms_polling_changed(bool on) override { g_bms_polling.store(on); }
   MpptSnapshot mppt() const override {
     portENTER_CRITICAL(&g_ved_mux);
@@ -1083,12 +1098,16 @@ void lora_task(void*) {
 
     radio_service(&g_node, &g_node.outbox(), now);
 
-    // Impl Plan 5.2 - the ACK after the last trailing edge. A failed expander write has no
-    // AckResult (spec 8.2); it is counted, and the handoff carries the question.
+    // Impl Plan 5.2 - the ACK after the last trailing edge, so it can say whether every
+    // write in the sequence landed (spec 8.2, D78).
     const IoSnapshot io = io_snapshot();
     if (io.cmd_seq != cmd_seq) {
       cmd_seq = io.cmd_seq;
-      g_node.engine().finish_command(g_node.ctx(), g_node.app(), now);
+      if (io.cmd_write_failed) {
+        g_node.engine().finish_command(g_node.ctx(), g_node.app(), now, lran::AckResult::ActuatorFault);
+      } else {
+        g_node.engine().finish_command(g_node.ctx(), g_node.app(), now);
+      }
     }
     if (boot_alarms_owed && io.inputs_read) {
       boot_alarms_owed = false;
@@ -1255,6 +1274,8 @@ void app_task(void*) {
   Detector     detector(&g_event_ids);
   ChargeInhibit charge;
   AlarmWatch   alarms;
+  MpptErrorWatch mppt_errors;
+  AhDrawn      ah_drawn;
   InjectScript script;
   uint8_t      inj_mask  = 0;
   uint8_t      inj_value = 0;
@@ -1331,9 +1352,13 @@ void app_task(void*) {
       portENTER_CRITICAL(&g_ved_mux);
       const MpptSnapshot mppt = g_ved.mppt;
       portEXIT_CRITICAL(&g_ved_mux);
+      const BmsSnapshot bms_now = bms_snapshot();
+      g_ah_drawn_dah.store(ah_drawn.update(mppt, bms_now, now, cp.bms_poll_s), std::memory_order_relaxed);
       PushList charge_out;
       const bool charge_changed =
-          charge.update(mppt, bms_snapshot(), now, cp, gc, &g_event_ids, &charge_out);
+          charge.update(mppt, bms_now, now, cp, gc, &g_event_ids, &charge_out);
+      // Spec 8.9, D86. A STATUS and an EVENT at most, so it fits beside charge inhibition's.
+      mppt_errors.update(mppt, gc, &g_event_ids, &charge_out);
       // The flag first, so the STATUS it causes carries it.
       g_charge_inhibited.store(charge.inhibited(), std::memory_order_relaxed);
       g_charge_source.store(static_cast<uint8_t>(charge.source()), std::memory_order_relaxed);
@@ -1597,6 +1622,10 @@ void console_command(char* cmd) {
       const bool queued = xQueueSend(g_pulse_q, &req, 0) == pdTRUE;
       n = std::snprintf(line, sizeof(line), "relay: K%lu %s", k, queued ? "queued" : "QUEUE FULL");
     }
+  } else if (std::strcmp(cmd, "relayfault") == 0) {
+    // D78's bench check: an expander write cannot be made to fail on demand. USB only.
+    g_relay_write_faults.store(1, std::memory_order_relaxed);
+    n = std::snprintf(line, sizeof(line), "relayfault: the next sequence's next leading edge fails");
   } else if (std::strcmp(cmd, "in") == 0) {
     const IoSnapshot s = io_snapshot();
     static const char* const kEarlyOff[] = {"ok", "bus failed", "no ack"};

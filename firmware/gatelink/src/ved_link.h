@@ -44,6 +44,11 @@ inline constexpr uint8_t kMpptFlagHexPending  = 0x04;
 // spec 7.2.2, D79 - a label missing from a block that passed its checksum reads as this.
 inline constexpr uint8_t kCodeNotAvailable = lran::kCodeNotAvailable;
 
+// VE.Direct's CS, the values anything here decides on.
+inline constexpr uint8_t kCsBulk       = 3;
+inline constexpr uint8_t kCsAbsorption = 4;
+inline constexpr uint8_t kCsFloat      = 5;
+
 // The MPPT block of spec 7.2.2, in its units. Sentinels until a block arrives (root rule 6).
 // A stale snapshot keeps the last block's values: bit 1 says they are old, and the bridge
 // marks the entities unavailable from it.

@@ -32,7 +32,7 @@ bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPP
 transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
 the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
 INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `aw drive <0|1>`, `aw redir`, `sense`, `sd`,
-`beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
+`beep`, `relayfault`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
 refusals and commands, and `lran ctx new` takes a new `ctx_id` without announcing it, for
@@ -72,6 +72,8 @@ is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` par
 | `config_store.{h,cpp}` | The configuration: lran-config's `Store` over the node-common and GateLink blocks, and `SdPersist`, its microSD `Persist`, with `config.json`'s reader and writer | yes |
 | `charge_inhibit.{h,cpp}` | `app_task`'s charge inhibition: the BMS path, the VE.Direct inference and their pushes | yes |
 | `alarm_watch.{h,cpp}` | `app_task`'s FIRE and hard-shutdown edges and their pushes | yes |
+| `mppt_error_watch.{h,cpp}` | `app_task`'s VE.Direct `ERR` changes and their pushes (D86) | yes |
+| `ah_drawn.{h,cpp}` | `app_task`'s PRD R-6.4c count, `ah_drawn_dah` in schema `0x13` (D82) | yes |
 | `bms_link.{h,cpp}` | `bms_task`'s logic: spec §7.2.3's block from a read, the replies that end a BLE window, the interlock's decision, and each window's `/bms.log` line | yes |
 | `bms_client.{h,cpp}` | One BLE window: controller up, scan, connect, handshake, `0x8C`, controller down | no |
 | `ble_interlock.h` | The radio's half of the LoRa/BLE interlock; `task_runtime.cpp` holds the lock | no |
@@ -93,7 +95,8 @@ pins on the header board give a carrier that never answers.
 
 ```bash
 pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, BMS block, charge inhibition, alarm edges, config store, gate state, detection, injection
-pio run  -d firmware/gatelink -e gatelink      # target; needs LRAN_GATELINK_NODE_KEY
+pio run  -d firmware/gatelink -e gatelink      # target; the production image, from the root secrets.h
+pio run  -d firmware/gatelink -e gatelink-sandbox  # bench image, from secrets.sandbox.h
 pio run  -d firmware/gatelink -e gatelink-bringup  # GL0 console; no secrets.h
 python3 tools/checks/io_task_never_blocks.py   # R-5.2a, plan §5.2
 python3 tools/checks/node_holds_no_master.py   # plan §6.8

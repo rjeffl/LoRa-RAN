@@ -13,6 +13,7 @@
 #include <string>
 
 #include "gatelink_app.h"
+#include "lran/schema/gatelink_status_v2.h"
 #include "lran/lran.h"
 #include "lran/node/engine.h"
 #include "lran/node/names.h"
@@ -164,10 +165,10 @@ struct Rig {
     rx(to_node(MsgType::Poll, 9), p, 1);
     uint8_t     buf[kOutFrameMax];
     const Frame f = next(buf);
-    schema::GateLinkStatusV1 s;
+    schema::GateLinkStatusV2 s;
     TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
                           static_cast<int>(schema::deserialize(f.payload, f.payload_len, &s)));
-    return s;
+    return s.v1;
   }
 
   void rx(const Header& h, const uint8_t* payload, size_t n, const uint8_t* key = nullptr) {
@@ -389,10 +390,13 @@ void test_poll_answers_status_with_sentinels() {
   uint8_t     buf[kOutFrameMax];
   const Frame f = r.next(buf);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::Status), static_cast<uint8_t>(f.hdr.type));
-  TEST_ASSERT_EQUAL_UINT8(kSchemaGateLinkStatusV1, f.hdr.schema);
-  schema::GateLinkStatusV1 s;
+  TEST_ASSERT_EQUAL_UINT8(lran::kSchemaGateLinkStatusV2, f.hdr.schema);
+  schema::GateLinkStatusV2 v2;
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
-                        static_cast<int>(schema::deserialize(f.payload, f.payload_len, &s)));
+                        static_cast<int>(schema::deserialize(f.payload, f.payload_len, &v2)));
+  // spec 7.2.10 - the port's count, UINT16_MAX until it has a reference.
+  TEST_ASSERT_EQUAL_UINT16(lran::kU16NotAvailable, v2.ah_drawn_dah);
+  const schema::GateLinkStatusV1& s = v2.v1;
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StatusReason::PollResponse), s.status_reason);
   TEST_ASSERT_EQUAL_UINT8(0x05, s.input_bits);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(GateState::Unknown), s.gate_state);
@@ -435,9 +439,10 @@ void test_status_carries_charge_inhibited() {
   r.rx(r.to_node(MsgType::Poll, 9), p, 1);
   uint8_t     buf[kOutFrameMax];
   const Frame f = r.next(buf);
-  schema::GateLinkStatusV1 s;
+  schema::GateLinkStatusV2 v2;
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
-                        static_cast<int>(schema::deserialize(f.payload, f.payload_len, &s)));
+                        static_cast<int>(schema::deserialize(f.payload, f.payload_len, &v2)));
+  const schema::GateLinkStatusV1& s = v2.v1;
   TEST_ASSERT_EQUAL_HEX8(gatelink::kMpptFlagLoadOn | gatelink::kMpptFlagChargeInhibited,
                          s.mppt_flags);
 }
@@ -454,9 +459,10 @@ void test_status_carries_the_mppt_snapshot() {
   r.rx(r.to_node(MsgType::Poll, 9), p, 1);
   uint8_t     buf[kOutFrameMax];
   const Frame f = r.next(buf);
-  schema::GateLinkStatusV1 s;
+  schema::GateLinkStatusV2 v2;
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
-                        static_cast<int>(schema::deserialize(f.payload, f.payload_len, &s)));
+                        static_cast<int>(schema::deserialize(f.payload, f.payload_len, &v2)));
+  const schema::GateLinkStatusV1& s = v2.v1;
   TEST_ASSERT_EQUAL_UINT16(13360, s.batt_mv);
   TEST_ASSERT_EQUAL_INT16(-40, s.batt_ma);
   TEST_ASSERT_EQUAL_UINT32(467, s.yield_total);

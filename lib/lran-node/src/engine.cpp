@@ -547,6 +547,12 @@ void Engine::on_command(Context& c, Application& app, const Header& hdr, const u
   }
 }
 
+void Engine::finish_command(Context& c, Application& app, uint32_t now_ms, AckResult result) {
+  c.pending.result = result;
+  c.pending.detail = 0;  // spec 8.2
+  finish_command(c, app, now_ms);
+}
+
 void Engine::finish_command(Context& c, Application& app, uint32_t now_ms) {
   if (!c.pending.active) return;
   const PendingCommand p = c.pending;

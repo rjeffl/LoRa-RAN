@@ -83,6 +83,8 @@ class GateLinkPort {
   virtual BmsSnapshot bms() const { return BmsSnapshot{}; }
   // app_task's charge-inhibited indication, spec 7.2.6 bit 3 (PRD R-6.4a, R-6.4b).
   virtual bool charge_inhibited() const { return false; }
+  // app_task's PRD R-6.4c count, spec 7.2.10. UINT16_MAX until it has a reference.
+  virtual uint16_t ah_drawn_dah() const { return lran::kU16NotAvailable; }
   // SET_BMS_POLLING was accepted (PRD R-3.4e). bms_task reads it before each window.
   virtual void bms_polling_changed(bool) {}
 

@@ -9,7 +9,7 @@
 
 #include "gate_state.h"
 #include "lran/schema/gatelink_event_v1.h"
-#include "lran/schema/gatelink_status_v1.h"
+#include "lran/schema/gatelink_status_v2.h"
 #include "tasks.h"
 
 namespace gatelink {
@@ -192,7 +192,8 @@ size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason 
                                  uint32_t now_ms, uint8_t* out, size_t cap, uint8_t* schema) {
   const NodeSnapshot          n = port_->snapshot();
   const GateSnapshot          g = port_->gate();
-  lran::schema::GateLinkStatusV1 s;
+  lran::schema::GateLinkStatusV2 v2;
+  lran::schema::GateLinkStatusV1& s = v2.v1;
   s.gate_state           = g.gate_state;
   s.input_bits           = n.inputs;
   s.hold                 = g.hold;
@@ -234,9 +235,11 @@ size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason 
       ((n.inputs & kInAlarm) != 0 ? kNodeFlagHardShutdown : 0));
   s.status_reason = static_cast<uint8_t>(reason);
 
-  *schema   = lran::kSchemaGateLinkStatusV1;
+  v2.ah_drawn_dah = port_->ah_drawn_dah();
+
+  *schema   = lran::kSchemaGateLinkStatusV2;
   size_t nw = 0;
-  return lran::schema::serialize(s, out, cap, &nw) == lran::Status::Ok ? nw : 0;
+  return lran::schema::serialize(v2, out, cap, &nw) == lran::Status::Ok ? nw : 0;
 }
 
 size_t GateLinkApp::build_event(lran::node::Context&, lran::EventType type, uint16_t detail,

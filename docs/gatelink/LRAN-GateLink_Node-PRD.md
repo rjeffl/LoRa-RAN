@@ -399,8 +399,7 @@ here**. Node-specific obligations:
 
 - **R-3.5a.** GateLink is node `0x01` and emits status schema `0x13`, event schema
   `0x11`, config schema `0x12` and health schema `0xF0`. Schema `0x13` is `0x10` plus
-  R-6.4c's count (Protocol Spec §7.2.10, **D82**). GateLink sends `0x10` until that count
-  is built.
+  R-6.4c's count (Protocol Spec §7.2.10, **D82**).
 - **R-3.5b.** GateLink SHALL transmit on: a poll request; gate or hold state change;
   non-zero charger error, where `0xFF` means not available and is not an error (Protocol
   Spec §7.2.2, **D79**); vehicle detection; FIRE assertion; hard-shutdown alarm; BMS

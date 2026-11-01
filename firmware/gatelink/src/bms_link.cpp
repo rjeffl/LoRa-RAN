@@ -87,8 +87,11 @@ bool reply_awaited(const uint8_t* frame, size_t len) {
     case lran::MsgType::HexRsp:
       return true;
     case lran::MsgType::Status: {
-      if (frame[11] != lran::kSchemaGateLinkStatusV1) return true;
-      constexpr size_t kReasonAt = lran::kHdrLen + 77;  // spec 7.2.4
+      if (frame[11] != lran::kSchemaGateLinkStatusV1 &&
+          frame[11] != lran::kSchemaGateLinkStatusV2) {
+        return true;
+      }
+      constexpr size_t kReasonAt = lran::kHdrLen + 77;  // spec 7.2.4; 0x13 keeps 0x10's offsets
       return len > kReasonAt &&
              frame[kReasonAt] == static_cast<uint8_t>(lran::StatusReason::PollResponse);
     }

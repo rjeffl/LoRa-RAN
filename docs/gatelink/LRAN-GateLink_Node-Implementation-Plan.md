@@ -875,8 +875,8 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   in the window and goes unanswered, and the next retry gets `DUPLICATE_CACHED`
   (Protocol Spec §9.4). **A pulse the expander did not carry out is
   `ACTUATOR_FAULT`** (spec §8.2, **D78**): an I²C write can fail while the node runs on.
-  GateLink counts the failure and still answers `ACCEPTED`; answering `ACTUATOR_FAULT`,
-  with the value cached for a `DUPLICATE_CACHED` replay, is still to be built.
+  GateLink counts the failure and answers `ACTUATOR_FAULT`, and a retry reads the value
+  back as `DUPLICATE_CACHED`'s `detail`.
 - **`ROLL_CONTEXT` bypasses `CommandGate::check()`** (Protocol Spec §9.4, §10.6,
   **D58**, PRD R-3.5e). While any entry is in flight, GateLink answers `ACTUATOR_BUSY`
   and changes nothing. Otherwise it takes a new random `ctx_id`, calls

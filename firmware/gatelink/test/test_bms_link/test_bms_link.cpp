@@ -153,6 +153,8 @@ void test_awaited_replies() {
   TEST_ASSERT_TRUE(gatelink::reply_awaited(f, frame(f, MsgType::ConfigAck, 0x12, 0)));
   TEST_ASSERT_TRUE(gatelink::reply_awaited(f, frame(f, MsgType::HexRsp, 0, 0)));
   TEST_ASSERT_TRUE(gatelink::reply_awaited(f, frame(f, MsgType::Status, 0x10, poll)));
+  TEST_ASSERT_TRUE(gatelink::reply_awaited(f, frame(f, MsgType::Status, 0x13, poll)));
+  TEST_ASSERT_FALSE(gatelink::reply_awaited(f, frame(f, MsgType::Status, 0x13, gate)));
   TEST_ASSERT_TRUE(gatelink::reply_awaited(f, frame(f, MsgType::Status, 0xF0, gate)));
   TEST_ASSERT_FALSE(gatelink::reply_awaited(f, frame(f, MsgType::Status, 0x10, gate)));
   TEST_ASSERT_FALSE(gatelink::reply_awaited(f, frame(f, MsgType::Event, 0x11, 0)));

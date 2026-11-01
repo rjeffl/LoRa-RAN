@@ -99,6 +99,20 @@ void test_bms_threshold_is_inclusive() {
   TEST_ASSERT_TRUE(warm.step(MpptSnapshot{}, bms_read(-50, 0, 3000), 3000));
 }
 
+// A pack sitting at the threshold holds the indication until 1.0 C above it, so a sensor
+// flickering by 0.1 C sends nothing, and the VE.Direct path sees no such band.
+void test_bms_release_needs_the_band() {
+  Rig r;
+  TEST_ASSERT_TRUE(r.step(MpptSnapshot{}, bms_read(0, 0, 1000), 1000));
+  TEST_ASSERT_FALSE(r.step(MpptSnapshot{}, bms_read(1, 0, 301000), 301000));
+  TEST_ASSERT_FALSE(r.step(MpptSnapshot{}, bms_read(10, 0, 601000), 601000));
+  TEST_ASSERT_TRUE(r.c.inhibited());
+  TEST_ASSERT_TRUE(r.step(MpptSnapshot{}, bms_read(11, 0, 901000), 901000));
+  TEST_ASSERT_FALSE(r.c.inhibited());
+  TEST_ASSERT_FALSE(r.step(MpptSnapshot{}, bms_read(1, 0, 1201000), 1201000));
+  TEST_ASSERT_FALSE(r.c.inhibited());
+}
+
 // A cold pack that is charging is not inhibited: the BMS let the charge through.
 void test_bms_cold_but_charging_is_not_inhibited() {
   Rig r;
@@ -266,6 +280,7 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_bms_cold_and_not_charging_is_inhibited);
   RUN_TEST(test_bms_threshold_is_inclusive);
+  RUN_TEST(test_bms_release_needs_the_band);
   RUN_TEST(test_bms_cold_but_charging_is_not_inhibited);
   RUN_TEST(test_bms_warming_clears_with_a_status_alone);
   RUN_TEST(test_fresh_bms_outranks_vedirect);

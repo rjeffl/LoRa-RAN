@@ -66,6 +66,9 @@ class Engine {
   // follows the ACK. A no-op when nothing is pending. The application may update
   // `c.pending.result` and `detail` first.
   void finish_command(Context& c, Application& app, uint32_t now_ms);
+  // The same, for a command whose result was decided by running it: spec 8.2's
+  // ACTUATOR_FAULT replaces the result execute() left pending.
+  void finish_command(Context& c, Application& app, uint32_t now_ms, AckResult result);
 
   // spec 8.13 - the answer to a HexReply::Pending. False when nothing was pending.
   bool complete_hex(Context& c, HexStatus status, const char* hex, size_t n);

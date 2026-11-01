@@ -16,7 +16,10 @@
 #include "task_runtime.h"
 #include "ui_pages.h"
 
-#if __has_include("secrets.h")
+// The gatelink-sandbox env names its own file; every other build reads the root secrets.h.
+#if defined(LRAN_SECRETS_FILE)
+#include LRAN_SECRETS_FILE
+#elif __has_include("secrets.h")
 #include "secrets.h"
 #else
 #error "secrets.h not found. Run `cp secrets.h.example secrets.h` at the repo root and fill it in. GateLink reads LRAN_GATELINK_NODE_KEY only. Never commit the copy."
