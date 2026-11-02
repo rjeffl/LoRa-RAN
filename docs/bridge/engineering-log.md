@@ -2083,3 +2083,21 @@ past `temp_count`. Before this, that `-128` would have reached HA's lowest-pack-
 
 **Tested on the host only.** `test_publish` has four new cases, and three of them failed before the
 change. The 567 native cases pass and `heltec` builds. Nothing has run on the air.
+
+## 2026-11-02 — R1 on the air: `alarms` and the five flags read `null`, and HA reads `unknown`
+
+**D85 passes on the air against the real pack.** The sandbox bridge was flashed over USB from
+`ae55e48`, and `lran/bridge/version` read that commit at 17:47:33. The first live `battery/state`
+came a second later:
+
+```text
+"available":true,"soc":99,"soc_source":"bms_ble", ... "alarms":null,"charge_fet":null,"discharge_fet":null,"charge_inhibited":null,"protection":null,"balancing":null
+```
+
+**HA read as the entry above predicted.** `binary_sensor.gatelink_battery_protection` and
+`binary_sensor.gatelink_charging_inhibited_bms` read `unknown`, and
+`binary_sensor.gatelink_charging_inhibited` read `off`.
+
+**D84 was not seen on the air.** This pack reports all four temperatures, 24, 26, 23 and 23 °C, so
+GateLink sent no `INT8_MIN`, and that rule stays host-tested. The lowest-pack-temperature sensor
+read 73.4 °F, which matches the 23 °C readings.
