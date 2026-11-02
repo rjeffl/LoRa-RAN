@@ -27,11 +27,12 @@ Continue from docs/ha/HANDOFF.md: task H10.
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10, the port to
-production, waits on bridge task B6.
+production, is next, and follows the deployment brief's B3, not B6 (plan v0.22, §12). §12's step 6
+waits for GL8 at the gate, so this session runs steps 2 to 5 and 7.
 
 | Task | Read |
 |---|---|
-| **H10** Port to production | Plan §12; §8.3's porting issues; §11's H10 row |
+| **H10** Port to production | *The next job* here; plan §12; §8.3's porting issues; §11's H10 row |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -39,9 +40,32 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H10, the port to production**, once bridge task B6 has run (plan §12). The deployment brief's B3
-is done: production HA registered the entities on 2026-11-02, and the operator found them correct
-(bridge engineering log, same date, *B3*).
+**H10, the port to production** (plan §12). B3 is done: production HA registered the entities on
+2026-11-02, and the operator found them correct (bridge engineering log, same date, *B3*). GateLink
+stays on the bench through this session.
+
+**Before anything else, read `uptime_s` from `lran/gatelink/node/state`.** The overnight run after
+B3 is the first evidence longer than a minute on these images. Opening either board's serial port
+resets it, which would erase that evidence, so use `bench.py run --mqtt` with no `--port`.
+
+**Check the target before every write.** `/Volumes/config` and `ha-sandbox` are still the sandbox,
+and *The dev flow*'s copy commands name that mount. Production needs its own mount, and `ha-prod`
+is not registered yet (*The dev flow*).
+
+**Gate commands are live.** GateLink's `dry_run` reads false, and the Gate dashboard's tiles have no
+confirmation. Turn dry-run on before pressing one, and check what the bench's relays are wired to.
+
+**Alerts reach their real targets once the packages load**, while the node is still on the bench.
+This has not been checked alert by alert. Leave `input_boolean.lran_email_enabled` off (plan §12,
+step 7), and ask the operator who should get pushes during the port.
+
+**Production's settings, from the deployment brief's *B6 and H10*:** a production `site.yaml` with
+real notify targets, and the home location, because a wrong `sun.sun` fires `lran_3_open_at_night`
+at the wrong hour.
+
+**The operator's decisions to have before starting**, none checked for later closure: the brief's R5
+(the Fluvy review's open questions), R7 (state alerts past their threshold at start) and R8 (the
+test-only override package), and which entities production exposes to Assist.
 
 ## What the last session established
 

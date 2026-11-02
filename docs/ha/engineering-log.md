@@ -1066,3 +1066,11 @@ the check for both.
 
 **The dashboard row now reads *Drawn since charging (at least)***, because PRD R-6.4c makes the count
 a lower bound. The entity keeps its discovery name, so the bridge's image does not change.
+
+## 2026-11-02 — H10 follows B3, not B6
+
+**By operator choice, the next session ports to production with GateLink on the bench.** Plan §12
+required B6 because production entities exist only after discovery reaches the production broker,
+and B3 did that today. B6 itself needs GL6 at the gate. Plan v0.22 moves H10's dependency to B3, and
+§12's step 6 still waits for GL8. The deployment brief's at-gate table lists H10 with B6, and it stays
+as written, because it is a dated record.
