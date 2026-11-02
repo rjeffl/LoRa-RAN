@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks, on 2026-11-02 at the end of H12, and on 2026-11-02 when tier 5 was parked.**
+read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, and on 2026-11-02 for the boots chart.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -39,7 +39,8 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H10, the port to production**, once bridge task B6 has run (plan §12).
+**H10, the port to production**, once bridge task B6 has run (plan §12). The deployment brief's B3
+comes first, and production HA registers the entities then (bridge plan §11.3).
 
 ## What the last session established
 
@@ -329,8 +330,9 @@ those two targets changed, which plan §7.3 names.
   switch and several sensors. With voice control parked, whether any should stay exposed is the
   operator's call.
 - **Why `load_on` went false at 06:53 on 2026-11-02 with no panel connected is not known.**
-- **`boot_count` reads null on `lran/gatelink/node/state`**, and the Events view charts boots per
-  day from it. Not chased (2026-11-02).
+- **`boot_count` reads null on `lran/gatelink/node/state`, and stays so** (operator, 2026-11-02).
+  The Events view charts `sensor.lran_gatelink_boots` instead, whose admitted-boot path has not
+  seen a real boot yet (engineering log, 2026-11-02, *Boots from the `BOOT` event*).
 - **A requested readback whose first message is lost can still mirror a partial table.** Only an
   answer that arrives unrequested is checked for its first row (`ConfigPath::on_config_ack`).
 - **A comment in `lran/config/table.h` counts GateLink's block as 20 rows**, and GateLink reports

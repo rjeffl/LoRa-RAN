@@ -2101,3 +2101,25 @@ came a second later:
 **D84 was not seen on the air.** This pack reports all four temperatures, 24, 26, 23 and 23 °C, so
 GateLink sent no `INT8_MIN`, and that rule stays host-tested. The lowest-pack-temperature sensor
 read 73.4 °F, which matches the 23 °C readings.
+
+## 2026-11-02 — The production broker refused the login, and B3 moves the broker to the bench
+
+**The production broker answered `CONNACK` code 5, not authorized**, three times in 15 s, to
+`bench.py run --mqtt` reading the root `secrets.h`. The address connects, so the host is right. The
+user and password are present and hold no backslash, quote or edge space, which is all this test
+checked without printing them. The same client connects to the sandbox broker. Which field is wrong,
+or whether the broker lacks the user, is not established. Nothing was published, and no
+`lran/` message arrived.
+
+**The operator chose to let B3 be the production move** (Impl Plan v0.98, §11.3). `heltec` holds the
+production master, and a bridge publishes discovery on every boot and reconnect, so flashing it on
+the bench registers the entities in production HA. The plan had said B6. Production's MQTT integration is
+already connected, by operator report. At the flash, read `config/state` against the defaults and clear
+only what differs, with `deployed` kept at 1 (operator, same date).
+
+## 2026-11-02 — The production broker accepts the login
+
+**The refusal in the entry above is resolved.** The operator found the earlier user entry had not
+been saved on the broker, fixed it and restarted the broker. `bench.py run --mqtt`, reading the root
+`secrets.h`, then logged `<connected, subscribed lran/#>`. It published nothing, and no `lran/`
+message arrived, which fits no production image having run.

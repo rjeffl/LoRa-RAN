@@ -56,6 +56,10 @@ operator decision (PRD v0.28; engineering log, 2026-11-02). GateLink did not res
 went on under heavy overcast and could not start the charger, so B1 waits for sun. H12's
 checks run first (`docs/ha/HANDOFF.md`).
 
+**Updated 2026-11-02 by the production-readiness session.** The operator cleared the items before
+B3 (engineering log, 2026-11-02, *What stands before B3*). B3 no longer waits for sun, and
+the production broker accepts the login.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -70,27 +74,20 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The firmware list is finished. One reading comes before B3, and it needs the pack on the
-bench.** B3's GateLink flash is its last on the bench, and
+**The firmware list is finished, and B3 is next.** B3's GateLink flash is its last on the bench, and
 [`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders the
 rest. `gatelink` builds the production image from the root `secrets.h`. `gatelink-sandbox`
 builds the bench image from `secrets.sandbox.h`, and only that one talks to the sandbox bridge.
 
 | Tier | Task | Read |
 |---|---|---|
-| 4 | **B1's harness measurement and the first real `ah_drawn`**, once the MPPT charges. The panel is connected and needs more light | below |
-| 4 | **B3**: production builds of the bridge and GateLink, from a committed, clean tree. **Keep GateLink's `firmware.elf`**, because a core dump read at the gate needs it | brief, *Blocking* |
+| 4 | **B3**: production builds of the bridge and GateLink, from a committed, clean tree. **Keep GateLink's `firmware.elf`** outside `.pio`, because a core dump read at the gate needs it. With the card out, clear the bench files and keep `/config.json`; copy `/log` and `/bms.log` off first if wanted | brief, *Blocking*; bridge handoff, group 8 |
 | 4 | **The at-gate sequence** | brief, *At-gate sequence* |
 
-**B1's measurement.** Compare `solar/state`'s `batt_mv` with `battery/state`'s `pack_mv` at
-`batt_ma` under charge. Subtract the 20 mV the two read apart at −10 mA. The fix's resistance is
-the rest over the current, against the 0.22 Ω it replaced. The BMS line is up to `bms_poll_s` old,
-so pick a steady stretch. **The pack read 99 % on 2026-11-02 and may take little current**,
-which leaves only a few millivolts to read, so B1 may read better after the pack has been
-drawn down, or at the gate.
-
-**The first real `ah_drawn`.** A BMS read while charging is active sets its reference, and the
-field then reads 0 on `battery/state`. It has only ever been sent as `UINT16_MAX`.
+**The first real `ah_drawn` is at the gate** (operator, 2026-11-02). A BMS read while charging is
+active sets its reference, and the field then reads 0 on `battery/state`. After charging, it
+counts up once the BMS's capacity falls a 0.1 Ah step. It has only ever been sent as `UINT16_MAX`,
+and a bug there costs a USB reflash at the gate.
 
 ### The soak's setup
 
@@ -152,9 +149,12 @@ not checked (engineering log, 2026-10-26, *The NimBLE abort panic*). `/bms.log` 
 aborted (engineering log, 2026-10-26, *`/bms.log` read*). In the final soak `bms_retry_s`
 read each such window 6 or 7 s later (engineering log, 2026-10-27, *The final soak*).
 
-**The MPPT's battery harness is fixed** (brief's B1; operator, 2026-11-01). The fix has no
-measurement recorded here yet, because PV read 10 mV on 2026-11-01. *Start here* has the
-method.
+**The MPPT's battery harness is fixed, and B1 is closed with no measurement** (operator,
+2026-11-02). The new harness is a DIN splice block with wire sized for the loads and integrated
+breakers and fuses.
+
+**At GL2, measure IN6's off state**: J3 pin 2 to ground with the 1050 powered, its alarm off and the
+10K fitted (engineering log, 2026-10-25). A bad reading is a hardware fix.
 
 **At the gate, each needing its own visit:** GL2 (the 1050 powered; confirm K3 and K4 wake
 it on Radio Open and Close), M23, GL6, then GL7. The bridge handoff carries the bridge and
@@ -245,7 +245,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator and `bms temp`, flashed 2026-10-14 at `a49a90a` | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
-| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack are connected on the bench (operator, 2026-11-01). A 30 W panel is on the MPPT (operator, 2026-11-02). They stay there through B1's measurement. Not yet rewired or reprogrammed (GL2) |
+| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack are connected on the bench (operator, 2026-11-01). A 30 W panel is on the MPPT (operator, 2026-11-02). They stay there through B3. Not yet rewired or reprogrammed (GL2) |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
 that looks configured and never answers. The Kit's control lines are GPIO 38–42; the header
@@ -312,10 +312,6 @@ board's are its D-pads (expansion board §6.1).
   did not hold. M5GFX pulses GPIO 3 inside `M5.begin()`, and M5StamPLC's
   `io_expander_b_init()` calls `configureDirection(0x0)`, which sets every pin to output
   despite its `// all inputs!` comment. The write is a fix, not an explanation.
-- **IN5's and IN6's polarities are the operator's description, not a measurement.**
-  `kInputsActiveLow` `0x1C` has IN5 invert and IN6 not, because the 1050's alarm output
-  drives 12 V on an alarm. M3 measures both at the gate before they are connected, and
-  whether the alarm output needs a pull-down to hold the 2N7000 off.
 - **The console splices lines under load.** Two `alarm:` lines arrived cut short and
   joined to the next `gate:` line (`FIgate: CLOSED`), as a boot line did earlier
   (`BUSY fell itored`). Whether `log_task` or `bench.py` drops the bytes is not
@@ -334,14 +330,12 @@ board's are its D-pads (expansion board §6.1).
   event during it is the falsifier. If it resets there, the card's `/bms.log` and fault log
   still hold the counters.
 - **`ah_drawn` under-counts, and why is not established** (engineering log, 2026-11-02). A
-  deadband in the BMS would fit, untested. No larger load has been checked. HA's *Charge drawn
-  since charging* and spec §7.2.10's "how much reserve" do not say it is a lower bound.
+  deadband in the BMS would fit, untested. No larger load has been checked. The dashboard's row
+  reads *Drawn since charging (at least)*. Spec §7.2.10's "how much reserve" still does not say
+  it is a lower bound, for the next revision.
 - **Spec §7.2.10 still says the node defines "the current it integrates"**, while PRD R-6.4c
   says no current is integrated. The firmware follows the PRD. A spec wording fix, for the
   next revision.
-- **R-6.4c's "without a BMS read since charging was last active" can be read two ways.** The
-  firmware sends `UINT16_MAX` only with no reference read, and otherwise the fall from it, so
-  a passing cloud does not blank the value for a poll. The operator may read it differently.
 - **`/log/fault.txt` has no levels, and retains counters only as periodic lines** (PRD v0.27).
 - **Whether a watchdog panic writes a usable core dump is not tried**, given `Re-entered core
   dump!`. A plain `panic` does.
@@ -351,8 +345,6 @@ board's are its D-pads (expansion board §6.1).
   GPIO 3 option (engineering log, 2026-11-01).
 - **The six PHY rows read `source: override` in `config/state` after `restore_defaults`**,
   with correct values. Check them at B6, because the bridge's NVS keeps overrides.
-- **The card holds bench leftovers**: `gl1bus.txt`, `gl1.txt`, `gl0bus.bin` and a
-  `/log/fault*.txt` from the session. Harmless; clear them before the gate if wanted.
 - **The bridge's `rx_no_interrupt` and `rx_wake_empty` rose from 0 to 4 in the first
   soak**, stayed 0 through the second, and rose to 1 each in the final soak. Not looked
   into.
@@ -384,7 +376,8 @@ board's are its D-pads (expansion board §6.1).
   reported about 1.2 s (engineering log, 2026-10-10). Whether the window started late or
   its line printed late is not established.
 - **`boot_count` and `state.json` are not built** (plan §6.4's file table). STATUS sends
-  `boot_count` 0.
+  `boot_count` 0, and it stays out of the freeze (operator, 2026-11-02). HA counts `BOOT` events
+  instead.
 - ~~**`beep` logs `LEDC is not initialized` on first use.**~~ **Closed 2026-10-24:** the
   operator heard the buzzer while `beep` logged the error, so the error is cosmetic.
 

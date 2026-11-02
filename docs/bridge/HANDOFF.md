@@ -29,6 +29,10 @@ no session of their own. Neither remaining group needs GateLink at the gate.
 |---|---|---|
 | **5. Documents and tools** | Nothing | Host only |
 
+**The next firmware step is the deployment brief's B3, in a session of its own.** The production
+broker accepts the root `secrets.h`'s login since the operator fixed the broker user on 2026-11-02
+(engineering log, same date).
+
 **Spec v0.19's bridge side is done** (deployment brief's R1; engineering log, 2026-11-02, the two
 R1 entries). D85 passed on the air. D84 stays host-tested, because the real pack reports all four
 temperatures. `heltec` and `heltec-sandbox` both carry it from this merge, so B3 builds after it.
@@ -63,8 +67,8 @@ from a new `ctx_id`, because a roll makes one (spec §10.1).
 **B6 and B7 need GateLink at the gate**, and GateLink's GL6 gates B6. GateLink's handoff
 orders the node's side: a bench window with the MPPT and the WattCycle pack, then GL2, then
 the install visit. Group 8's bridge items are done. Before that visit the operator still
-makes the production `secrets.h` (group 8, item 6), because B6 runs on the production
-broker (Impl Plan §11.3).
+flashes the production images (group 8, item 6). The brief's B3 moves the
+bridge to the production broker on the bench, before B6 (Impl Plan §11.3).
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
 row you want in the fleet. Clear both afterwards. A change may start at any time now.
@@ -190,12 +194,14 @@ first. Left:
 6. **The production `secrets.h` exists from 2026-10-31**, and the bench file is now
    `secrets.sandbox.h`, both gitignored. The bridge and GateLink are both built from the
    root `secrets.h`, and GateLink's production flash is its last before it leaves the
-   bench. Neither image is built yet. The bridge's first OTA upload of a production image
+   bench. Neither release image is built yet. The bridge's first OTA upload of a production image
    authenticates with the sandbox `OTA_PASSWORD`, because the running image checks the
    password it was built with. A password must not reach argv, a log or a committed file
    from then on ([`traps.md`](./traps.md)).
-7. **At B6**: reflash the bridge against the production broker, and set `deployed` = 1 on
-   `lran/gatelink/config/set` once GateLink is in the field.
+7. **At the brief's B3**: flash the bridge and GateLink together. Home Assistant registers the
+   entities then, and production's MQTT integration is already connected (operator, 2026-11-02).
+   Read `config/state` against the table's defaults, and clear only what differs. Keep
+   `deployed` = 1 for GateLink, and confirm `simnode_diag_enable` is 0. Both simnodes stay off.
 
 - **The margin between `hex_timeout_ms` and `hex_rsp_timeout_ms` is thin.** At 1000 and
   3000, one full CAD backoff puts the worst case near 3.1 s. Read the bench's HEX round

@@ -1278,3 +1278,22 @@ sequence at 16:20:54 logged event 2, `exit`, with no second detection.
 **A held gate alerted from real inputs.** IN1 asserted with IN2 clear read `open_held`, `manual`,
 at 16:22:21. IN4 then IN3 sent `vehicle_while_held_open`, then its `exit` follow-up at 16:23:29.
 
+## 2026-11-02 — What stands before B3: the operator's answers
+
+**Reviewed from `828c86a` with the operator, and no GateLink firmware changes.** The `gatelink`
+image builds there, carrying the production node key and neither the master nor a sandbox key.
+
+| Item | Operator's answer |
+|---|---|
+| B1, the harness | Closed as fixed, with no measurement. The first harness was an inexpensive ready-made one, never meant to be permanent, and it ran the gate with the pack, the MPPT and the 50 W panel for over a month. The new one is a full DIN splice block, with wire sized for the loads and integrated breakers and fuses |
+| The first real `ah_drawn` | No bench wait. Its first non-sentinel values come at the gate, and a bug means a USB reflash there |
+| B2, the simnodes | Already off, and they stay off |
+| M3's polarity | Already measured at the gate. IN5 signals as SAFETY and EXIT do. IN6 is a 12 V MOSFET output with no pull-down: it floats when not driven and drives 12 V when driven. A 10K pull-down on the 2N7000's gate compensates. No voltages were given |
+| IN6's off state with the 10K | Not measured yet, at GL2 |
+| GateLink's parameter rows | The 2026-10-15 approval stands, and the rows added since get no separate review |
+| `boot_count` | Stays unbuilt. HA counts `BOOT` events instead |
+| R-6.4c's unavailable case | The firmware's reading stands: a passing cloud does not blank the value (PRD v0.30) |
+| The SD card | Clear the bench files at B3, keeping `/config.json` |
+| The master key's three backup drives | All encrypted |
+
+**M3's answer matches `kInputsActiveLow`'s `0x1C`**, which inverts IN3, IN4 and IN5 and leaves IN6.

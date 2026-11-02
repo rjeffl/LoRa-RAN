@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.97
+**Version:** 0.98
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -3053,7 +3053,10 @@ once.
 
 ### 11.3 MQTT and Home Assistant environments
 
-**Develop against the dev HA VM and a dev broker. Move to production only at B6.**
+**Develop against the dev HA VM and a dev broker. Move to production at the deployment
+brief's B3, on the bench** (operator, 2026-11-02). A production GateLink cannot authenticate
+to a sandbox bridge, so the two flash together, and the bridge publishes discovery on its
+first connect. Entity names become permanent then, not at B6.
 
 The reason is specific and is not about risk to production data. HA's entity registry
 **remembers every `unique_id` it has ever seen.** Iterating on discovery payloads —
@@ -3070,7 +3073,7 @@ live broker.
 | Environment | Broker | Used for |
 |---|---|---|
 | **Dev** | Mosquitto on the build machine, alongside the dev HA VM | B2 – B5 |
-| **Production** | Existing Mosquitto | B6 – B7, and only after discovery payloads are stable |
+| **Production** | Existing Mosquitto | The brief's B3, then B6 – B7, and only after discovery payloads are stable |
 
 **The dev VM's ethernet requirement is not a constraint on the bridge.** The bridge
 reaches the broker over WiFi and the broker host is already a configuration value; it
@@ -3135,6 +3138,9 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.98** — **§11.3 moves the production broker to the deployment brief's B3**, by operator
+  decision of 2026-11-02.
 
 - **v0.97** — **`battery/state` follows spec v0.19's null rules**, D84 and D85, under PRD
   v0.21's R-5.2c. The keys do not change.

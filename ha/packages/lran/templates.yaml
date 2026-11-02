@@ -148,6 +148,18 @@ template:
   # finish. A second event inside one detection is a held-open alert raised by a later edge
   # (detect.cpp), so it marks the same entry held and adds none. Repeats change nothing, so
   # this needs no event filter.
+  # The Events view's boots per day. GateLink sends boot_count 0 (handoff, Open), so this counts
+  # admitted BOOT events. A trigger-based sensor restores its count across a restart.
+  - triggers:
+      - trigger: event
+        event_type: lran_gatelink_boot_admitted
+    sensor:
+      - name: LRAN GateLink boots
+        unique_id: lran_gatelink_boots
+        state_class: total_increasing
+        icon: mdi:restart
+        state: "{{ this.state | int(0) + 1 }}"
+
   - triggers:
       - trigger: mqtt
         topic: lran/gatelink/event/vehicle_detected
