@@ -86,13 +86,13 @@ input_select:
 # of boots in the last hour (plan 9.2). Written by that automation only.
 input_text:
   lran_gatelink_boot_times:
-    name: LRAN GateLink recent boots
+    name: GateLink recent boots
     max: 255
   # When the GateLink outage that alerted began, epoch seconds; empty when none is pending
   # (plan 9.1). It survives a bridge outage and an HA restart, which the sensor's own
   # last_changed does not, so the return push can still report the whole outage.
   lran_gatelink_offline_since:
-    name: LRAN GateLink offline since
+    name: GateLink offline since
     max: 20
 
 mqtt:

@@ -10,7 +10,7 @@
 # keeps it out until it is renamed.
 
 script:
-  # Every push LRAN sends goes through here. core.yaml's lran_notify builds `data`: the
+  # Every push to the admin goes through here. core.yaml's lran_notify builds `data`: the
   # tag, the actions and the critical or time-sensitive options. Add one action per phone.
   lran_site_push:
     alias: LRAN site push
@@ -26,7 +26,7 @@ script:
           message: "{{ message }}"
           data: "{{ data }}"
 
-  # Every email LRAN sends goes through here, and only while
+  # Every email to the admin goes through here, and only while
   # input_boolean.lran_email_enabled is on (plan 7.3).
   lran_site_email:
     alias: LRAN site email
@@ -37,6 +37,22 @@ script:
     sequence:
       - action: notify.lran_email
         data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+
+  # The same, to input_text.lran_additional_emails rather than the admin (plan 7.3). A
+  # target replaces the notifier's recipient list for this send.
+  lran_site_email_to:
+    alias: LRAN site email to additional recipients
+    mode: parallel
+    fields:
+      recipients: { selector: { object: } }
+      title: { selector: { text: } }
+      message: { selector: { text: } }
+    sequence:
+      - action: notify.lran_email
+        data:
+          target: "{{ recipients }}"
           title: "{{ title }}"
           message: "{{ message }}"
 

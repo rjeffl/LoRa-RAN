@@ -10,15 +10,18 @@
 # only gate is a list of user IDs, which differ on every install (engineering log,
 # 2026-10-26).
 #
+# One view per node and one for notifications. Pack capacity is the one LRAN threshold that
+# fires nothing, so it sits with GateLink and the rest sit with what they fire (plan 8.2).
+#
 # Fluvy's cards wherever Fluvy has one (plan 2, task H11). A setting is a helpers-card
 # row, because Fluvy's entities card shows a number as a value and not a control; a
-# button is an actions-card row. The two fixed-text notes stay HA markdown cards.
+# button is an actions-card row. The fixed-text notes stay HA markdown cards.
 
 title: LRAN Configuration
 views:
-  - title: Configuration
-    path: maintenance
-    icon: mdi:tune-variant
+  - title: GateLink
+    path: gatelink
+    icon: mdi:gate
     type: sections
     max_columns: 3
     sections:
@@ -84,77 +87,6 @@ views:
               - entity: switch.gatelink_mppt_write_enable
                 name: MPPT write enable
 
-      # Second, beside GateLink state, because an alert left Off is the one setting here
-      # that hides a fault rather than shows one (plan 7.5).
-      - type: grid
-        cards:
-          - type: custom:fluvy-heading-card
-            title: Alerts
-            grid_options:
-              columns: full
-          # Counts every alert set to Off, and its sheet names them, so one left off after
-          # bench work is seen. An Off alert sends no push or email; the logbook still
-          # records it.
-          - type: custom:fluvy-alerts-card
-            variant: rows
-            alerts:
-              - name: Alerts off
-                entity_id: input_select.lran_alert_*
-                state: "Off"
-                severity: warning
-          # Fluvy's helpers card has no section row, so each tier is a card of its own.
-          - type: custom:fluvy-helpers-card
-            title: Alerts
-            rows:
-              - entity: input_select.lran_alert_fire
-              - entity: input_select.lran_alert_vehicle_while_held
-              - entity: input_select.lran_alert_hard_shutdown
-              - entity: input_select.lran_alert_bms_alarm
-              - entity: input_select.lran_alert_gatelink_offline
-              - entity: input_select.lran_alert_bridge_offline
-          - type: custom:fluvy-helpers-card
-            title: Health
-            rows:
-              - entity: input_select.lran_alert_soc_low
-              - entity: input_select.lran_alert_soc_alarm
-              - entity: input_select.lran_alert_charge_inhibited
-              - entity: input_select.lran_alert_mppt_error
-              - entity: input_select.lran_alert_enclosure_hot
-              - entity: input_select.lran_alert_cell_spread
-              - entity: input_select.lran_alert_node_boot
-              - entity: input_select.lran_alert_node_boot_loop
-              - entity: input_select.lran_alert_phy_reverted
-          - type: custom:fluvy-helpers-card
-            title: Reminders
-            rows:
-              - entity: input_select.lran_alert_held_open_long
-              - entity: input_select.lran_alert_open_at_night
-              - entity: input_select.lran_alert_open_nobody_home
-          - type: custom:fluvy-helpers-card
-            title: Reports
-            rows:
-              - entity: input_select.lran_alert_morning_report
-              - entity: input_select.lran_alert_weekly_battery
-          - type: custom:fluvy-helpers-card
-            title: Delivery
-            rows:
-              - entity: input_boolean.lran_alerts_muted
-                name: Mute normal and low alerts
-              - entity: input_boolean.lran_email_enabled
-                name: Email alerts
-          - type: custom:fluvy-actions-card
-            title: Levels
-            rows:
-              - entity: script.lran_alert_levels_default
-                name: Restore default levels
-          - type: markdown
-            content: >-
-              **Off** logs only, marked as not pushed. **Low** logs only. **Normal**
-              pushes. **High** pushes as time-sensitive and emails. **Critical** sounds
-              through Do Not Disturb and emails. Muting never silences FIRE or the
-              held-open vehicle, and a muted alert is still logged. The wording is in
-              `packages/lran/messages.yml`.
-
       - type: grid
         cards:
           - type: custom:fluvy-heading-card
@@ -184,93 +116,18 @@ views:
               - entity: sensor.gatelink_low_temperature_charge_cut_off
                 name: Low-temperature charge cut-off
 
+      # What the autonomy estimate reads (plan 7.4). It fires no notification, so it is not
+      # with the thresholds on the Notification view.
       - type: grid
         cards:
           - type: custom:fluvy-heading-card
-            title: LRAN thresholds
+            title: GateLink battery
             grid_options:
               columns: full
           - type: custom:fluvy-helpers-card
-            title: Thresholds
             rows:
-              - entity: input_number.lran_soc_warn_pct
-                name: SOC warning
-              - entity: input_number.lran_soc_alarm_pct
-                name: SOC alarm
-              - entity: input_number.lran_cell_spread_warn_mv
-                name: Cell spread warning
-              - entity: input_number.lran_enclosure_temp_warn_c
-                name: Enclosure temperature warning (°C)
-              - entity: input_number.lran_offline_warn_min
-                name: Offline warning
-              - entity: input_number.lran_held_open_reminder_h
-                name: Held-open reminder
               - entity: input_number.lran_pack_capacity_ah
                 name: Pack capacity
-
-      - type: grid
-        cards:
-          - type: custom:fluvy-heading-card
-            title: Bridge configuration
-            grid_options:
-              columns: full
-          - type: custom:fluvy-helpers-card
-            title: Radio
-            rows:
-              - entity: number.lora_bridge_freq_hz
-                name: Frequency
-              - entity: number.lora_bridge_spreading_factor
-                name: Spreading factor
-              - entity: select.lora_bridge_bandwidth_khz
-                name: Bandwidth
-              - entity: number.lora_bridge_coding_rate_denominator
-                name: Coding rate 4/
-              - entity: number.lora_bridge_tx_power_dbm
-                name: TX power
-              - entity: number.lora_bridge_phy_trial_s
-                name: PHY trial window
-              - entity: number.lora_bridge_backoff_max_ms
-                name: Backoff max
-              - entity: number.lora_bridge_cad_retries
-                name: CAD retries
-          - type: custom:fluvy-helpers-card
-            title: Link timing
-            rows:
-              - entity: number.lora_bridge_poll_reply_timeout_ms
-                name: Poll reply timeout
-              - entity: number.lora_bridge_missed_poll_threshold
-                name: Missed-poll threshold
-              - entity: number.lora_bridge_command_ack_timeout_ms
-                name: Command ACK timeout
-              - entity: number.lora_bridge_cmd_retries
-                name: Command retries
-              - entity: number.lora_bridge_config_ack_timeout_ms
-                name: Config ACK timeout
-              - entity: number.lora_bridge_config_readback_timeout_ms
-                name: Config readback timeout
-              - entity: number.lora_bridge_hex_rsp_timeout_ms
-                name: HEX response timeout
-              - entity: number.lora_bridge_frag_reassembly_timeout_ms
-                name: Fragment reassembly timeout
-              - entity: number.lora_bridge_error_min_interval_ms
-                name: Error minimum interval
-          - type: custom:fluvy-helpers-card
-            title: Publishing and power
-            rows:
-              - entity: number.lora_bridge_republish_interval_s
-                name: Republish interval
-              - entity: number.lora_bridge_diag_interval_s
-                name: Diagnostics interval
-              - entity: number.lora_bridge_cell_mv_deadband
-                name: Cell voltage deadband
-              - entity: number.lora_bridge_bms_stale_s
-                name: BMS stale after
-              - entity: number.lora_bridge_charge_readback_interval_h
-                name: Charge readback interval
-              - entity: number.lora_bridge_mppt_write_arm_timeout_s
-                name: MPPT write arm timeout
-              - entity: switch.lora_bridge_simnode_diag_enable
-                name: Simnode diagnostics
 
       - type: grid
         cards:
@@ -346,6 +203,12 @@ views:
               - entity: number.gatelink_charge_inhibit_temp_c
                 name: Charge-inhibit temperature
 
+  - title: WellLink
+    path: welllink
+    icon: mdi:water-pump
+    type: sections
+    max_columns: 3
+    sections:
       # Unavailable until WellLink is deployed.
       - type: grid
         cards:
@@ -375,3 +238,194 @@ views:
                 name: Dedup cache depth
               - entity: number.welllink_frag_reassembly_timeout_ms
                 name: Fragment reassembly timeout
+
+  - title: Bridge
+    path: bridge
+    icon: mdi:access-point
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: custom:fluvy-heading-card
+            title: Bridge configuration
+            grid_options:
+              columns: full
+          - type: custom:fluvy-helpers-card
+            title: Radio
+            rows:
+              - entity: number.lora_bridge_freq_hz
+                name: Frequency
+              - entity: number.lora_bridge_spreading_factor
+                name: Spreading factor
+              - entity: select.lora_bridge_bandwidth_khz
+                name: Bandwidth
+              - entity: number.lora_bridge_coding_rate_denominator
+                name: Coding rate 4/
+              - entity: number.lora_bridge_tx_power_dbm
+                name: TX power
+              - entity: number.lora_bridge_phy_trial_s
+                name: PHY trial window
+              - entity: number.lora_bridge_backoff_max_ms
+                name: Backoff max
+              - entity: number.lora_bridge_cad_retries
+                name: CAD retries
+          - type: custom:fluvy-helpers-card
+            title: Link timing
+            rows:
+              - entity: number.lora_bridge_poll_reply_timeout_ms
+                name: Poll reply timeout
+              - entity: number.lora_bridge_missed_poll_threshold
+                name: Missed-poll threshold
+              - entity: number.lora_bridge_command_ack_timeout_ms
+                name: Command ACK timeout
+              - entity: number.lora_bridge_cmd_retries
+                name: Command retries
+              - entity: number.lora_bridge_config_ack_timeout_ms
+                name: Config ACK timeout
+              - entity: number.lora_bridge_config_readback_timeout_ms
+                name: Config readback timeout
+              - entity: number.lora_bridge_hex_rsp_timeout_ms
+                name: HEX response timeout
+              - entity: number.lora_bridge_frag_reassembly_timeout_ms
+                name: Fragment reassembly timeout
+              - entity: number.lora_bridge_error_min_interval_ms
+                name: Error minimum interval
+          - type: custom:fluvy-helpers-card
+            title: Publishing and power
+            rows:
+              - entity: number.lora_bridge_republish_interval_s
+                name: Republish interval
+              - entity: number.lora_bridge_diag_interval_s
+                name: Diagnostics interval
+              - entity: number.lora_bridge_cell_mv_deadband
+                name: Cell voltage deadband
+              - entity: number.lora_bridge_bms_stale_s
+                name: BMS stale after
+              - entity: number.lora_bridge_charge_readback_interval_h
+                name: Charge readback interval
+              - entity: number.lora_bridge_mppt_write_arm_timeout_s
+                name: MPPT write arm timeout
+              - entity: switch.lora_bridge_simnode_diag_enable
+                name: Simnode diagnostics
+
+  - title: Notification
+    path: notification
+    icon: mdi:bell-outline
+    type: sections
+    max_columns: 3
+    sections:
+      # First, because an alert left Off is the one setting here that hides a fault rather
+      # than shows one (plan 7.5).
+      - type: grid
+        cards:
+          - type: custom:fluvy-heading-card
+            title: Alerts and reminders
+            grid_options:
+              columns: full
+          # Counts every alert set to Off, and its sheet names them, so one left off after
+          # bench work is seen. An Off alert sends no push or email; the logbook still
+          # records it.
+          - type: custom:fluvy-alerts-card
+            variant: rows
+            alerts:
+              - name: Alerts off
+                entity_id: input_select.lran_alert_*
+                state: "Off"
+                severity: warning
+          # Fluvy's helpers card has no section row, so each tier is a card of its own.
+          - type: custom:fluvy-helpers-card
+            title: Alerts
+            rows:
+              - entity: input_select.lran_alert_fire
+              - entity: input_select.lran_alert_vehicle_while_held
+              - entity: input_select.lran_alert_hard_shutdown
+              - entity: input_select.lran_alert_bms_alarm
+              - entity: input_select.lran_alert_gatelink_offline
+              - entity: input_select.lran_alert_bridge_offline
+          - type: custom:fluvy-helpers-card
+            title: Reminders
+            rows:
+              - entity: input_select.lran_alert_held_open_long
+              - entity: input_select.lran_alert_open_at_night
+              - entity: input_select.lran_alert_open_nobody_home
+          # The two lists lran_notify reads for alerts and reminders only (plan 7.3).
+          - type: custom:fluvy-helpers-card
+            title: Additional recipients
+            rows:
+              - entity: input_text.lran_additional_devices
+                name: Additional devices
+              - entity: input_text.lran_additional_emails
+                name: Additional emails
+          - type: markdown
+            content: >-
+              Comma-separated. Alerts and reminders go to these as well as to the admin, at
+              the same levels and under the same mute and email settings. A device is its
+              notify action, such as `mobile_app_sams_phone`. Health and reports go to the
+              admin only.
+
+      - type: grid
+        cards:
+          - type: custom:fluvy-heading-card
+            title: Health and reports
+            grid_options:
+              columns: full
+          - type: custom:fluvy-helpers-card
+            title: Health
+            rows:
+              - entity: input_select.lran_alert_soc_low
+              - entity: input_select.lran_alert_soc_alarm
+              - entity: input_select.lran_alert_charge_inhibited
+              - entity: input_select.lran_alert_mppt_error
+              - entity: input_select.lran_alert_enclosure_hot
+              - entity: input_select.lran_alert_cell_spread
+              - entity: input_select.lran_alert_node_boot
+              - entity: input_select.lran_alert_node_boot_loop
+              - entity: input_select.lran_alert_phy_reverted
+          - type: custom:fluvy-helpers-card
+            title: Reports
+            rows:
+              - entity: input_select.lran_alert_morning_report
+              - entity: input_select.lran_alert_weekly_battery
+
+      - type: grid
+        cards:
+          - type: custom:fluvy-heading-card
+            title: Delivery
+            grid_options:
+              columns: full
+          - type: custom:fluvy-helpers-card
+            title: Mute and email
+            rows:
+              - entity: input_boolean.lran_alerts_muted
+                name: Mute normal and low alerts
+              - entity: input_boolean.lran_email_enabled
+                name: Email alerts
+          - type: custom:fluvy-actions-card
+            title: Levels
+            rows:
+              - entity: script.lran_alert_levels_default
+                name: Restore default levels
+          - type: markdown
+            content: >-
+              **Off** logs only, marked as not pushed. **Low** logs only. **Normal**
+              pushes. **High** pushes as time-sensitive and emails. **Critical** sounds
+              through Do Not Disturb and emails. Muting never silences FIRE or the
+              held-open vehicle, and a muted alert is still logged. The wording is in
+              `packages/lran/messages.yml`.
+          # GateLink's, because every alert these fire is about GateLink (plan 7.1).
+          - type: custom:fluvy-helpers-card
+            title: GateLink thresholds
+            rows:
+              - entity: input_number.lran_soc_warn_pct
+                name: SOC warning
+              - entity: input_number.lran_soc_alarm_pct
+                name: SOC alarm
+              - entity: input_number.lran_cell_spread_warn_mv
+                name: Cell spread warning
+              - entity: input_number.lran_enclosure_temp_warn_c
+                name: Enclosure temperature warning (°C)
+              - entity: input_number.lran_offline_warn_min
+                name: Offline warning
+              - entity: input_number.lran_held_open_reminder_h
+                name: Held-open reminder
