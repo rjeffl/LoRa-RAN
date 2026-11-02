@@ -18,6 +18,27 @@
 # email; Critical sounds through Do Not Disturb and emails (plan 7.3). No `initial:`, which
 # would undo the operator's choice at every start; lran_0_seed_alert_levels sets each to
 # its messages.yml level once.
+# Off by default. On sends this message to the additional recipients too (plan 7.3).
+input_boolean:
+  lran_additional_vehicle_while_held:
+    name: Vehicle while held open to additional recipients
+    icon: mdi:account-multiple-plus-outline
+  lran_additional_fire:
+    name: FIRE asserted to additional recipients
+    icon: mdi:account-multiple-plus-outline
+  lran_additional_hard_shutdown:
+    name: Hard shutdown to additional recipients
+    icon: mdi:account-multiple-plus-outline
+  lran_additional_bms_alarm:
+    name: BMS alarm to additional recipients
+    icon: mdi:account-multiple-plus-outline
+  lran_additional_gatelink_offline:
+    name: GateLink offline to additional recipients
+    icon: mdi:account-multiple-plus-outline
+  lran_additional_bridge_offline:
+    name: Bridge offline to additional recipients
+    icon: mdi:account-multiple-plus-outline
+
 input_select:
   lran_alert_vehicle_while_held:
     name: Vehicle while held open
@@ -86,13 +107,13 @@ input_select:
 # of boots in the last hour (plan 9.2). Written by that automation only.
 input_text:
   lran_gatelink_boot_times:
-    name: LRAN GateLink recent boots
+    name: GateLink recent boots
     max: 255
   # When the GateLink outage that alerted began, epoch seconds; empty when none is pending
   # (plan 9.1). It survives a bridge outage and an HA restart, which the sensor's own
   # last_changed does not, so the return push can still report the whole outage.
   lran_gatelink_offline_since:
-    name: LRAN GateLink offline since
+    name: GateLink offline since
     max: 20
 
 mqtt:

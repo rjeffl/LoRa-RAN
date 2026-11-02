@@ -19,19 +19,19 @@ views:
     sections:
       - type: grid
         cards:
-          # Status, not controls: text on the page with no card around it, so neither reads
-          # as a button. The link line no longer opens the Network view, which is admin only
-          # (plan 8.1). Marginal shares Poor's colour and keeps its own word (operator,
-          # 2026-11-01). The sensor is unavailable while GateLink is, which is No link.
+          # Status, not controls: text on the page with no card around it, so it does not read
+          # as a button. Centred on the action tiles below it, with the link beneath them.
           - type: markdown
             text_only: true
             content: |-
               {% set s = states('sensor.lran_gatelink_gate_status') %}
               {% set icon = {'Closed': 'mdi:gate', 'Opening': 'mdi:arrow-expand-horizontal', 'Closing': 'mdi:arrow-collapse-horizontal', 'Open and holding': 'mdi:lock', 'Open and auto close pending': 'mdi:timer-sand', 'Fault': 'mdi:alert-octagon'}.get(s, 'mdi:help-circle-outline') %}
               {% set colour = {'Closed': 'green', 'Opening': 'dodgerblue', 'Closing': 'dodgerblue', 'Open and holding': 'red', 'Open and auto close pending': 'darkorange', 'Fault': 'red'}.get(s, 'gray') %}
-              ## <font color="{{ colour }}"><ha-icon icon="{{ icon }}"></ha-icon></font> {{ s }}
-              {% set q = states('sensor.lran_gatelink_link_quality') %}
-              <font color="{{ {'good': 'green', 'marginal': 'darkorange', 'poor': 'darkorange'}.get(q, 'gray') }}"><ha-icon icon="mdi:signal-variant"></ha-icon></font> {{ {'good': 'Link good', 'marginal': 'Link marginal', 'poor': 'Link poor'}.get(q, 'No link') }}
+              <center>
+
+              ## Gate Status:&nbsp; <font color="{{ colour }}"><ha-icon icon="{{ icon }}"></ha-icon></font> {{ s }}
+
+              </center>
             grid_options:
               columns: 12
 
@@ -72,5 +72,20 @@ views:
                   perform_action: cover.close_cover
                   target:
                     entity_id: cover.gatelink_gate
+            grid_options:
+              columns: 12
+
+          # The link line no longer opens the Network view, which is admin only (plan 8.1).
+          # Marginal shares Poor's colour and keeps its own word (operator, 2026-11-01). The
+          # sensor is unavailable while GateLink is, which is No link.
+          - type: markdown
+            text_only: true
+            content: |-
+              {% set q = states('sensor.lran_gatelink_link_quality') %}
+              <center>
+
+              <font color="{{ {'good': 'green', 'marginal': 'darkorange', 'poor': 'darkorange'}.get(q, 'gray') }}"><ha-icon icon="mdi:signal-variant"></ha-icon></font> {{ {'good': 'Link good', 'marginal': 'Link marginal', 'poor': 'Link poor'}.get(q, 'No link') }}
+
+              </center>
             grid_options:
               columns: 12

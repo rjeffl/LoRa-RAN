@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.18
+**Version:** 0.19
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01
 **Last updated:** 2026-11-01
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -206,9 +206,9 @@ production would drift from the repository and be lost at the next copy. The cos
 the dashboard cannot be edited in the UI. To try a change, edit the file in the sandbox and
 reload.
 
-**`site.yaml` is the only file that differs between installs.** It defines two scripts,
-`script.lran_site_push` and `script.lran_site_email`, which call that install's notify
-services, and it holds the SMTP account, the recorder settings (§10) and the approach zone.
+**`site.yaml` is the only file that differs between installs.** It defines three scripts,
+`script.lran_site_push`, `script.lran_site_email` and `script.lran_site_email_to`, which call
+that install's notify services, and it holds the SMTP account, the recorder settings (§10) and the approach zone.
 It is not committed, because it names the operator's phone. `site.yaml.example` documents
 every key. Thresholds are helpers (§7.1), so they need no entry here.
 
@@ -221,6 +221,8 @@ every key. Thresholds are helpers (§7.1), so they need no entry here.
 | `input_boolean.lran_email_enabled` | Gates every email | **off** |
 | `input_boolean.lran_alerts_muted` | Mutes tiers 2 to 4 for bench work. **Never mutes FIRE or vehicle-while-held-open** | off |
 | `input_text.lran_recent_events` | The last eight event keys, for deduplication (§7.2) | empty |
+| `input_text.lran_additional_devices`, `input_text.lran_additional_emails` | Who else gets an alert or reminder whose switch is on, each a comma-separated list (§7.3) | empty |
+| `input_boolean.lran_additional_<alert>` | One per alert and reminder: on sends it to those lists too (§7.3). In `alerts.yaml` and `reminders.yaml`, beside the selectors | off |
 | `input_number.lran_soc_warn_pct` | Low-SOC warning | 40 |
 | `input_number.lran_soc_alarm_pct` | Low-SOC alarm | 25 |
 | `input_number.lran_enclosure_temp_warn_c` | Enclosure over-temperature | 40, the host's rated maximum (R-4.5a) |
@@ -317,6 +319,24 @@ refines the same event with the traversal direction. The script uses the filter'
 (§7.2) as the push tag, so the phone shows one notification, updated, rather than two.
 Email goes out on the first event only, because an email cannot be replaced.
 `push_only` sends no email either, for an alert about a failure the email path may share.
+
+**Alerts and reminders can reach more people than the admin; health and reports cannot**
+(operator, 2026-11-01). `lran_site_push` and `lran_site_email` are the admin's. Each of the
+nine alerts and reminders in tier 1 and tier 3 has a switch,
+`input_boolean.lran_additional_<alert>`. With it on, the script also sends that message to
+`input_text.lran_additional_devices` and `input_text.lran_additional_emails`. The admin edits
+the switches and the lists on LRAN Configuration's Notification view. There is one pair of
+lists, so a switch sends to everyone on them. The table above governs them as it does the
+admin: level, mute, the email switch, `follow_up` and `push_only` all apply. A device is its
+notify action, `mobile_app_sams_phone`, with or without the `notify.` prefix. A message with no
+switch reaches the admin only. `tools/checks/ha_messages.py` fails on a switch whose alert has
+no selector.
+
+**Each additional send runs apart from the script**, through `script.turn_on`, on
+`script.lran_additional_push` or `lran_site_email_to`. A notify action HA cannot find ends the
+script that called it, and `continue_on_error` does not catch that, so a mistyped device would
+otherwise cost the admin the email. It fails its own run instead, and HA's log names the
+action. Nothing on the dashboard reports it.
 
 **At H1 the sandbox's `site.yaml` pushes to the Mac only** (`notify.mobile_app_jbook16_m5`),
 and its email script writes a persistent notification, because the sandbox has no SMTP
@@ -420,11 +440,9 @@ gives the mapping and what it cost. A sections view reflows to one column on a p
 The operator narrowed this dashboard on 2026-11-01: gate actions, gate status and link
 status, and nothing else. From top to bottom:
 
-1. **Status.** An icon and words for the gate, from `sensor.lran_gatelink_gate_status`,
-   and an icon and words for the link beneath. Both are text on the page, in a
-   `text_only` markdown card, so neither reads as a button or takes a tap. The link icon is
-   green for good, orange for marginal or poor, and gray for no link. Marginal keeps its
-   own word (operator, 2026-11-01).
+1. **Gate status.** *Gate Status:*, then an icon and words from
+   `sensor.lran_gatelink_gate_status`, centred above the actions. It is text on the page, in
+   a `text_only` markdown card, so it does not read as a button or take a tap.
 2. **Three actions**, as a Fluvy scenes card (§8.3), each sending at once (§2):
 
    | Action | Service | What the gate does (GateLink PRD §7.1) |
@@ -432,6 +450,10 @@ status, and nothing else. From top to bottom:
    | **Open - AutoClose** | `cover.open_cover` | Opens, then auto-close closes it. On a held gate it pulses and the hold stays (operator, 2026-11-01) |
    | **Open - Hold** | `switch.turn_on` on the hold switch | Opens and locks |
    | **Close** | `cover.close_cover` | Releases any hold, then closes at once |
+
+3. **Link status.** An icon and words, centred beneath the actions, in a second `text_only`
+   markdown card. The icon is green for good, orange for marginal or poor, and gray for no
+   link. Marginal keeps its own word (operator, 2026-11-01).
 
 **The alert banners moved to LRAN Status**, and the pushes are unchanged. A viewer of this
 dashboard who is not an admin sees no banner anywhere. The power, last-vehicle and
@@ -452,7 +474,25 @@ drift from them. Fluvy's `battery` gauge colours bands of its own.
 | **Temperature** | Enclosure, with its 24 h max and min, and MPPT. The four pack temperatures, their lowest and `charge_inhibit_temp_c`. Graphs: 24 h and 7 d of enclosure, MPPT and lowest pack; 30 d and 1 y of enclosure (min, mean, max) |
 | **Network** | Bridge frames received, transmitted and discarded. GateLink RSSI, SNR, missed polls and last seen, with 7 d history. PHY settings, protocol version, unsupported-version flag. Firmware version, commit and OTA slot. BMS BLE RSSI as a 30 d statistics graph, which is the trend M23 reads. WellLink rows, unavailable until it is deployed |
 | **Events** | A `logbook` card of LRAN events and gate state changes. Traversals per day for 30 d. Node boots with their reset cause, which is how a boot loop shows (spec §8.14) |
-| **Configuration** | Its own dashboard. The *Alerts* card: a level selector per alert, mute, email and *Restore default levels* (§7.5). The configuration `number` entities, grouped by node and by subsystem. The deployed, dry-run, buzzer, BMS polling and MPPT write-enable switches. Request status, request configuration and *Restore defaults*, which asks first. The MPPT configuration readback. Configuration persisted, shown first, because `off` means the node is running unsaved settings |
+
+**LRAN Configuration is its own dashboard, with a view per node and one for notifications**
+(operator, 2026-11-01):
+
+| View | Contents |
+|---|---|
+| **GateLink** | Configuration persisted, shown first, because `off` means the node is running unsaved settings. The dry-run, deployed, buzzer, BMS polling and MPPT write-enable switches. Request status, request configuration and *Restore defaults*, which asks first. The MPPT configuration readback. Pack capacity. The GateLink `number` entities |
+| **WellLink** | Its requests and settings, unavailable until it is deployed |
+| **Bridge** | The bridge's `number` entities and its simnode switch |
+| **Notification** | A level selector per alert, reminder, health alert and report, with *Restore default levels* (§7.5). The two additional-recipient lists and a switch per alert and reminder that sends to them (§7.3). Mute and email. *GateLink thresholds*, which set when those alerts fire |
+
+**A name carries LRAN only when it covers the whole system.** The two dashboards keep it. So do
+the system's own helpers, such as `LRAN email enabled`. A card or helper about one node carries
+that node's name: *GateLink thresholds* was *LRAN thresholds*, and the bridge's alert reads
+*Bridge offline*. No entity ID changed.
+
+**The derived sensors keep their `LRAN GateLink` names.** A sensor's name sets its entity ID on
+a fresh install, so renaming them would change the IDs at the port (§12). The dashboards name
+every row, so the old name shows only in HA's own entity lists and in a sensor's detail dialog.
 
 **LRAN Configuration stays a dashboard of its own, `lran-maintenance`, though LRAN Status
 is now admin only too.** The operator split them on 2026-10-26, when only Maintenance was
@@ -540,7 +580,7 @@ statistics.
 ### 8.4 Vehicles (for everyone)
 
 The history of vehicles through the gate, which the operator ranks above the last vehicle
-alone (2026-11-01). It has today's count of gate crossings and a log book of each one.
+alone (2026-11-01). It has today's count of gate crossings and a log of each one, titled *Gate Crossings Log*.
 
 **A gate crossing is what the entity IDs call a traversal.** The words on the dashboards
 changed, and the IDs did not.
@@ -777,6 +817,7 @@ cover when it is.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.19 | 2026-11-01 | By operator choice: §8.2's LRAN Configuration has GateLink, WellLink, Bridge and Notification views, and only a system-wide name carries LRAN. §7.3 sends an alert or reminder to two additional-recipient lists when its own switch is on (§7.1), through a new site script (§6). §8.1 centres the status, prefixes it *Gate Status:*, and moves the link below the actions. §8.4 titles the log |
 | 0.18 | 2026-11-01 | By operator choice, the dashboard rework, H12. §2 has four dashboards, and §6's block registers them. §8.1's Gate is operation only, §8.2 gains a Temperature view and *Gate Pier Lights*, and §8.4 is new. §5 adds F5. §9.4's counter counts a confirmed crossing, held-open crossings included. §7.4 and §10 add the new sensors. §8.3 records what the chart card did with mixed units |
 | 0.1 | 2026-10-25 | First draft. Operator choices recorded in §2, including units and no SMS; the sandbox survey in §4; bridge gaps F1–F3; tasks H0–H10 |
 | 0.2 | 2026-10-25 | H0 and H1 done. §7.2's key carries the follow-up bit, which v0.1's would have dropped, and the filter is a script. §7.4's net power and draw read the pack, by operator choice, because the loads are on the battery bus. Defaults seeded once (§7.1); site scripts (§6); link-quality thresholds stated |

@@ -6,7 +6,8 @@ H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the a
 levels and the message catalog, on 2026-10-27 at the end of H5, on 2026-10-28 at the
 end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operator
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
-Fluvy port review, and on 2026-11-01 at the end of the dashboard rework (task H12).**
+Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
+LRAN Configuration's views and the additional recipients.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -66,6 +67,14 @@ is open**: whether whoever views the alerts can snooze them, now that the card i
 Status. The review brief recommends `snooze: "off"` on the hard-shutdown latch at least.
 
 ## What the last session established
+
+- **LRAN Configuration has GateLink, WellLink, Bridge and Notification views**, and each alert
+  and reminder has a switch that also sends it to two lists of devices and emails (plan v0.19, §7.3,
+  §8.2; engineering log, 2026-11-01, Configuration views). **A production `site.yaml` needs
+  the new `lran_site_email_to`**, as in `site.yaml.example`. The sandbox's writes a persistent
+  notification.
+- **The derived sensors keep their `LRAN GateLink` names**, because a rename would change
+  their entity IDs on a fresh install (plan §8.2).
 
 - **H12 is built and on the sandbox** (plan v0.18; engineering log, 2026-11-01). Gate is
   operation only, Vehicles is new, Temperature is its own view, and both LRAN dashboards are

@@ -25,7 +25,7 @@ views:
           # HA's markdown card, because no Fluvy card takes a colour per row of text. The day
           # check hides yesterday's entries if HA was down at midnight.
           - type: markdown
-            title: Log book
+            title: Gate Crossings Log
             content: |-
               {% set log = 'sensor.lran_gatelink_crossing_log' %}
               {% set entries = (state_attr(log, 'entries') or []) if state_attr(log, 'day') == (now().date() | string) else [] %}

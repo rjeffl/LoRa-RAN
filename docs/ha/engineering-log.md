@@ -863,3 +863,41 @@ the dashboard is deleted.
 18:37 UTC, before this session's first restart. Pressing Request configuration did not fill
 them in the following minutes. Not chased, and it is why Temperature's *Charge inhibit
 below* reads Unknown.
+
+## 2026-11-01 — Configuration views and additional recipients
+
+By operator direction, LRAN Configuration's single page became GateLink, WellLink, Bridge and
+Notification views, and alerts and reminders gained two comma-separated lists of additional
+devices and emails. The operator first asked for a list per alert, then chose the two lists on
+the Notification view, which apply to all nine alerts and reminders.
+
+**`continue_on_error` does not catch a notify action HA cannot find.** The first build called
+`notify.{{ device }}` inside `lran_notify` with `continue_on_error: true`. A test with
+`mobile_app_does_not_exist` first in the list ended the script with `Service not found`, and
+the REST call returned 400. The admin's push had gone out, and the emails never ran. Each
+additional send is now a separate run started by `script.turn_on`.
+
+**The rebuilt path, tested with a labelled message at level High and email on:** the
+mistyped device failed its own run, and HA's log named the action. The next device,
+`notify.persistent_notification`, received the message. So did the admin's email stand-in and
+`lran_site_email_to`, with both test addresses. A second test on `soc_low`, a health alert
+with the lists still set, sent nothing to the additional device. The lists and the email switch
+went back to empty and off. The operator's sandbox devices received these test pushes. A real
+second phone and real SMTP are untested: the sandbox has neither, so `target` on
+`notify.lran_email` is read from HA's source (`smtp/notify.py`), not run.
+
+**The Gate view's centring needed `<center>` around the markdown**, with blank lines inside it
+so the heading still parses. It rendered centred at 1000 px.
+
+**ha-mcp still cannot render an admin-only dashboard.** The Notification view was rendered on a
+temporary non-admin storage dashboard, since deleted, with only the first and last thresholds
+on the copy. The GateLink, WellLink and Bridge views are the same sections moved, and were not
+rendered as views. The operator should look at them.
+
+**Who gets which message: the operator's correction, the same day.** The two lists stay, and each
+alert and reminder gains its own switch, `input_boolean.lran_additional_<alert>`, off by
+default. That replaces the `additional_alerts` list in `lran_notify`. Tested at level High with
+email on and both lists set: `vehicle_while_held` with its switch on reached the additional
+device and `lran_site_email_to`, and `bms_alarm` with its switch off reached only the admin's
+channels. The operator's sandbox devices received those two test pushes, and the switches,
+lists and email went back to off and empty.
