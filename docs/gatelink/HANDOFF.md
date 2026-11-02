@@ -60,6 +60,10 @@ checks run first (`docs/ha/HANDOFF.md`).
 B3 (engineering log, 2026-11-02, *What stands before B3*). B3 no longer waits for sun, and
 the production broker accepts the login.
 
+**Updated 2026-11-02 by the B3 session.** The bridge and GateLink run production images of
+`cb1be00`, flashed over USB, on the production broker. Their link authenticates, the operator found
+production HA correct, and the card is cleared (engineering log, 2026-11-02, *B3*).
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -74,14 +78,15 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The firmware list is finished, and B3 is next.** B3's GateLink flash is its last on the bench, and
-[`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders the
-rest. `gatelink` builds the production image from the root `secrets.h`. `gatelink-sandbox`
-builds the bench image from `secrets.sandbox.h`, and only that one talks to the sandbox bridge.
+**B3 is done, and the at-gate sequence is next.**
+[`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders it. The
+sandbox has no bridge now, so a `gatelink-sandbox` image would hear nothing. A GateLink reflash
+from here on is the `gatelink` env, built from a committed, clean tree. **Its image at `cb1be00`,
+with the `firmware.elf` a core dump read at the gate needs, is in `~/lran-release/cb1be00/gatelink/`
+on the build Mac.** It holds the node key, so it stays out of the repository.
 
 | Tier | Task | Read |
 |---|---|---|
-| 4 | **B3**: production builds of the bridge and GateLink, from a committed, clean tree. **Keep GateLink's `firmware.elf`** outside `.pio`, because a core dump read at the gate needs it. With the card out, clear the bench files and keep `/config.json`; copy `/log` and `/bms.log` off first if wanted | brief, *Blocking*; bridge handoff, group 8 |
 | 4 | **The at-gate sequence** | brief, *At-gate sequence* |
 
 **The first real `ah_drawn` is at the gate** (operator, 2026-11-02). A BMS read while charging is
@@ -240,12 +245,12 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink-sandbox`, flashed over USB from the Mac on 2026-11-01. Read the banner for its commit. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding `{}`, so no overrides (`file cat`, 2026-11-01) | On the operator's workbench with the carrier fitted, VIN on the pack through the production harness, and USB attached (operator, 2026-11-02). **Inputs tied to their inactive state for live testing.** IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem1101` on 2026-11-02. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `cb1be00`, flashed over USB from the Mac on 2026-11-02, B3's production image. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, cleared of bench files at B3, with `/config.json` holding `{}`, so no overrides (`file cat`, 2026-11-02). It also lists `log/` and the Mac's `.Spotlight-V100/`, `.Trashes/` and `.fseventsd/`, which the operator could not delete from macOS | On the operator's workbench with the carrier fitted, VIN on the pack through the production harness, and USB attached (operator, 2026-11-02). **Inputs tied to their inactive state for live testing.** IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem1101` on 2026-11-02. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator and `bms temp`, flashed 2026-10-14 at `a49a90a` | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
-| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack are connected on the bench (operator, 2026-11-01). A 30 W panel is on the MPPT (operator, 2026-11-02). They stay there through B3. Not yet rewired or reprogrammed (GL2) |
+| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack are connected on the bench (operator, 2026-11-01). A 30 W panel is on the MPPT (operator, 2026-11-02). They stayed there through B3. Not yet rewired or reprogrammed (GL2) |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
 that looks configured and never answers. The Kit's control lines are GPIO 38–42; the header

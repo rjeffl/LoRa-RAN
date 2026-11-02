@@ -7,7 +7,8 @@ with this bridge: GL3's command path and CONFIG ran against it on 2026-10-08. B6
 on GateLink's GL6, at the gate. This file now lists the bridge and Home Assistant work that
 has to be ready by the install visit. **Spec v0.18 merged the same day** (D78–D82), and
 group 9, the bridge's side of it, was built and passed on the bench that day too. **Group
-8's bridge items were done the same day**; what is left of it is the operator's and B6's.
+8's bridge items were done the same day**; what is left of it is the operator's and B6's. **Updated 2026-11-02 by the B3 session**: the bridge
+runs a production image on the production broker (engineering log, same date, *B3*).
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -21,21 +22,20 @@ group 9, the bridge's side of it, was built and passed on the bench that day too
 of these lines, then read this section and the sections the table names — not the whole
 file:
 
-**Queued: group 5, documents and tools.** Groups 1 to 4, 6, 7 and 9 are done. Group 8's
-bridge items, 1 to 5, are done; its items 6 and 7 are the operator's and B6's, and need
-no session of their own. Neither remaining group needs GateLink at the gate.
+**Queued: group 5, documents and tools.** Groups 1 to 4, 6, 7 and 9 are done. Group 8 is done; B3 closed its items 6 and 7. Neither remaining group needs GateLink at the gate.
 
 | Group | Needs before it starts | Kind of session |
 |---|---|---|
 | **5. Documents and tools** | Nothing | Host only |
 
-**The next firmware step is the deployment brief's B3, in a session of its own.** The production
-broker accepts the root `secrets.h`'s login since the operator fixed the broker user on 2026-11-02
-(engineering log, same date).
+**The deployment brief's B3 is done** (engineering log, 2026-11-02, *B3*). The bridge runs the
+`heltec` image of `cb1be00`, on the production broker. **The next OTA upload is the first to
+authenticate with the production `OTA_PASSWORD`**, and nothing has tried it yet. B3 flashed over
+USB, so the sandbox password has no further use here.
 
 **Spec v0.19's bridge side is done** (deployment brief's R1; engineering log, 2026-11-02, the two
 R1 entries). D85 passed on the air. D84 stays host-tested, because the real pack reports all four
-temperatures. `heltec` and `heltec-sandbox` both carry it from this merge, so B3 builds after it.
+temperatures. B3's `heltec` image carries it.
 
 **Group 8's bridge items are done** (2026-10-15, engineering log, the three *Group 8*
 entries). The operator approved GateLink's configuration rows, and `hex_timeout_ms` now
@@ -66,14 +66,13 @@ from a new `ctx_id`, because a roll makes one (spec §10.1).
 
 **B6 and B7 need GateLink at the gate**, and GateLink's GL6 gates B6. GateLink's handoff
 orders the node's side: a bench window with the MPPT and the WattCycle pack, then GL2, then
-the install visit. Group 8's bridge items are done. Before that visit the operator still
-flashes the production images (group 8, item 6). The brief's B3 moves the
-bridge to the production broker on the bench, before B6 (Impl Plan §11.3).
+the install visit. Group 8 is done, and B3 moved the bridge to the production broker on the
+bench, before B6 (Impl Plan §11.3).
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
 row you want in the fleet. Clear both afterwards. A change may start at any time now.
 
-**The sandbox HA is drivable by API.** The session holds an admin token for it outside the
+**The sandbox HA has no bridge since B3, and it is drivable by API.** The session holds an admin token for it outside the
 repository, and HA's `hassio.addon_restart` restarts the broker. The Supervisor REST proxy
 refuses a long-lived token.
 
@@ -191,17 +190,11 @@ the bridge to the production broker (Impl Plan §11.3), and Home Assistant's ent
 registry keeps every `unique_id` it sees there, so every change to a published name went
 first. Left:
 
-6. **The production `secrets.h` exists from 2026-10-31**, and the bench file is now
-   `secrets.sandbox.h`, both gitignored. The bridge and GateLink are both built from the
-   root `secrets.h`, and GateLink's production flash is its last before it leaves the
-   bench. Neither release image is built yet. The bridge's first OTA upload of a production image
-   authenticates with the sandbox `OTA_PASSWORD`, because the running image checks the
-   password it was built with. A password must not reach argv, a log or a committed file
-   from then on ([`traps.md`](./traps.md)).
-7. **At the brief's B3**: flash the bridge and GateLink together. Home Assistant registers the
-   entities then, and production's MQTT integration is already connected (operator, 2026-11-02).
-   Read `config/state` against the table's defaults, and clear only what differs. Keep
-   `deployed` = 1 for GateLink, and confirm `simnode_diag_enable` is 0. Both simnodes stay off.
+6. **Done at B3.** The bridge and GateLink are both built from the root `secrets.h`. A password
+   must not reach argv, a log or a committed file from now on ([`traps.md`](./traps.md)).
+7. **Done at B3.** The only overrides on the bridge are the six PHY rows at Envelope A's values,
+   GateLink's `deployed` = 1, and the `simnode0` to `simnode2` rows noted under *Hardware state*.
+   `simnode_diag_enable` reads 0. Both simnodes stay off.
 
 - **The margin between `hex_timeout_ms` and `hex_rsp_timeout_ms` is thin.** At 1000 and
   3000, one full CAD backoff puts the worst case near 3.1 s. Read the bench's HEX round
@@ -333,23 +326,22 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `fb21513`, flashed over USB from `heltec-sandbox` on 2026-11-02** (HA
-engineering log, same date), so `lran/bridge/version` no longer reads the OTA image of
-2026-10-28 (engineering log, *A node's Restore defaults keeps `deployed`*). **Both simnodes run `32503d5`**, flashed over USB the same
+**The bridge runs `cb1be00`, flashed over USB from `heltec` on 2026-11-02** (engineering log,
+same date, *B3*). **Both simnodes run `32503d5`**, flashed over USB the same
 day (engineering log, *Group 7's bench evidence*). **`restore_defaults` cleared the
 bridge's rows**, apart from the six PHY rows. Those read `override` at Envelope A's values,
 because `restore_defaults` does not reach the PHY group. `simnode0` to `simnode2` still
 read `deployed` 0 and `poll_interval_s` 60 as overrides, the defaults' own values: their
 restore drew `context_roll_pending`, and clearing it needs each simnode powered and heard.
 **`simnode_diag_enable` is 0**, so the bridge polls no simnode from boot. **GateLink was
-on the air** that day, heard at −35 dBm with `deployed` 0. The broker retains GateLink's
+on the air** that day, heard at −35 dBm with `deployed` 0. The sandbox broker retains GateLink's
 documents, `simnode1`'s `vedirect/charge/state`, `hex/audit` and `write_enable/state` from
 V-B6, and no `write_enable/set`. The retained `node_current` discovery config was cleared.
 The bridge was `/dev/cu.usbserial-0001` on 2026-10-15, and its MAC matched the table
 below. On 2026-10-05 the Heltec simnode was `/dev/cu.usbserial-4` and the XIAO
 `/dev/cu.usbmodem1101`. **The fleet is on 917.4 MHz**, and both simnode boards hold it as
-their committed group in NVS, with `phy_trial_s` 120. The bridge reaches the sandbox
-broker. The broker still retains the simnode discovery configs from an earlier enabled
+their committed group in NVS, with `phy_trial_s` 120. The bridge reaches the production
+broker. The sandbox broker still retains the simnode discovery configs from an earlier enabled
 run, so Home Assistant shows simnode devices whose entities read unavailable. **This table names the devices in this subproject's terms**; the
 range-test handoff owns them in its own roles.
 

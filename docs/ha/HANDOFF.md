@@ -40,7 +40,8 @@ section and *The next job*.
 ## The next job, in one place
 
 **H10, the port to production**, once bridge task B6 has run (plan §12). The deployment brief's B3
-comes first, and production HA registers the entities then (bridge plan §11.3).
+is done: production HA registered the entities on 2026-11-02, and the operator found them correct
+(bridge engineering log, same date, *B3*).
 
 ## What the last session established
 
