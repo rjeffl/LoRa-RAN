@@ -1198,3 +1198,53 @@ does not touch the BMS's count.
 −60 dBm. The MPPT read 13330 mV and −10 mA, and the BMS 13350 mV. Those 20 mV are the two meters'
 offset at almost no current, and B1's harness measurement has to subtract them. The operator will
 connect the panel in the morning, after the read.
+
+## 2026-11-02 — R-6.4c's morning read: the BMS counted an eighth of the draw
+
+**The BMS's remaining capacity fell 0.1 Ah across about 19.3 h on GateLink's load alone.**
+PRD R-6.4c expected about 0.8 Ah at its 0.04 Ah an hour. USB came off at about 17:30 on
+2026-11-01, with VIN on the pack alone, by operator report. The console read at 12:46 EST:
+
+```text
+bms: cells 4: 3329 3330 3330 3330 mV (delta 1); temps 4: 217 242 214 212 (0.1 C); pack 13310 mV 0 mA (charge flag, raw 0x4000); SOC 99%; 988/1000 (0.1 Ah); cycles 4; SOH 1000; rssi -63
+```
+
+**The falsifier as written was not met, because 989 did not stay 989.** One 0.1 Ah step still
+places the fall somewhere under 0.2 Ah, and the step could have come before USB was off. Why
+the BMS under-counts is not established. `pack_ma` read 0 all night, so a current deadband
+in the BMS would fit, but nothing here tests one. The 44 mA draw was not measured again this
+night.
+
+**The operator chose to keep `ah_drawn` as a lower bound** (PRD v0.28). The wire field and
+the firmware do not change.
+
+**GateLink did not reset.** `~/lran-soak-r64c/bench.log` has no `BOOT` from 17:30:34 to the
+read, one `boot_time`, and an uptime rising without a drop. Plugging USB into the hub for the
+read did not reset the board either. `missed_polls` stayed 0 and GateLink never went offline,
+at −66 to −50 dBm.
+
+**`/bms.log` for the same stretch holds 235 windows: 230 read and 5 aborted**, about 3 h
+apart. No two windows sit over 320 s apart, which fits `bms_retry_s` recovering each one.
+All five show `drain_to=0`, as does the last line, and `crc`, `bad_term` and `undecoded` sum
+to 0. `age_s` never passed 301. VE.Direct stayed available, with the charger `off` and PV at
+10 mV.
+
+**The logger's two gaps were the Mac sleeping**, by operator report: 17:35:54 to 17:46:57 and
+17:47:02 to 17:51:08, each ending in a broker connection reset. The bridge's `tx_frames` did
+not fall across them.
+
+**The HA session's activity is all in the log** (HA engineering log, 2026-11-01): events 9101
+to 9112 from 20:47:29, dry-run on at 20:49:05, the three actions at 20:50 with `result` 16,
+dry-run off at 20:50:43 and Request configuration at 20:53:17. The four Hold ON commands at
+19:17:44 to 19:17:49, each acked with `result` 0 and dry-run off, were the operator pressing the
+button to see its state. The gate state stayed `closed`.
+
+**Two things the log shows and nothing here explains:**
+
+- **`config/state` was never published live.** The log holds it only as retained replays at
+  each connect, with `deployed` and `poll_interval_s` set and the rest null. Request
+  configuration at 20:53 was acked with `result` 0, and no document followed. That bears on
+  H12's check of GateLink's `unknown` config numbers.
+- **`load_on` went false at 06:53 with the panel disconnected**, and `load_ma` read 0
+  throughout. `mppt-config.md` does not mention a load schedule. That bears on H12's check of
+  *Gate Pier Lights*.

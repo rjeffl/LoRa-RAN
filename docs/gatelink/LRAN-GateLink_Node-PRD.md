@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.27
+**Version:** 0.28
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-28
+**Last updated:** 2026-11-02
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -838,10 +838,14 @@ failing panel or charge controller.
   in 0.1 A, so that draw reads 0, and a cold night integrated from it would read 0 Ah
   (engineering log, 2026-10-27). VE.Direct's battery current never sees the draw at all,
   because GateLink takes its supply from the pack, not from the charger's load output
-  (R-4.4a). The BMS counts charge internally, so its remaining capacity may register a
-  draw its current field cannot show. That is unmeasured. **Falsified by** BMS
-  remaining capacity unchanged across a night with GateLink's load alone, which should
-  draw about 0.5 Ah over 12 h.
+  (R-4.4a).
+
+  **The count is a lower bound on the charge drawn, not a measure of it**, by operator
+  decision of 2026-11-02. Across 19.3 h on GateLink's load alone, which should draw about
+  0.8 Ah, the BMS's remaining capacity fell 0.1 Ah (engineering log, 2026-11-02). Why it
+  under-counts is not established, and no larger load has been checked, so a multi-day
+  cold event may have used much more reserve than the count shows. **Falsified by** a
+  count larger than the charge a known load drew from the pack.
 
   Without a BMS read since charging was last active, GateLink sends `UINT16_MAX`. A
   reset loses the reference reading, so GateLink sends `UINT16_MAX` from then until
@@ -1074,6 +1078,9 @@ implementation plan.*
 
 ## 10. Changelog
 
+- **v0.28** — **R-6.4c's count is a lower bound.** Its check ran: the BMS's remaining
+  capacity fell 0.1 Ah across 19.3 h on GateLink's load alone, against about 0.8 Ah expected
+  (engineering log, 2026-11-02). The wire field and the firmware do not change.
 - **v0.27** — R-3.5a drops "GateLink sends `0x10` until that count is built", because it now
   sends `0x13`. **R-5.3g and R-5.4e are met in purpose, not as worded:** GateLink's fault log
   rotates and survives a link outage, has no levels, and retains counters only as periodic

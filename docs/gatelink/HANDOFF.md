@@ -50,6 +50,10 @@ the bench, and GateLink reads both. The session took R-6.4c's baseline, 98.9 Ah,
 night's setup to the operator (engineering log, 2026-11-01, *R-6.4c's overnight check*). It
 changed no firmware and did not start B3.
 
+**Updated 2026-11-02 by the morning-read session.** The BMS counted 0.1 Ah across 19.3 h on
+GateLink's load alone, against about 0.8 Ah expected, so `ah_drawn` is a lower bound by
+operator decision (PRD v0.28; engineering log, 2026-11-02). GateLink did not reset.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -64,38 +68,17 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The firmware list is finished. Two readings come before B3, and both need the pack on the
-bench, so take them in the table's order.** B3's GateLink flash is its last on the bench, and
+**The firmware list is finished. One reading comes before B3, and it needs the pack on the
+bench.** B3's GateLink flash is its last on the bench, and
 [`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders the
 rest. `gatelink` builds the production image from the root `secrets.h`. `gatelink-sandbox`
 builds the bench image from `secrets.sandbox.h`, and only that one talks to the sandbox bridge.
 
 | Tier | Task | Read |
 |---|---|---|
-| 4 | **R-6.4c's morning read, before the panel goes on**, because any charging ends the test. Get the operator's three answers first, then run the `attach` line below | PRD R-6.4c; engineering log, 2026-11-01, *R-6.4c's overnight check* |
 | 4 | **B1's harness measurement and the first real `ah_drawn`**, once the operator connects the panel and the MPPT charges | below |
 | 4 | **B3**: production builds of the bridge and GateLink, from a committed, clean tree. **Keep GateLink's `firmware.elf`**, because a core dump read at the gate needs it | brief, *Blocking* |
 | 4 | **The at-gate sequence** | brief, *At-gate sequence* |
-
-**Ask the operator three things before reading the result:**
-
-1. What time did USB come off the StamPLC? The night's clock starts there, not at the baseline.
-2. Was VIN on the pack alone, with the 12 V bench supply off? If it wasn't, the night says
-   nothing about R-6.4c, and the check has to run again.
-3. Did `~/lran-soak-r64c/bench.log` catch a `BOOT` overnight? The logger is the operator's, and
-   a laptop that slept leaves gaps in it without harming the result.
-
-**The morning read.** USB goes back through the USB 2.0 hub, because a StamPLC on 12 V never
-appears on a USB-C host port:
-
-```bash
-~/.platformio/penv/bin/python tools/bench/bench.py attach /dev/cu.usbmodem101 'bms data' --until 'bms: cells' --seconds 8
-```
-
-Read the `<remaining>/<nominal> (0.1 Ah)` field against the baseline of `989/1000`. PRD R-6.4c
-expects about 0.5 Ah over 12 h, or about 0.04 Ah an hour. **An unchanged 989 falsifies R-6.4c's
-premise**, which would be a decision for the operator, since `ah_drawn` rests on it. MQTT's
-`capacity_ah` will not answer this, because it carries the nominal capacity.
 
 **B1's measurement.** Compare `solar/state`'s `batt_mv` with `battery/state`'s `pack_mv` at
 `batt_ma` under charge. Subtract the 20 mV the two read apart at −10 mA. The fix's resistance is
@@ -344,11 +327,9 @@ board's are its D-pads (expansion board §6.1).
 - **`bench.py attach` is not tested on Linux**, and the field laptop runs Kubuntu. A `BOOT`
   event during it is the falsifier. If it resets there, the card's `/bms.log` and fault log
   still hold the counters.
-- **R-6.4c's `ah_drawn_dah` assumes the BMS's remaining capacity falls under GateLink's
-  44 mA draw**, which `pack_ma` cannot show. Unmeasured. PRD R-6.4c names the check: the
-  real pack across a night with GateLink's load alone, expecting about 0.5 Ah over 12 h.
-  The check needs the real pack, and its baseline is taken (*Start here*). `ah_drawn_dah` has
-  only been sent as `UINT16_MAX`.
+- **`ah_drawn` under-counts, and why is not established** (engineering log, 2026-11-02). A
+  deadband in the BMS would fit, untested. No larger load has been checked. HA's *Charge drawn
+  since charging* and spec §7.2.10's "how much reserve" do not say it is a lower bound.
 - **Spec §7.2.10 still says the node defines "the current it integrates"**, while PRD R-6.4c
   says no current is integrated. The firmware follows the PRD. A spec wording fix, for the
   next revision.
