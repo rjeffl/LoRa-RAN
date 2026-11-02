@@ -951,12 +951,19 @@ After the flash, `config/state` filled by itself in about 5 s, at 37 rows with n
 configuration at 13:54:08 was acked, and `config/state` followed at 13:54:12, with
 `cfg_unsolicited_readbacks` at 1.
 
-**The operator explained `input_bits` 3: IN1 and IN2 were not tied high.** With both on +12 V, the
-gate went to `closed` with `input_bits` 0 at 13:36:15.
+**The gate's `input_bits` 3 cleared once IN1 and IN2 were on +12 V**, by operator report. The gate
+went to `closed` with `input_bits` 0 at 13:36:15.
 
-**The load output follows the MPPT's streetlight mode.** VictronConnect shows streetlight with
-BatteryLife, by operator report. `load_on` went true at 13:38:57, after the operator disconnected
-the PV, with `pv_mv` at 10. So a disconnect does change it, after a delay nobody has measured.
+**`load_on` follows the MPPT's streetlight mode, and the terminals do not follow `load_on`.**
+VictronConnect shows streetlight with BatteryLife, by operator report. `load_on` went true at
+13:38:57, after the operator disconnected the PV, with `pv_mv` at 10. So a disconnect does change
+it, after a delay nobody has measured. With the load reported on, the operator metered battery
+voltage from Load+ to Battery-, none from Load+ to Load-, and Load- to Battery- open. The output
+carried 4 A on an earlier date (GateLink log, 2026-10-05 to 2026-10-15), and the operator reports
+it worked before the soak. It fits a low-side switch that is not conducting, which no Victron
+document consulted here confirms. Cause not known. `load_ma` read 0 in all 117 logged documents,
+`0xEDAD` answered 0, and the log holds no MPPT write during the soak. **So *Gate Pier Lights* shows
+what the controller claims, not whether the output is live.**
 HEX `0xEDA8` answered `0x01` at 13:54:22, while `load_on` read true. Why it went false at 06:53
 with no panel connected is still not known. HA has no setting for these modes, and the proxy
 reads them: `0xEDAB` answered `0x81`. This entry does not decode the other registers read, because
