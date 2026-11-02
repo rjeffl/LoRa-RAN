@@ -1,7 +1,7 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.28
+**Version:** 0.29
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
@@ -291,6 +291,16 @@ Four properties of the installed topology shape the logic:
   of the last alert sends `VEHICLE_DETECTED` instead and sets `detect_flags` bit 4
   (Protocol Spec §7.2.5). The limit filters the double alert from a vehicle towing a
   trailer.
+- **R-3.2.3f.** After a detection resolves as a traversal, a new detection SHALL NOT start
+  until SAFETY and EXIT have both been clear for `detect_sequence_idle_ms`. Each edge in
+  that time restarts it. A small vehicle can pulse SAFETY twice on its way out, because the
+  two loops are in series, and the second pulse otherwise starts a false partial entry
+  (engineering log, 2026-11-02).
+
+> **What R-3.2.3f costs.** A trailer inside that time is part of the crossing it follows,
+> which is the wanted result. A second vehicle inside that time is not counted either, and
+> if the first raised the held-open alert, the second raises none. A partial detection
+> does not wait, so a vehicle that backed off a sensor does not hide the next one.
 
 #### 3.2.4 Held-open alert — the primary operational requirement
 
@@ -1078,6 +1088,9 @@ implementation plan.*
 
 ## 10. Changelog
 
+- **v0.29** — **R-3.2.3f: a crossing holds off the next detection** until both sensors have
+  been clear for `detect_sequence_idle_ms`. The wire format and the parameter table do not
+  change (operator, 2026-11-02, after a bench run logged a false partial entry).
 - **v0.28** — **R-6.4c's count is a lower bound.** Its check ran: the BMS's remaining
   capacity fell 0.1 Ah across 19.3 h on GateLink's load alone, against about 0.8 Ah expected
   (engineering log, 2026-11-02). The wire field and the firmware do not change.

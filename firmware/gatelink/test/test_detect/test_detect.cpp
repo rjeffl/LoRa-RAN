@@ -144,6 +144,73 @@ void test_wand_retrigger_is_one_detection() {
   assert_detection(r, EventType::VehicleDetected, Direction::Exit);
 }
 
+// R-3.2.3f - a small vehicle leaving: SAFETY pulses again after the crossing resolved.
+// The bench logged this as a false partial entry before the fix (2026-11-02).
+void test_second_safety_pulse_after_a_crossing_starts_nothing() {
+  Rig r;
+  r.run(0, 500);
+  r.run(kE, 1000);
+  r.run(0, 2000);
+  r.run(kS, 1000);
+  r.run(0, 5000);
+  r.run(kS, 1000);
+  r.run(0, 30000);
+  assert_detection(r, EventType::VehicleDetected, Direction::Exit);
+}
+
+// R-3.2.3f - each pulse restarts the idle time, and a trailer is the same crossing.
+void test_trailer_inside_the_idle_time_is_one_crossing() {
+  Rig r;
+  r.run(0, 500);
+  r.run(kS, 1000);
+  r.run(kE, 1000);
+  r.run(0, 9000);
+  r.run(kS, 1000);
+  r.run(0, 9000);
+  r.run(kE, 1000);
+  r.run(0, 9000);
+  assert_detection(r, EventType::VehicleDetected, Direction::Entry);
+}
+
+// R-3.2.3f - once the sensors have been clear for the idle time, the next edge is new.
+void test_edge_after_the_idle_time_is_a_new_detection() {
+  Rig r;
+  r.run(0, 500);
+  r.run(kS, 1000);
+  r.run(kE, 1000);
+  r.run(0, 10500);
+  r.run(kE, 1000);
+  TEST_ASSERT_EQUAL(3, r.events());
+  TEST_ASSERT_NOT_EQUAL(r.event(0)->event.event_id, r.event(2)->event.event_id);
+}
+
+// R-3.2.3f - the idle time follows the parameter, since a reflash is a walk to the gate.
+void test_idle_time_after_a_crossing_is_configurable() {
+  Rig r;
+  r.p.idle_ms = 2000;
+  r.run(0, 500);
+  r.run(kS, 1000);
+  r.run(kE, 1000);
+  r.run(0, 2500);
+  r.run(kS, 500);
+  TEST_ASSERT_EQUAL(3, r.events());
+}
+
+// R-3.2.3f - a hold that begins during the idle time still alerts on the next edge.
+void test_hold_during_the_idle_time_alerts() {
+  Rig r;
+  r.run(0, 500);
+  r.run(kS, 1000);
+  r.run(kE, 1000);
+  r.run(0, 3000);
+  r.g.held        = true;
+  r.g.hold_source = HoldSource::Manual;
+  r.run(kS, 500);
+  TEST_ASSERT_EQUAL(3, r.events());
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EventType::VehicleWhileHeldOpen),
+                          r.event(2)->event.event_type);
+}
+
 // R-3.2.4b-c - the first edge alerts, for each of the four hold sources, with no delay.
 void test_held_open_alert_on_first_edge_for_every_source() {
   const HoldSource sources[] = {HoldSource::Lran, HoldSource::Manual, HoldSource::KeypadFire,
@@ -248,6 +315,11 @@ int main(int, char**) {
   RUN_TEST(test_partial_at_the_wand_resolves_on_idle);
   RUN_TEST(test_partial_on_the_loops_does_not_corrupt_the_next);
   RUN_TEST(test_wand_retrigger_is_one_detection);
+  RUN_TEST(test_second_safety_pulse_after_a_crossing_starts_nothing);
+  RUN_TEST(test_trailer_inside_the_idle_time_is_one_crossing);
+  RUN_TEST(test_edge_after_the_idle_time_is_a_new_detection);
+  RUN_TEST(test_idle_time_after_a_crossing_is_configurable);
+  RUN_TEST(test_hold_during_the_idle_time_alerts);
   RUN_TEST(test_held_open_alert_on_first_edge_for_every_source);
   RUN_TEST(test_hold_mid_detection_alerts_at_next_edge);
   RUN_TEST(test_every_detection_alerts_at_repeat_zero);

@@ -19,7 +19,8 @@
 //             detect_sequence_idle_ms with both sensors clear, resolves it as UNDETERMINED:
 //             the partial traversals.
 //   Settling  resolved, waiting for both sensors to clear, so the tail of one vehicle does
-//             not start the next detection.
+//             not start the next detection. After a traversal they must stay clear for
+//             detect_sequence_idle_ms (R-3.2.3f).
 //
 // A TRAVERSAL is a detection that saw both sensors (spec 7.2.9). A partial one is not, and
 // leaves last_traversal_age_s alone.
@@ -117,6 +118,7 @@ class Detector {
   uint8_t   prev_   = 0;  // SAFETY and EXIT, last read
   Phase     phase_  = Phase::Idle;
   uint8_t   first_  = 0;  // the sensor that started an Armed detection
+  bool      crossed_ = false;  // the detection being settled was a traversal
   uint32_t  start_ms_ = 0;
   bool      quiet_    = true;
   uint32_t  quiet_since_ms_ = 0;
