@@ -2131,3 +2131,28 @@ GateLink's log has the full record (GateLink engineering log, same date, *B3*). 
 the image holds the production `OTA_PASSWORD` and not the sandbox's, by a comparison of the image's
 bytes. No upload has used it yet, so the next OTA upload is its first real test. `config/state` needed
 no clearing. The sandbox HA has no bridge from now on.
+
+## 2026-11-02 — OTA with the production password
+
+**The bridge took an OTA upload with the production `OTA_PASSWORD` and kept the image.** The operator
+ran both uploads from `main`, on a clean tree, with the bridge on its own power supply. By the
+operator's report, the upload with the sandbox password failed first. This session did not see the
+output of either.
+
+**`lran/bridge/version` moved from `cb1be00` in `app0` to `674a8fe` in `app1`.** The code is the same,
+because only documents changed between those commits. The frame log's `ms` put the boot at about
+18:41. `bench.py run --mqtt` then watched until 18:52:01, with the last frame at 662 s. In that time
+no new `lran/bridge/version` or `availability offline` arrived, so the 600 s rollback deadline passed
+with no rollback (Impl Plan §6.5.1). GateLink read −49 dBm with no missed polls, `rx_rejected_mac` was
+0, and GateLink did not reset.
+
+**That the image was marked valid is inferred.** With no USB, the console's `marked valid` line was not
+seen. The next boot would show it, because a reset before marking rolls the image back.
+
+**Retained `lran/bridge/version` still read `ota_state` `pending_verify`, and that is not a failure.**
+The bridge publishes the document only on connect, and it connected before the 120 s minimum. Anyone
+reading the topic after a good OTA sees this until the next connect.
+
+**`heltec_ota` passes the password as `--auth=`, so it reaches `espota`'s argv during the upload.**
+`traps.md` says it must not. `espota` showed no other way to take it, and the exposure here was one
+user's Mac for the length of an upload. Left open in the handoff.

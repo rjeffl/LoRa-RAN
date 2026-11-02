@@ -28,10 +28,9 @@ file:
 |---|---|---|
 | **5. Documents and tools** | Nothing | Host only |
 
-**The deployment brief's B3 is done** (engineering log, 2026-11-02, *B3*). The bridge runs the
-`heltec` image of `cb1be00`, on the production broker. **The next OTA upload is the first to
-authenticate with the production `OTA_PASSWORD`**, and nothing has tried it yet. B3 flashed over
-USB, so the sandbox password has no further use here.
+**The deployment brief's B3 is done** (engineering log, 2026-11-02, *B3*). The bridge is on the production broker. **OTA with the production `OTA_PASSWORD` passed**, and by
+the operator's report the sandbox password failed (engineering log, 2026-11-02, *OTA with the
+production password*).
 
 **Spec v0.19's bridge side is done** (deployment brief's R1; engineering log, 2026-11-02, the two
 R1 entries). D85 passed on the air. D84 stays host-tested, because the real pack reports all four
@@ -87,6 +86,11 @@ never sets `node_flags` bit 7. `lran_gatelink_fire_input`, `lran_gatelink_alarm_
 bridge change was needed.
 
 ### 1. Bridge defects the bench can reach
+
+- **`heltec_ota` puts `LRAN_OTA_PASSWORD` in `espota`'s argv for the upload**, against
+  [`traps.md`](./traps.md)'s rule. `espota` has no other way in. Not fixed.
+- **Retained `lran/bridge/version` reads `pending_verify` after a good OTA until the next connect**,
+  because the bridge publishes it only on connect.
 
 **Done.** These came from B4b's bench runs. The three air-timing defects and the state
 mirror's readback were fixed on 2026-09-25. The lost `BOOT` event, the OTA gap and the
@@ -326,8 +330,8 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `cb1be00`, flashed over USB from `heltec` on 2026-11-02** (engineering log,
-same date, *B3*). **Both simnodes run `32503d5`**, flashed over USB the same
+**The bridge runs `674a8fe` in `app1`, uploaded from `heltec_ota` on 2026-11-02** (engineering log,
+same date, *OTA with the production password*). **Both simnodes run `32503d5`**, flashed over USB the same
 day (engineering log, *Group 7's bench evidence*). **`restore_defaults` cleared the
 bridge's rows**, apart from the six PHY rows. Those read `override` at Envelope A's values,
 because `restore_defaults` does not reach the PHY group. `simnode0` to `simnode2` still
@@ -347,7 +351,7 @@ range-test handoff owns them in its own roles.
 
 | Device | Called here | Told apart by | Firmware | Current state |
 |---|---|---|---|---|
-| Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **At its production position in the office, NW wall, desk height.** On USB as `/dev/cu.usbserial-0001`. NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
+| Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **On its own power supply since 2026-11-02, with no USB, and the operator is moving it to its production position in the office, NW wall, desk height.** NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
 | Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-4` on 2026-10-05. Holds `f0` in `ROLE_RANGE` and `f2` in `ROLE_HEALTH`. Its image carries L7's BMS emulator, off at boot; `bms on 49A1` starts it. Its port name moves across replug |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem1101`** on 2026-09-27. The number moves across replugs, and it is the only `usbmodem` port. Held `f1` in `ROLE_GATELINK` alone on 2026-09-25; `f3` in `ROLE_FAULT` was not present. Add it with `id add f3 ROLE_FAULT` for a fault run |
 
