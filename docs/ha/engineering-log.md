@@ -1034,3 +1034,18 @@ not known.
 **Added later on 2026-11-02, from the operator.** The load went off when the PV came back. The
 operator has no exact time for it, and it coincided with the PV on event. The SOC gauge's battery
 icon has been viewed and is acceptable.
+
+## 2026-11-02 — H8: the approach prompt is parked
+
+**By operator choice, `lran_5_approach_prompt` is not built** (plan v0.21, §9.5). It stays a
+nice-to-have for some day. The property is very rural and LTE/5G connectivity is poor until close
+to the house, so the operator is not sure it is feasible at this time. That answers plan §13's
+question. Nobody has measured the coverage.
+
+**The cover reads exposed to Assist on the sandbox**, by `ha_get_entity_exposure`:
+`cover.gatelink_gate` has `conversation` true, and not Alexa or Google Assistant. No spoken command
+has been tried, because GateLink's relay dry-run is off and its relays pulse on a command.
+
+**Exposure lives in the install, not the repository**, so plan §12 gains a step for production.
+The same read lists `switch.gatelink_hold_gate_open` and `switch.gatelink_mppt_write_enable` as
+exposed too. This session did not set any of them and does not know who did.
