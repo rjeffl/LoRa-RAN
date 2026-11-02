@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks, on 2026-11-02 at the end of H12, and on 2026-11-02 when the approach prompt was parked.**
+read, for H12's post-soak checks, on 2026-11-02 at the end of H12, and on 2026-11-02 when tier 5 was parked.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -26,13 +26,11 @@ Continue from docs/ha/HANDOFF.md: task H10.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8's approach prompt is parked (plan §9.5).
-What is left of H8 is one spoken command through Assist. H10, the port to production, waits on
-bridge task B6.
+cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10, the port to
+production, waits on bridge task B6.
 
 | Task | Read |
 |---|---|
-| **H8** Tier 5 voice control | Plan §9.5; §11's H8 row |
 | **H10** Port to production | Plan §12; §8.3's porting issues; §11's H10 row |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -41,15 +39,16 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H10, the port to production**, once bridge task B6 has run (plan §12). Step 8 exposes the cover
-to Assist there. H8's spoken command can run on either install, with relay dry-run on.
+**H10, the port to production**, once bridge task B6 has run (plan §12).
 
 ## What the last session established
 
 - **The approach prompt is parked, as a nice-to-have for some day** (plan v0.21, §9.5; engineering
-  log, 2026-11-02, approach prompt). Connectivity is poor until close to the house, and the operator
+  log, 2026-11-02, tier 5). Connectivity is poor until close to the house, and the operator
   is not sure it is feasible at this time. Nothing was built.
-- **`cover.gatelink_gate` reads exposed to Assist on the sandbox.** No spoken command has been tried.
+- **Voice control is parked too**, by operator decision. Nobody asked for it, and production does not
+  need it. `cover.gatelink_gate` reads exposed to Assist on the sandbox, and no spoken command has been
+  tried.
 
 - **H12 is met** (plan §11; engineering log, 2026-11-02, real crossings). Each §8.4 crossing case
   passed on real inputs. With a 4+ A load, *Gate Pier Lights* read on with `load_ma` 4300, and off
@@ -197,7 +196,7 @@ Its source answers what the docs leave out, such as the alert matcher in
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11, H12 |
-| Queue | H8's spoken command, then H10 at the port. Bridge tasks F1 to F5 are built (plan §5) |
+| Queue | H10 at the port. H8 is parked. Bridge tasks F1 to F5 are built (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
@@ -322,9 +321,9 @@ those two targets changed, which plan §7.3 names.
 
 ## Open, and not closable from here
 
-- **The sandbox exposes `switch.gatelink_mppt_write_enable` to Assist**, and the hold switch and
-  several sensors beside it. §9.5 names only the cover. Whether the write-enable switch should stay
-  exposed is the operator's call, and plan §12 exposes only the cover on production.
+- **The sandbox exposes `switch.gatelink_mppt_write_enable` to Assist**, with the cover, the hold
+  switch and several sensors. With voice control parked, whether any should stay exposed is the
+  operator's call.
 - **Why `load_on` went false at 06:53 on 2026-11-02 with no panel connected is not known.**
 - **`boot_count` reads null on `lran/gatelink/node/state`**, and the Events view charts boots per
   day from it. Not chased (2026-11-02).

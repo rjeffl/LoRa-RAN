@@ -5,7 +5,7 @@
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; the approach prompt parked 2026-11-02
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02
 **Last updated:** 2026-11-02
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -61,7 +61,7 @@ together with the entities. The bridge handoff asked for this plan before GL8.
 | Dashboard source | **YAML-mode files in the repository, unchanged** (§6). Fluvy's card editors cannot save to a YAML dashboard, so its cards are written from its documentation |
 | Gate command confirmation | **Not required** (operator, 2026-10-30). The Gate dashboard's three actions send with no confirmation dialog (§8.1). The gate's own controls have never asked for one |
 | Gate control entity | **Fix it in the bridge.** Discovery publishes the D8 `cover` and hold `switch` (§5, task F1). F1 was built 2026-10-28, and the dashboards use the cover and the switch in place of the four command buttons |
-| Automation tiers | **All five:** alerts, health, reminders, reports, convenience (§9). Tier 5's approach prompt is parked (§9.5) |
+| Automation tiers | **All five:** alerts, health, reminders, reports, convenience (§9). Tier 5 is parked, and production does not need it (§9.5) |
 | Notification channels | **Companion-app push now; SMTP email later, behind a switch.** Email is built and tested, then held off by `input_boolean.lran_email_enabled` until the operator turns it on. **No SMS:** push replaces it |
 | Units | **The bridge keeps publishing mV and mA**, GateLink's native units on the wire. LRAN Status shows pack voltage in V through HA-side conversion (§7.4), and mV and mA otherwise |
 
@@ -732,22 +732,20 @@ filter (§7.2) admits an event once, and a second automation on that topic would
 
 ### 9.5 Tier 5 — convenience
 
-Voice control is the tier's one feature, and it needs no package file.
+**Both features are parked, as nice-to-haves for some day.** Nothing here is built, and
+production deployment needs neither.
 
-| Feature | Route | Entity |
-|---|---|---|
-| Voice control | Assist, through the cover | `cover.gatelink_gate`, from F1. Assist exposes a `cover`, not a set of buttons |
+**Voice control** (operator, 2026-11-02). Assist would have driven `cover.gatelink_gate`, from
+F1, because Assist exposes a `cover`, not a set of buttons. The operator did not ask for this
+feature. Assist's exposure is set per install, not in these files. On the sandbox the cover reads
+exposed to Assist, and no spoken command has been tried.
 
-**Assist's exposure is set per install, not in these files**, so the port has a step for it
-(§12). On the sandbox the cover reads exposed to Assist. No spoken command has been tried.
-
-**The approach prompt is parked, as a nice-to-have for some day** (operator, 2026-11-02).
-`lran_5_approach_prompt` would have sent a plain push that opens the Gate dashboard when a
-`person` entered an approach zone set in `site.yaml`. The gate would still have moved only when
-a person pressed Open. The property is very rural and LTE/5G connectivity is poor until close
-to the house, so the operator is not sure it is feasible at this time. Nothing was built. No
-one has measured the coverage: before reopening this, check where on the drive a phone's zone
-entry first reaches HA, and whether a push gets back to the phone from there.
+**The approach prompt** (operator, 2026-11-02). `lran_5_approach_prompt` would have sent a plain
+push that opens the Gate dashboard when a `person` entered an approach zone set in `site.yaml`.
+The gate would still have moved only when a person pressed Open. The property is very rural and
+LTE/5G connectivity is poor until close to the house, so the operator is not sure it is feasible
+at this time. No one has measured the coverage: before reopening this, check where on the drive a
+phone's zone entry first reaches HA, and whether a push gets back to the phone from there.
 
 ## 10. History and the recorder
 
@@ -787,7 +785,7 @@ from the YAML.
 | **H5** | Tier 2 health | H4 | Each automation verified by forcing its trigger or lowering its threshold. **Met 2026-10-27**: the state alerts by moving thresholds, the event alerts by events injected on the sandbox broker |
 | **H6** | Tier 3 reminders | H4 | Tapping a reminder opens the Gate dashboard. With relay dry-run on, the dashboard's Close issues the close command and GateLink answers `DRY_RUN` (**V-8**). **Met 2026-10-28**: a reminder's tap opened the Gate dashboard on the iPhone, and the dashboard's Close drew `DRY_RUN` from GateLink |
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal. **Met 2026-10-28**: both reports rendered, with statistics from the sandbox, and reached the phone. SOC and yesterday's yield read `not reported`, because the bench's BMS and MPPT readings were unavailable. A bench traversal counted once, and its follow-up did not |
-| **H8** | Tier 5 voice control. The approach prompt is parked (§9.5) | H6 | Voice control uses F1's cover |
+| **H8** | Tier 5. **Parked** (§9.5), and not needed for production | — | None while parked |
 | **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Met 2026-10-28** against the sandbox, once its bridge ran 760e9a3 |
 | **H10** | Port to production | H1–H9, H11, H12; bridge **B6** | §12's procedure, then GL8 |
 | **H11** | Fluvy: install it on the sandbox, and move the three dashboards to its cards (§2) | H2, H3; F1 | Fluvy v1.11.3 is installed through HACS, and its theme applies everywhere. Each card in the three dashboards is a Fluvy card where Fluvy has one, with the entity IDs unchanged, and `check_entities.py` passes. Each view renders in a screenshot. The plan names each LRAN template, banner or automation that Fluvy makes redundant, and each porting issue found |
@@ -795,7 +793,7 @@ from the YAML.
 
 **F1 to F4 are bridge tasks** (§5), built 2026-10-28. H2's Gate dashboard moved to the
 cover and hold switch in the same change. H6's reminders read `sensor.gatelink_gate` and
-press nothing since v0.11, so they needed no change. H8's voice control uses the cover.
+press nothing since v0.11, so they needed no change.
 
 ## 12. Porting to production
 
@@ -816,7 +814,6 @@ press nothing since v0.11, so they needed no change. H8's voice control uses the
    rather than editing the YAML for one install. Reflash a bridge that is behind.
 6. Verify tier 1 on production with relay dry-run on, as part of GL8.
 7. Turn on `input_boolean.lran_email_enabled` when the operator is ready for email.
-8. Expose `cover.gatelink_gate` to Assist (§9.5).
 
 ## 13. Open questions
 
@@ -826,7 +823,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
-| 0.21 | 2026-11-02 | By operator choice, §9.5's approach prompt is parked as a nice-to-have, because connectivity is poor until close to the house. That answers §13's question. §3, §6, §11 and the file list drop it, and §12 adds a step to expose the cover to Assist. |
+| 0.21 | 2026-11-02 | By operator choice, §9.5 parks tier 5 as nice-to-haves that production does not need: the approach prompt, because connectivity is poor until close to the house, and voice control, which nobody asked for. That answers §13's question. §3, §6, §11 and the file list change to match. |
 | 0.20 | 2026-11-02 | §8.1 and §8.3: the SOC gauge is Fluvy's `battery` gauge, by operator choice. §8.3: *Restore defaults* moved to a scenes card, because the scene card sent it with no dialog. |
 | 0.19 | 2026-11-01 | By operator choice: §8.2's LRAN Configuration has GateLink, WellLink, Bridge and Notification views, and only a system-wide name carries LRAN. §7.3 sends an alert or reminder to two additional-recipient lists when its own switch is on (§7.1), through a new site script (§6). §8.1 centres the status, prefixes it *Gate Status:*, and moves the link below the actions. §8.4 titles the log |
 | 0.18 | 2026-11-01 | By operator choice, the dashboard rework, H12. §2 has four dashboards, and §6's block registers them. §8.1's Gate is operation only, §8.2 gains a Temperature view and *Gate Pier Lights*, and §8.4 is new. §5 adds F5. §9.4's counter counts a confirmed crossing, held-open crossings included. §7.4 and §10 add the new sensors. §8.3 records what the chart card did with mixed units |
