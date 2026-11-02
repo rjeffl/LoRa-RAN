@@ -29,6 +29,10 @@ no session of their own. Neither remaining group needs GateLink at the gate.
 |---|---|---|
 | **5. Documents and tools** | Nothing | Host only |
 
+**Spec v0.19's bridge side is done** (deployment brief's R1; engineering log, 2026-11-02, the two
+R1 entries). D85 passed on the air. D84 stays host-tested, because the real pack reports all four
+temperatures. `heltec` and `heltec-sandbox` both carry it from this merge, so B3 builds after it.
+
 **Group 8's bridge items are done** (2026-10-15, engineering log, the three *Group 8*
 entries). The operator approved GateLink's configuration rows, and `hex_timeout_ms` now
 stops at 1000. The "Node supply current" entity is gone. A `config/set` of 512 bytes or
@@ -142,10 +146,6 @@ is not shown, because the simulated MPPT has no path for making that change.
 
 ### 5. Documents and tools
 
-- **Spec v0.19's bridge side is not built** (PRD R-5.2c, **D84**, **D85**).
-  `battery/state` should publish `null` for a `cell_temp_c` of `INT8_MIN`, and for `alarms`
-  and the four `bms_flags` flags while `bms_alarms` is `UINT16_MAX`. `publish.cpp` sends
-  `-128`, `65535` and `false`.
 - **The whole-document style passes** are owed, on a branch of their own.
 - **A comment is stale, found while reconciling the `library.json` citations.**
   `lib/lran-config`'s `bandwidth_khz` rows read "125 until an envelope decision", and D1

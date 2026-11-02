@@ -321,6 +321,10 @@ those two targets changed, which plan §7.3 names.
 
 ## Open, and not closable from here
 
+- ***Battery protection* and *Charging inhibited (BMS)* read `unknown` from the R1 bridge image
+  on**, because GateLink sends `bms_alarms` as `UINT16_MAX` until `0x8D` is decoded (spec §7.2.7,
+  D85). *Charging inhibited (GateLink)* is unaffected. Whether the dashboard should say why is the
+  operator's call.
 - **The sandbox exposes `switch.gatelink_mppt_write_enable` to Assist**, with the cover, the hold
   switch and several sensors. With voice control parked, whether any should stay exposed is the
   operator's call.

@@ -2062,3 +2062,42 @@ question is answered: `REQUEST_CONFIG`'s readback arrives, and the bridge discar
 
 The fixes are in Impl Plan §6.7.7. `diag/cmd/state` now carries six `cfg_` counters.
 
+## 2026-11-02 — `battery/state` follows spec v0.19's null rules (R1)
+
+**`publish.cpp` now meets PRD R-5.2c's two null rules.** A `cell_temp_c` of `INT8_MIN` publishes
+`null` (D84). While `bms_alarms` is `UINT16_MAX`, `alarms`, `charge_fet`, `discharge_fet`,
+`charge_inhibited`, `protection` and `balancing` publish `null` (D85). `available`, `soc_source`
+and the keys themselves do not change. The bridge ignores bits 1–5 under the sentinel even if a
+node sets them, as spec §7.2.7 says a receiver does.
+
+**PRD R-5.2c said four flags, and the spec's bits 1–5 are five.** The spec is binding, so all five
+publish `null`, and PRD v0.21 corrects the count.
+
+**GateLink always sends `bms_alarms` as `UINT16_MAX`** (`fill_bms_block`), so the sentinel path is
+the normal one until `0x8D` is decoded. *Battery protection* and *Charging inhibited (BMS)* read
+`unknown` instead of off, and neither can raise the dashboard's banner. *Charging inhibited
+(GateLink)* comes from `solar/state`, which this change does not touch.
+
+**The sentinel can sit inside `cell_count`.** `fill_bms_block` sends `INT8_MIN` for any sensor
+past `temp_count`. Before this, that `-128` would have reached HA's lowest-pack-temperature sensor.
+
+**Tested on the host only.** `test_publish` has four new cases, and three of them failed before the
+change. The 567 native cases pass and `heltec` builds. Nothing has run on the air.
+
+## 2026-11-02 — R1 on the air: `alarms` and the five flags read `null`, and HA reads `unknown`
+
+**D85 passes on the air against the real pack.** The sandbox bridge was flashed over USB from
+`ae55e48`, and `lran/bridge/version` read that commit at 17:47:33. The first live `battery/state`
+came a second later:
+
+```text
+"available":true,"soc":99,"soc_source":"bms_ble", ... "alarms":null,"charge_fet":null,"discharge_fet":null,"charge_inhibited":null,"protection":null,"balancing":null
+```
+
+**HA read as the entry above predicted.** `binary_sensor.gatelink_battery_protection` and
+`binary_sensor.gatelink_charging_inhibited_bms` read `unknown`, and
+`binary_sensor.gatelink_charging_inhibited` read `off`.
+
+**D84 was not seen on the air.** This pack reports all four temperatures, 24, 26, 23 and 23 °C, so
+GateLink sent no `INT8_MIN`, and that rule stays host-tested. The lowest-pack-temperature sensor
+read 73.4 °F, which matches the 23 °C readings.

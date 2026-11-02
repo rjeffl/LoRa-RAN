@@ -1,11 +1,11 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.96
+**Version:** 0.97
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.20
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.21
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.31 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -3135,6 +3135,9 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.97** — **`battery/state` follows spec v0.19's null rules**, D84 and D85, under PRD
+  v0.21's R-5.2c. The keys do not change.
 
 - **v0.96** — **A bridge restart and `REQUEST_CONFIG` now both fill `config/state`** (§6.7.7).
   The first `STATUS` after a bridge boot owes a readback, and an idle `ConfigPath` takes

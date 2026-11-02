@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.20
+**Version:** 0.21
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-28
+**Last updated:** 2026-11-02
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -352,7 +352,7 @@ publish and when** (Protocol Spec §16.4).
   **D79**). An input a node says it does not sense is another: while `node_flags` bit 7
   is set, the FIRE, hard-shutdown and keypad-hold entities are unavailable (spec §7.2.8,
   **D80**). A `cell_temp_c` of `INT8_MIN` publishes `null` (spec §7.2.3, **D84**). While
-  `bms_alarms` is `UINT16_MAX`, `alarms` and the four flags from `bms_flags` bits 1–5
+  `bms_alarms` is `UINT16_MAX`, `alarms` and the five flags from `bms_flags` bits 1–5
   publish `null`, not `false` (spec §7.2.7, **D85**).
 - **R-5.2d. Propagate synthetic marking.** Frames marked as debug-synthetic SHALL be
   marked as such all the way into HA history.
@@ -517,6 +517,9 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 ---
 
 ## 9. Changelog
+
+- **v0.21** — **R-5.2c counts five flags, not four.** Spec §7.2.7 ties bits 1–5 to
+  `bms_alarms`, and `battery/state` has a key for each. Both null rules are now built.
 
 - **v0.20** — **Protocol specification v0.18 → v0.19.** R-5.2c takes **D84**'s
   `INT8_MIN` for `cell_temp_c` and **D85**: the battery flags from `bms_flags` bits 1–5

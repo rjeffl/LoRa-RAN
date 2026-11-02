@@ -421,6 +421,74 @@ void test_sentinels_are_null() {
   }
 }
 
+// R-5.2c, spec 7.2.3 (D84) - INT8_MIN is cell_temp_c's sentinel. Inside cell_count too,
+// because GateLink sends it for a sensor the pack did not report.
+void test_cell_temp_sentinel_is_null() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  s.cell_temp_c[0] = 22;
+  s.cell_temp_c[1] = INT8_MIN;
+  s.cell_temp_c[2] = INT8_MIN + 1;  // the coldest reading GateLink can send
+  s.cell_temp_c[3] = -5;
+  offer(p, gatelink(), s, 1000, r);
+  const char* bat = r.find("lran/gatelink/battery/state");
+  expect(bat, "cell1_temp_c", "22");
+  expect(bat, "cell2_temp_c", "null");
+  expect(bat, "cell3_temp_c", "-127");
+  expect(bat, "cell4_temp_c", "-5");
+}
+
+// R-5.2c, spec 7.2.7 (D85) - bms_alarms' sentinel makes bms_flags bits 1-5 unknown, and
+// false would read as a good pack. Bit 0 and soc_source keep their meaning.
+void test_bms_alarms_sentinel_nulls_the_flags() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  s.bms_alarms = kU16NotAvailable;
+  s.bms_flags  = 0x01;  // what GateLink sends: bits 1-5 written zero
+  offer(p, gatelink(), s, 1000, r);
+  const char* bat = r.find("lran/gatelink/battery/state");
+  expect(bat, "available", "true");
+  expect(bat, "soc_source", "\"bms_ble\"");
+  expect(bat, "alarms", "null");
+  expect(bat, "charge_fet", "null");
+  expect(bat, "discharge_fet", "null");
+  expect(bat, "charge_inhibited", "null");
+  expect(bat, "protection", "null");
+  expect(bat, "balancing", "null");
+}
+
+// A receiver does not read bits 1-5 under the sentinel, even if a node set them.
+void test_bms_alarms_sentinel_ignores_set_flags() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  s.bms_alarms = kU16NotAvailable;
+  s.bms_flags  = 0x3F;
+  offer(p, gatelink(), s, 1000, r);
+  const char* bat = r.find("lran/gatelink/battery/state");
+  expect(bat, "charge_fet", "null");
+  expect(bat, "protection", "null");
+}
+
+// A decoded bms_alarms keeps the flags as booleans and the field as a number.
+void test_bms_alarms_decoded_keeps_the_flags() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  s.bms_alarms = 0x0012;
+  s.bms_flags  = 0x01 | 0x02 | 0x10;
+  offer(p, gatelink(), s, 1000, r);
+  const char* bat = r.find("lran/gatelink/battery/state");
+  expect(bat, "alarms", "18");
+  expect(bat, "charge_fet", "true");
+  expect(bat, "discharge_fet", "false");
+  expect(bat, "charge_inhibited", "false");
+  expect(bat, "protection", "true");
+  expect(bat, "balancing", "false");
+}
+
 // R-5.2d - spec 8.7's DEBUG_SYNTHETIC marks every document from that frame.
 void test_synthetic_marks_every_document() {
   PublicationPolicy p;
@@ -784,6 +852,10 @@ int main(int, char**) {
   RUN_TEST(test_bms_age_above_threshold_is_unavailable);
   RUN_TEST(test_bms_never_read_is_unavailable);
   RUN_TEST(test_sentinels_are_null);
+  RUN_TEST(test_cell_temp_sentinel_is_null);
+  RUN_TEST(test_bms_alarms_sentinel_nulls_the_flags);
+  RUN_TEST(test_bms_alarms_sentinel_ignores_set_flags);
+  RUN_TEST(test_bms_alarms_decoded_keeps_the_flags);
   RUN_TEST(test_synthetic_marks_every_document);
   RUN_TEST(test_traversal_is_an_absolute_time);
   RUN_TEST(test_traversal_is_null_without_a_clock);
