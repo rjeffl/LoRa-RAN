@@ -253,6 +253,8 @@ board's are its D-pads (expansion board §6.1).
 
 ## Behaviour that changed, and will make older artifacts read differently
 
+- **A crossing holds off the next detection** for `detect_sequence_idle_ms` of clear sensors
+  (R-3.2.3f, 2026-11-02). Older logs show a second pulse after a crossing as a new partial.
 - **Milestone names.** Before plan v0.18, GateLink milestones were `M0`–`M9`, which the
   specification, the Decision Register and dated briefs still use. `GL`*n* is the old `M`*n*.
   A bare `M`*n* in a GateLink document written from v0.18 on is a measurement.

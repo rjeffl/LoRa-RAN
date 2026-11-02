@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks.**
+read, for H12's post-soak checks, and on 2026-11-02 at the end of H12.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -22,18 +22,16 @@ read, for H12's post-soak checks.**
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H12.
+Continue from docs/ha/HANDOFF.md: task H8.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5, H6, H7, H9 and H11 are done. **H12 is paused on IN4**, which
-does not assert, so no real crossing has run. H8 then builds, and the sandbox can verify its push
-but not its trigger, because that needs a production `person` entity. H10, the port to
+cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 builds next, and the sandbox can verify its
+push but not its trigger, because that needs a production `person` entity. H10, the port to
 production, waits on bridge task B6.
 
 | Task | Read |
 |---|---|
-| **H12** Finish the post-soak checks | *The next job*; plan §8.4, §11's H12 row; engineering log, 2026-11-02; GateLink plan §3.2 |
 | **H8** Tier 5 approach prompt | Plan §9.5, §7.3; §11's H8 row |
 | **H10** Port to production | Plan §12; §8.3's porting issues; §11's H10 row |
 
@@ -43,52 +41,21 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**Find out why IN4 does not assert, then run the crossings.** The bridge and config work is done
-(see below), and the bench is set up for this (*Hardware state*).
-
-1. **Debug IN4 with the operator.** Disconnecting the IN4 wire drops IN4 only to about 4.6 V, from
-   about 12 V at rest (operator's meter, 2026-11-02). **Start by confirming which terminal is which.**
-   The one event during that test, event 6 at 14:55:32, carried `input_bits` 4, which is IN3, and
-   whether the operator had moved IN3 or IN4 was not asked. Meter IN3 the same way and compare. **Read GateLink plan §3.2 and the StamPLC schematic before measuring**,
-   because the 2N7000 stage and the shared `EXCOM_COM` decide what these readings mean. An earlier
-   bench check held IN1 to IN4 high down to 5.24 V, the supply's floor (GateLink engineering log,
-   2026-10-11), so 4.6 V may still energize the opto. That is a lead, not a finding.
-   - **Polarity on the bench** (`gate_io.h`): IN1 and IN2 assert when connected to 12 V−. IN3, IN4
-     and IN5 are inverted, so they rest connected to 12 V− and assert with no current through them.
-     That assumes `EXCOM_COM` on +12 V, as plan §3.2 wires it.
-2. **Run the real crossings**, one at a time, prompting the operator. `input_bits` 8 from IN4 alone
-   comes first. A vehicle does not overlap the sensors, so assert them in turn, with under 10 s
-   between them (`detect_sequence_idle_ms`), and wait 15 s after each run:
-
-   | Case | Sequence | Expected log entry |
-   |---|---|---|
-   | Entering | IN3 on/off, IN4 on/off | *Vehicle entering*, then *Vehicle entered*, count +1 |
-   | Leaving | IN4 on/off, IN3 on/off | *Vehicle leaving*, then *Vehicle left*, count +1 |
-   | Small vehicle entering | IN3 on/off twice, IN4 on/off | One entry |
-   | Small vehicle leaving | IN4 on/off, IN3 on/off twice | See step 3 |
-   | Gate held | Needs IN1 and IN2 held as a held gate reads (GateLink PRD §3.1.4) | Red, ending *, gate held open* |
-
-   The stop at the first sensor already passed with real inputs: four IN3-only detections (events 3 to 6) logged *Vehicle
-   started entering … but did not cross*, with the count unchanged.
-3. **Decide the small-vehicle case.** From reading `detect.cpp`, not yet from a run: the detector
-   goes idle as soon as both sensors clear after resolving, so a second SAFETY pulse on the way out
-   starts a new detection. That logs a false *started entering*, and may raise a second alert on a
-   held gate. The two SAFETY loops are in series, so a small vehicle can do this. Staying in the
-   detection until both sensors have been clear for `detect_sequence_idle_ms` would fix it, but may
-   merge a car and trailer. It is a firmware and PRD change, and the operator's decision.
-4. **Read *Gate Pier Lights* against the terminals with a load connected.** The operator confirmed
-   the output works with a real load, and HA follows `load_on`. Nothing has compared the two with
-   a load on. Why `load_on` went false at 06:53 on 2026-11-02 with no panel connected is not known.
-
-**Passed on 2026-11-02:** F5 on a flashed bridge, config numbers filling, real taps on the three
-actions (`result` 16 with dry-run on and the relays still, `result` 0 with it off and K3, K1, then K2
-and K4 pulsing, K4 by ear), and the Restore defaults dialog.
-
-**Two operator answers are in:** Vehicles stays open to every user, and the SOC gauge is now a battery
-fill icon, not yet viewed. **One decision is open**: `snooze: "off"` on the hard-shutdown latch. A
-snooze hides a row on the dashboard and stops no push, and the operator is the only viewer.
+**Build H8, the Tier 5 approach prompt** (plan §9.5, §7.3, and §11's H8 row). The sandbox has no
+production `person` entity, so verify the push there and leave the trigger for production.
 
 ## What the last session established
+
+- **H12 is met** (plan §11; engineering log, 2026-11-02, real crossings). Each §8.4 crossing case
+  passed on real inputs. With a 4+ A load, *Gate Pier Lights* read on with `load_ma` 4300, and off
+  after the PV returned. Nobody reported when the load itself dropped out.
+- **R-3.2.3f changed detection** (PRD v0.29; GateLink log, 2026-11-02). After a crossing, a new
+  detection waits until both sensors have been clear for `detect_sequence_idle_ms`. A second
+  vehicle inside that time is not counted, and raises no second held-open alert.
+- **IN4's fault was a bad 2N7000**, 200 kΩ across drain and source by the operator's meter, now
+  replaced. What damaged it is not known.
+- **The hard-shutdown latch cannot be snoozed now**, by operator decision. Nobody has looked at the
+  card in the frontend to confirm it offers no snooze.
 
 - **Three bridge defects left GateLink's config numbers `unknown`, and all three are fixed**
   (bridge Impl Plan §6.7.7; engineering log, 2026-11-02). `firmware/bridge` also has a
@@ -223,8 +190,8 @@ Its source answers what the docs leave out, such as the alert matcher in
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11. H12 is built, with IN4 and the real crossings open |
-| Queue | H12's crossings, H8, then H10 at the port. Bridge tasks F1 to F5 are built (plan §5) |
+| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11, H12 |
+| Queue | H8, then H10 at the port. Bridge tasks F1 to F5 are built (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
@@ -283,7 +250,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | The sandbox's `/config`, shared over Samba | the mount | mounted at `/Volumes/config` as `ha-samba-user` | — | — | mounted on the macOS machine |
 | The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | beta flags on: beta features and dashboard screenshots, set in its web UI's *Server Settings* | running; its config check read `valid` on 2026-10-26 |
 | The Puppet app on the sandbox | Puppet | app slug `0f1cc410_puppet`, port 10000 | Puppet 2.6.0 | a long-lived token in its `access_token` option | running; renders for ha-mcp's screenshots. **Port 10000 takes no authentication** |
-| GateLink on the operator's bench | the StamPLC | `firmware/gatelink -e gatelink-sandbox` | see the GateLink handoff | — | **Inputs wired to their inactive state for live testing** (operator, 2026-11-02), on the pack and the MPPT, with USB attached at `/dev/cu.usbmodem1101`. PV was disconnected when last reported. **Its gate relays pulse on a command unless dry-run is on** |
+| GateLink on the operator's bench | the StamPLC | `firmware/gatelink -e gatelink-sandbox` | see the GateLink handoff | — | **Inputs wired to their inactive state for live testing** (operator, 2026-11-02), on the pack and the MPPT, with USB attached at `/dev/cu.usbmodem1101`. PV connected and a 4+ A load on the MPPT's load output when last reported. **Its gate relays pulse on a command unless dry-run is on** |
 | The bridge | the bridge board | `firmware/bridge -e heltec-sandbox` | see the bridge handoff | — | **On USB** at `/dev/cu.usbserial-0001` (2026-11-02). `lran/bridge/version` gives its commit |
 | Soak logger | `bench.log` | `~/lran-soak-r64c`, `bench.py run --mqtt` against `secrets.sandbox.h` | — | — | Still running from 2026-11-01, started by the operator. It logs `lran/#`, so it can read these checks too |
 

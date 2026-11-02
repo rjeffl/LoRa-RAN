@@ -293,9 +293,10 @@ Four properties of the installed topology shape the logic:
   trailer.
 - **R-3.2.3f.** After a detection resolves as a traversal, a new detection SHALL NOT start
   until SAFETY and EXIT have both been clear for `detect_sequence_idle_ms`. Each edge in
-  that time restarts it. A small vehicle can pulse SAFETY twice on its way out, because the
-  two loops are in series, and the second pulse otherwise starts a false partial entry
-  (engineering log, 2026-11-02).
+  that time restarts it. Property 2 above holds for a vehicle long enough to span both
+  loops. A small vehicle can clear one before reaching the other, so SAFETY pulses twice,
+  and on the way out the second pulse otherwise starts a false partial entry (engineering
+  log, 2026-11-02).
 
 > **What R-3.2.3f costs.** A trailer inside that time is part of the crossing it follows,
 > which is the wanted result. A second vehicle inside that time is not counted either, and

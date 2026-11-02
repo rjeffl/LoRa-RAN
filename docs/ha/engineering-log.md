@@ -1001,3 +1001,33 @@ and neither is the cause.
 after resolving, so a second SAFETY pulse starts a new detection. This comes from reading the code,
 and no run has shown it.
 
+## 2026-11-02 — H12's real crossings pass, once IN4's FET was replaced
+
+**Every crossing case in plan §8.4 has passed on real inputs.** The operator replaced IN4's
+2N7000, and the runs were one sensor on and off, then the other (GateLink log, same date).
+
+| Case | Time | Log entry | Count |
+|---|---|---|---|
+| Entering | 16:07 | *Vehicle entered at 4:07 PM* | 1 |
+| Leaving | 16:11 | *Vehicle left at 4:11 PM* | 2 |
+| Small vehicle leaving, old firmware | 16:12 | *Vehicle left at 4:12 PM*, and a false *Vehicle started entering at 4:12 PM but did not cross* | 3 |
+| Small vehicle entering | 16:13 | *Vehicle entered at 4:13 PM* | 4 |
+| Small vehicle leaving, R-3.2.3f | 16:20 | *Vehicle left at 4:20 PM* | 5 |
+| Gate held | 16:23 | *Vehicle left at 4:23 PM, gate held open* | 6 |
+| IN4 alone, twice | 16:09 | *Vehicle started leaving at 4:09 PM but did not cross* | unchanged |
+
+**The gate held entry reads red** in a screenshot of Vehicles. The operator ran it leaving, not
+entering as prompted. `lran_1_vehicle_while_held_open` triggered at 16:23:28, and the operator
+reports the push reached the Mac.
+
+**The hard-shutdown latch cannot be snoozed now**, by operator decision, so its row matches FIRE
+and the held-open vehicle. A snooze only hides the row, and the push still goes. That the card
+now offers no snooze has not been looked at in the frontend.
+
+**`load_on` and *Gate Pier Lights* match the terminals with the load on.** With the operator's
+4+ A load connected and the PV off, `binary_sensor.gatelink_load_output` went `on` at 16:27:27,
+with `load_on` true and `load_ma` 4300. After the PV went back on, `load_ma` read 0 at 16:32:26,
+and `load_on` and the entity went false at 16:33:26. Nobody has reported when the load itself
+dropped out. Why `load_on` went false at 06:53 this morning with no panel connected is still
+not known.
+
