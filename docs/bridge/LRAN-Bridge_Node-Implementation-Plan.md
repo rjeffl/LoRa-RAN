@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.95
+**Version:** 0.96
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.31 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-10-28
+**Last updated:** 2026-11-02
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -1908,6 +1908,19 @@ on the node's defaults within 8 s: a `REBOOT` command, caught by `BOOT`, and a b
 caught by `uptime_s` alone. The bridge engineering log's *mirror readback* entry has the
 run.
 
+**A node the bridge has not heard yet owes a readback too** (2026-11-02). The mirror is RAM,
+so a bridge restart blanks a node's rows, and `RebootWatch`'s first reading of a node that
+did not reboot reports nothing. Until then the rows stayed null until the node's next reboot,
+and every bridge restart or OTA would have done the same. The first `STATUS` after a bridge
+boot now sets the pending bit, at one `POLL` per node per bridge boot.
+
+**`REQUEST_CONFIG`'s answer begins its own readback.** The command path sends it, so its
+unsolicited `CONFIG_ACK` (spec §7.4) finds `ConfigPath` idle, which used to count it as
+`ack_ignored`. An idle path now takes a `GET_ALL` that starts at the table's first row. A walk
+ascends (spec §7.4.1), so a later first row means the first message was lost, and that answer
+is ignored rather than mirrored as a whole table. An abandoned answer sets the pending bit
+once, for the fresh readback §7.4.1 asks for.
+
 #### 6.7.8 Three restart edges, built 2026-09-26
 
 B4b's bench runs found three ways a bridge restart left Home Assistant with the wrong
@@ -3122,6 +3135,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.96** — **A bridge restart and `REQUEST_CONFIG` now both fill `config/state`** (§6.7.7).
+  The first `STATUS` after a bridge boot owes a readback, and an idle `ConfigPath` takes
+  `REQUEST_CONFIG`'s answer.
 
 - **v0.95** — **Protocol specification v0.18 → v0.19, with PRD v0.20 and Library Plan
   v0.31.** PRD R-5.2c

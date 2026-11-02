@@ -238,6 +238,7 @@ class ConfigStore {
   // is exactly the retained document 16.7.4 forbids.
   void note_readback(lran::NodeId node, const lran::schema::ConfigAckEntry* results,
                      size_t n);
+  uint32_t mirror_overflow() const { return mirror_overflow_; }
   void note_set_results(lran::NodeId node, const lran::schema::ConfigAckEntry* results,
                         size_t n);
 
@@ -278,11 +279,10 @@ class ConfigStore {
   alignas(lran::config::Store) unsigned char node_storage_[kNodeCount]
                                                           [sizeof(lran::config::Store)];
 
-  // The readback mirror, one row per parameter a node reported. Sized for node-common
-  // plus room for a node's own block; GateLink's counted 25 (W10, Library Plan 4) is what
-  // this has to hold when GateLink arrives, and an answer larger than it is counted
-  // rather than truncated.
-  static constexpr size_t kMirrorRows = 32;
+  // The readback mirror, one row per parameter a node reported. A table holds at most
+  // kMaxTableParams rows, so a GET_ALL fits. This was 32 until 2026-11-02, and GateLink's 35
+  // rows lost their last three. A row past this is counted in mirror_overflow().
+  static constexpr size_t kMirrorRows = lran::config::kMaxTableParams;
   struct Mirror {
     uint16_t            id          = 0;
     lran::config::Value value       = 0;
@@ -290,6 +290,7 @@ class ConfigStore {
     bool                set         = false;
   };
   Mirror mirror_[kNodeCount][kMirrorRows] = {};
+  uint32_t mirror_overflow_ = 0;
 };
 
 }  // namespace bridge

@@ -689,6 +689,46 @@ void test_a_sets_ack_merges_and_does_not_blank_the_rest() {
   TEST_ASSERT_EQUAL_INT32(7, state_named(entries, n, "cad_retries")->value);
 }
 
+// GateLink's whole table reaches config/state. kMirrorRows was 32 until 2026-11-02, and
+// buzzer_enable, inject_spacing_ms and watchdog_timeout_s stayed null on the bench.
+void test_a_gatelink_readback_fills_every_row() {
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+
+  lran::schema::ConfigAckEntry results[config::kMaxTableParams];
+  size_t count = 0;
+  for (size_t i = 0; i < config::kNodeCommonParamCount; ++i) {
+    results[count++] = ok_entry(config::kNodeCommonParams[i].id, 1);
+  }
+  for (size_t i = 0; i < config::kGateLinkParamCount; ++i) {
+    results[count++] = ok_entry(config::kGateLinkParams[i].id, 1);
+  }
+  store.note_readback(lran::kNodeGateLink, results, count);
+
+  ConfigStateEntry entries[config::kMaxTableParams];
+  const size_t n = store.state(ConfigScope::Node, lran::kNodeGateLink, entries,
+                               config::kMaxTableParams);
+  size_t filled = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (entries[i].has_value) ++filled;
+  }
+  TEST_ASSERT_TRUE(filled >= count);
+  TEST_ASSERT_TRUE(state_named(entries, n, "watchdog_timeout_s")->has_value);
+  TEST_ASSERT_EQUAL_UINT32(0, store.mirror_overflow());
+}
+
+void test_a_row_past_the_mirror_is_counted() {
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+
+  lran::schema::ConfigAckEntry results[config::kMaxTableParams + 1];
+  for (size_t i = 0; i < config::kMaxTableParams + 1; ++i) {
+    results[i] = ok_entry(static_cast<uint16_t>(0x0100 + i), 1);
+  }
+  store.note_readback(lran::kNodeSim1, results, config::kMaxTableParams + 1);
+  TEST_ASSERT_EQUAL_UINT32(1, store.mirror_overflow());
+}
+
 // spec 8.12 - CLAMPED carries the effective value, so the mirror takes it. Found after
 // v0.15: a clamped set left `config/state` showing the value from before the set.
 void test_a_clamped_result_updates_the_mirror() {
@@ -783,6 +823,8 @@ int main(int, char**) {
   RUN_TEST(test_a_readback_fills_the_nodes_own_rows);
   RUN_TEST(test_source_is_the_nodes_override_bit);
   RUN_TEST(test_a_sets_ack_merges_and_does_not_blank_the_rest);
+  RUN_TEST(test_a_gatelink_readback_fills_every_row);
+  RUN_TEST(test_a_row_past_the_mirror_is_counted);
   RUN_TEST(test_a_clamped_result_updates_the_mirror);
   RUN_TEST(test_a_readback_replaces_rather_than_merges);
   RUN_TEST(test_the_mirror_is_per_node);

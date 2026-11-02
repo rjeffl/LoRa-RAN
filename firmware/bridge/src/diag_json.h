@@ -27,6 +27,7 @@
 #include <cstdint>
 
 #include "command.h"
+#include "config_path.h"
 #include "context_roll.h"
 #include "lora_stats.h"
 #include "lran/counters.h"
@@ -75,6 +76,10 @@ size_t diag_node_json(const NodeState& s, uint32_t now_ms, char* out, size_t cap
 //
 // The context roll's detail rides here too (BF-34). A roll is a COMMAND on the air, and a
 // command refused because its node's roll is pending is the command path's to report.
-size_t diag_command_json(const CommandStats& s, const RollStats& roll, char* out, size_t cap);
+//
+// The config path's counters ride here too, because a CONFIG_ACK it ignores is otherwise
+// invisible. `mirror_overflow` is ConfigStore's, which holds the mirror.
+size_t diag_command_json(const CommandStats& s, const RollStats& roll, const ConfigStats& cfg,
+                         uint32_t mirror_overflow, char* out, size_t cap);
 
 }  // namespace bridge

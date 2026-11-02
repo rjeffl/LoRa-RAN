@@ -7,6 +7,7 @@
 
 #include <cstdio>
 
+#include "lran/config/table.h"
 #include "lran/schema/gatelink_status_v1.h"
 #include "lran/schema/gatelink_status_v2.h"
 #include "lran/schema/node_health_v1.h"
@@ -51,6 +52,7 @@ bool ConfigPath::submit(const ConfigJob& job, lran::CtxId ctx, lran::Seq seq,
     return false;
   }
   job_               = job;
+  unsolicited_       = false;
   ctx_               = ctx;
   seq_               = seq;
   outcome_           = ConfigOutcome::Pending;
@@ -140,9 +142,18 @@ bool RebootWatch::on_status(const lran::Header& hdr, const uint8_t* payload, siz
   return rebooted;
 }
 
+bool RebootWatch::heard(lran::NodeId src) const {
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    if (kNodeTable[i].id == src) return seen_[i].heard;
+  }
+  return false;
+}
+
 ConfigStep ConfigPath::next(uint32_t now_ms) {
   ConfigStep step;
-  step.dst = job_.dst;
+  step.dst           = job_.dst;
+  step.readback_only = job_.readback_only;
+  step.unsolicited   = unsolicited_;
 
   switch (phase_) {
     case Phase::Idle:
@@ -265,6 +276,22 @@ void ConfigPath::finish(ConfigOutcome outcome) {
 
 void ConfigPath::on_config_ack(lran::NodeId src, const lran::schema::NodeConfigAckV1& ack,
                                lran::Seq ack_seq, uint32_t now_ms) {
+  if (phase_ == Phase::Idle && ack.op == lran::ConfigOp::GetAll && ack.count > 0 &&
+      ack.entries[0].param_id == lran::config::kNodeCommonParams[0].id) {
+    job_               = ConfigJob{};
+    job_.dst           = src;
+    job_.op            = lran::ConfigOp::GetAll;
+    job_.readback_only = true;
+    unsolicited_       = true;
+    outcome_           = ConfigOutcome::Pending;
+    persist_           = AckPersist::Unknown;
+    staged_count_      = 0;
+    messages_staged_   = 0;
+    readback_first_ms_ = now_ms;
+    window_opened_ms_  = now_ms;
+    phase_             = Phase::AwaitingReadback;
+    ++stats_.unsolicited_readbacks;
+  }
   if (phase_ != Phase::AwaitingAck && phase_ != Phase::AwaitingReadback) {
     ++stats_.ack_ignored;
     return;

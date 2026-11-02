@@ -913,9 +913,15 @@ void publish_config_resolution(const ConfigStep& step) {
   char topic[kMaxTopicLen];
 
   // spec 8.7, D69 - a readback the node's CONFIG_CHANGE asked for answers no set, so no
-  // config/ack goes. A complete one replaces the mirror and republishes config/state.
-  if (g_config_job.readback_only) {
-    if (!step.updates_state) return;
+  // config/ack goes. A complete one replaces the mirror and republishes config/state. The
+  // step says so, not g_config_job: REQUEST_CONFIG's answer starts a transaction by itself.
+  if (step.readback_only) {
+    if (!step.updates_state) {
+      // spec 7.4.1 - an abandoned answer is asked for again. Only one that nobody asked
+      // for, because the POLL's own job does not repeat, so a silent node ends here.
+      if (step.unsolicited) g_config_change_pending.fetch_or(node_bit(step.dst));
+      return;
+    }
     size_t rows = 0;
     {
       ConfigLock lock;
@@ -1038,8 +1044,17 @@ void sched_config(uint32_t now_ms) {
         NodeState ns;
         if (registry_take_cmd_seq(g_config_job.dst, &seq) &&
             registry_state(g_config_job.dst, &ns)) {
-          SchedLock lock;
-          (void)g_config_path.submit(g_config_job, ns.ctx_id, seq, now_ms);
+          bool started = false;
+          {
+            SchedLock lock;
+            started = g_config_path.submit(g_config_job, ns.ctx_id, seq, now_ms);
+          }
+          // app_task can start a readback after the check above, when an unsolicited answer
+          // lands. The job has sent nothing, so it waits its turn, and the lock is not held
+          // across the send.
+          if (!started && xQueueSendToFront(g_config_queue, &g_config_job, 0) != pdTRUE) {
+            g_accounting.record_dropped(QueueId::Config);
+          }
         }
       } else if (const uint32_t pending = g_config_change_pending.load(); pending != 0) {
         // spec 8.7, D69, or a node reboot - after Home Assistant's own jobs, one node's
@@ -1053,7 +1068,9 @@ void sched_config(uint32_t now_ms) {
           g_config_job.dst           = kNodeTable[i].id;
           g_config_job.readback_only = true;
           SchedLock lock;
-          (void)g_config_path.submit(g_config_job, 0, 0, now_ms);
+          if (!g_config_path.submit(g_config_job, 0, 0, now_ms)) {
+            g_config_change_pending.fetch_or(bit);
+          }
           break;
         }
       }
@@ -1585,10 +1602,17 @@ void sched_diag(uint32_t now_ms) {
   // across a queue send (BF-17's rule, and sched_publish() is one).
   CommandStats cs;
   RollStats    rs;
+  ConfigStats  cfg;
   {
     SchedLock lock;
-    cs = g_command.stats();
-    rs = g_roll.stats();
+    cs  = g_command.stats();
+    rs  = g_roll.stats();
+    cfg = g_config_path.stats();
+  }
+  uint32_t mirror_overflow = 0;
+  {
+    ConfigLock lock;
+    mirror_overflow = g_config.mirror_overflow();
   }
 
   char topic[kMaxTopicLen];
@@ -1602,7 +1626,7 @@ void sched_diag(uint32_t now_ms) {
   }
 
   if (topic_diag("bridge", "cmd", topic, sizeof(topic)) > 0 &&
-      diag_command_json(cs, rs, g_sched_json, sizeof(g_sched_json)) > 0) {
+      diag_command_json(cs, rs, cfg, mirror_overflow, g_sched_json, sizeof(g_sched_json)) > 0) {
     (void)sched_publish(topic, g_sched_json);
   }
 
@@ -3117,8 +3141,13 @@ void app_task(void*) {
       }
       // A reboot may have cleared what the readback mirror says the node runs, and
       // config/state would go on reporting it (config_path.h, RebootWatch).
+      const bool was_heard = g_reboot_watch.heard(msg.hdr.src);
       if (g_reboot_watch.on_status(msg.hdr, msg.payload, msg.payload_len, msg.rx_millis)) {
         Serial.printf("config: %02x rebooted, readback owed\n",
+                      static_cast<unsigned>(msg.hdr.src));
+        g_config_change_pending.fetch_or(node_bit(msg.hdr.src));
+      } else if (!was_heard && g_reboot_watch.heard(msg.hdr.src)) {
+        Serial.printf("config: %02x first heard, readback owed\n",
                       static_cast<unsigned>(msg.hdr.src));
         g_config_change_pending.fetch_or(node_bit(msg.hdr.src));
       }

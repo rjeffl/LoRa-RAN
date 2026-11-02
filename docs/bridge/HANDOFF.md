@@ -88,9 +88,6 @@ same day. The other two stay host-tested, because one needs a reset timed inside
 trial's restore and the other a flag set while NVS refuses the write.
 
 - **An answer lost before the reset was not reproduced.** Group 7 carries it.
-- **The Request configuration button left `config/state`'s node rows null** on
-  2026-10-28, where a `get_all` filled them (engineering log, same date). Capture `cmd/ack`
-  and the frame log to see whether `REQUEST_CONFIG`'s readback arrives.
 
 ### 2. BF-27's simulators, and the watchdog's reach
 

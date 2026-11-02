@@ -245,8 +245,18 @@ void test_the_command_diagnostics_carry_every_stat() {
   RollStats r;
   r.cmd_refused = 10; r.sent = 11; r.retries = 12; r.busy = 13; r.by_rejected_ctx = 14;
 
+  ConfigStats cfg;
+  cfg.ack_ignored = 20; cfg.refused_busy = 21; cfg.unsolicited_readbacks = 22;
+  cfg.readbacks_completed = 23; cfg.config_readback_abandoned = 24;
+
   char out[kMaxPayloadLen];
-  TEST_ASSERT_TRUE(diag_command_json(s, r, out, sizeof(out)) > 0);
+  TEST_ASSERT_TRUE(diag_command_json(s, r, cfg, 25, out, sizeof(out)) > 0);
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cfg_ack_ignored\":20"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cfg_refused_busy\":21"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cfg_unsolicited_readbacks\":22"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cfg_readbacks_completed\":23"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cfg_readback_abandoned\":24"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cfg_mirror_overflow\":25"));
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_submitted\":1"));
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_refused_busy\":2"));
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_sent\":3"));
