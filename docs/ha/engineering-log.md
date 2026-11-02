@@ -1031,3 +1031,6 @@ and `load_on` and the entity went false at 16:33:26. Nobody has reported when th
 dropped out. Why `load_on` went false at 06:53 this morning with no panel connected is still
 not known.
 
+**Added later on 2026-11-02, from the operator.** The load went off when the PV came back. The
+operator has no exact time for it, and it coincided with the PV on event. The SOC gauge's battery
+icon has been viewed and is acceptable.

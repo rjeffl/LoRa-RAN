@@ -48,12 +48,13 @@ production `person` entity, so verify the push there and leave the trigger for p
 
 - **H12 is met** (plan §11; engineering log, 2026-11-02, real crossings). Each §8.4 crossing case
   passed on real inputs. With a 4+ A load, *Gate Pier Lights* read on with `load_ma` 4300, and off
-  after the PV returned. Nobody reported when the load itself dropped out.
+  after the PV returned. The operator saw the load go off with the PV, with no exact time.
 - **R-3.2.3f changed detection** (PRD v0.29; GateLink log, 2026-11-02). After a crossing, a new
   detection waits until both sensors have been clear for `detect_sequence_idle_ms`. A second
   vehicle inside that time is not counted, and raises no second held-open alert.
 - **IN4's fault was a bad 2N7000**, 200 kΩ across drain and source by the operator's meter, now
   replaced. What damaged it is not known.
+- **The SOC gauge's battery icon is accepted**, viewed by the operator.
 - **The hard-shutdown latch cannot be snoozed now**, by operator decision. Nobody has looked at the
   card in the frontend to confirm it offers no snooze.
 
