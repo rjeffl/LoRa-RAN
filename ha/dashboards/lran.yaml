@@ -32,7 +32,8 @@ views:
       # hides while all are clear. While GateLink is unavailable its binary sensors are too,
       # and a Fluvy matcher never matches unavailable unless it names it, so only that alert
       # shows. FIRE and the held-open vehicle cannot be snoozed, as their pushes cannot be
-      # muted (plan 7.5).
+      # muted (plan 7.5). Nor can the hard-shutdown latch, so that a snooze cannot hide it
+      # (operator, 2026-11-02).
       - type: grid
         column_span: 3
         cards:
@@ -53,6 +54,7 @@ views:
                 entity: binary_sensor.gatelink_hard_shutdown_latch
                 state: "on"
                 severity: critical
+                snooze: "off"
               # Every GateLink entity follows the node's availability topic (R-3.3d), so
               # the gate state stands for all of them.
               - name: GateLink unavailable
