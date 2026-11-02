@@ -1297,3 +1297,51 @@ image builds there, carrying the production node key and neither the master nor 
 | The master key's three backup drives | All encrypted |
 
 **M3's answer matches `kInputsActiveLow`'s `0x1C`**, which inverts IN3, IN4 and IN5 and leaves IN6.
+
+## 2026-11-02 — B3: production images on both boards, and the link authenticates
+
+**The bridge and GateLink run production images of `cb1be00`, on the production broker.** The
+operator approved the flash, and both went over USB within 36 s, from 18:12:00. USB also meant the
+bridge's sandbox `OTA_PASSWORD` never came into it. Both banners read `0.1.0 (cb1be00)`, with no
+`-dirty`. Each image was built from clean, after `-t clean`, because the first `gatelink` build took
+7 s and was incremental.
+
+**The images were checked before the flash, by comparing values and printing none:**
+
+| Image | Holds | Does not hold |
+|---|---|---|
+| `gatelink` | The production node key, which matches `node_key.py --node 0x01` from the production master | The master, the sandbox node key |
+| `heltec` | The production master, `MQTT_HOST` and `OTA_PASSWORD`, the last in plain text | The sandbox master, `MQTT_HOST` and `OTA_PASSWORD` |
+
+**The link authenticated on the first boot.** GateLink accepted the bridge's `ROLL_CONTEXT` and
+answered a `HEX_REQ`, with `refused 0` and `rx_rejected_mac` 0, at −51 dBm and SNR 11 dB. VE.Direct
+reported at once, and `bms now` returned SOC 99 % at 13.31 V. `ah_drawn` read `null`, because no read
+has set its reference while charging. All of this is about a minute of running each time, not a soak.
+
+**The operator found production HA correct.** This session has no tool for production HA, and
+`bench.py` watches `lran/#` alone, so it saw neither the discovery configs nor the entities.
+
+**Config, read from `config/state`, needed no clearing.** `simnode_diag_enable` is 0 by default.
+GateLink's `deployed` is 1 by override. The bridge's other overrides are the six PHY rows at
+Envelope A's values and the `simnode0` to `simnode2` rows, whose values equal the defaults. GateLink
+lists the six PHY rows as overrides too, at the same values.
+
+**The card, after the operator cleared it:** `config.json` holding `{}`, `log/`, `.Spotlight-V100/`,
+`.Trashes/` and `.fseventsd/`. The operator could not delete the last three from macOS, which writes
+them on mount, and they need Linux. The listing gives a directory's size as 0, so it does not say
+what they or `log/` hold. After the power cycle GateLink reported `sd_ok` and `config_persisted`
+true, its link came back, and the bridge read it as `deployed` 1.
+
+**The images are outside `.pio`, in `~/lran-release/cb1be00/`, mode 600.** Their SHA-256 begin:
+
+| File | SHA-256 |
+|---|---|
+| `gatelink/firmware.elf` | `2fbc8e4a5610ab19` |
+| `gatelink/firmware.bin` | `8e581752b7ac144d` |
+| `bridge/firmware.elf` | `741b1f886d397e7e` |
+| `bridge/firmware.bin` | `6ee6e3cbe3e80193` |
+
+The bridge's files hold the production master and passwords, so they need the care `secrets.h` gets.
+
+**Not tested:** an OTA upload with the production password, because nothing has needed one. A core
+dump read against the kept ELF, because nothing has produced one.

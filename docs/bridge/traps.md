@@ -246,11 +246,9 @@ when it was made**; do not re-stamp it. Changes from 2026-09-16 on are in the ha
 
 **The broker is a sandbox, and that changes what is safe.**
 
-**The broker at the address in `secrets.h` is a disposable sandbox Home Assistant install
-with its own Mosquitto.** Its credentials are **not** the production ones, so they may be
-put into the environment directly rather than prompted for. **That changes at the
-production cutover**, after which a password must not reach argv, a log or a committed
-file.
+**The broker at the address in the root `secrets.h` is production since B3, on 2026-11-02.**
+A password must not reach argv, a log or a committed file. The sandbox's credentials are in
+`secrets.sandbox.h`, and the sandbox's broker has no bridge now.
 
 **`simctl`, `per_measure`, `rxlog` and `sweep_interleave` read `LRAN_MQTT_HOST`,
 `LRAN_MQTT_USER` and `LRAN_MQTT_PASSWORD` from the environment and never take them as

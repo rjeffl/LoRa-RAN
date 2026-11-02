@@ -2123,3 +2123,11 @@ only what differs, with `deployed` kept at 1 (operator, same date).
 been saved on the broker, fixed it and restarted the broker. `bench.py run --mqtt`, reading the root
 `secrets.h`, then logged `<connected, subscribed lran/#>`. It published nothing, and no `lran/`
 message arrived, which fits no production image having run.
+
+## 2026-11-02 — B3: the bridge is on the production broker
+
+**The bridge runs `heltec` at `cb1be00`, flashed over USB, and connects to the production broker.**
+GateLink's log has the full record (GateLink engineering log, same date, *B3*). What matters here:
+the image holds the production `OTA_PASSWORD` and not the sandbox's, by a comparison of the image's
+bytes. No upload has used it yet, so the next OTA upload is its first real test. `config/state` needed
+no clearing. The sandbox HA has no bridge from now on.
