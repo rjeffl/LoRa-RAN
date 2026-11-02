@@ -462,9 +462,9 @@ movement-cause tiles are on LRAN Status as well.
 **The link line opens nothing.** The tiles it replaced opened `/lran-detail/network`, which
 is now admin only, so for most viewers the tap would lead nowhere.
 
-**The SOC gauge is a ring with no severity bands** (LRAN Status, Power view). A gauge's
-bands are fixed numbers, and the SOC thresholds are helpers (§7.1), so the bands would
-drift from them. Fluvy's `battery` gauge colours bands of its own.
+**The SOC gauge is Fluvy's `battery` gauge, a fill icon** (LRAN Status, Power view; operator,
+2026-11-02). It colours fixed bands of its own, and the SOC thresholds are helpers (§7.1), so
+its colours can disagree with the alerts. The number and the alerts are what to act on.
 
 ### 8.2 LRAN Status and LRAN Configuration (admin only)
 
@@ -529,7 +529,7 @@ cannot save to a YAML dashboard.
 | `entities`, settable rows | `custom:fluvy-helpers-card`: a stepper per number, chips per select, a switch per boolean |
 | `entities`, button and script rows | `custom:fluvy-actions-card` |
 | The *Restore defaults* button row | `custom:fluvy-scene-card`, whose `tap_action` keeps the confirmation |
-| `gauge` | `custom:fluvy-gauge-card`, `gauge: ring` |
+| `gauge` | `custom:fluvy-gauge-card`, `gauge: battery` |
 | `history-graph`, and a line `statistics-graph` up to 90 days | `custom:fluvy-chart-card` |
 | A bar `statistics-graph` of `change` | `custom:fluvy-history-bars-card` |
 | The gate's actions | `custom:fluvy-scenes-card`, one tile per action, each with its own `tap_action` |

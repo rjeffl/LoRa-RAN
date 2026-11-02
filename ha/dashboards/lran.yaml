@@ -76,11 +76,11 @@ views:
             title: Battery
             grid_options:
               columns: full
-          # A ring, because Fluvy's battery gauge colours fixed bands, and the SOC thresholds
-          # are helpers (plan 7.1) that the bands would drift from.
+          # Fluvy's battery gauge colours fixed bands, which can drift from the SOC thresholds
+          # in the helpers (plan 7.1). The operator chose the fill icon anyway (2026-11-02).
           - type: custom:fluvy-gauge-card
             entity: sensor.gatelink_battery
-            gauge: ring
+            gauge: battery
             name: State of charge
             min: 0
             max: 100

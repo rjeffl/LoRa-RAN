@@ -901,3 +901,63 @@ email on and both lists set: `vehicle_while_held` with its switch on reached the
 device and `lran_site_email_to`, and `bms_alarm` with its switch off reached only the admin's
 channels. The operator's sandbox devices received those two test pushes, and the switches,
 lists and email went back to off and empty.
+
+## 2026-11-02 — H12's post-soak checks: F5 on a flashed bridge, and three reasons the config numbers read `unknown`
+
+**F5 is on a flashed bridge.** `firmware/bridge` gained a `heltec-sandbox` env, flashed over USB
+from `a9bc78b` at 13:26 EST. `lran/bridge/version` reports that commit, and
+`tools/ha/check_entities.py` passes: 238 entity IDs and 2 prefixes. GateLink answered its first
+poll about a second after the bridge reconnected, so the silence after a bridge flash did not
+recur this time.
+
+**`binary_sensor.gatelink_load_output` reads `off`, matching `load_on: false` and `load_ma: 0`.**
+That agrees with the MQTT document only. Nothing here has compared it with the real load output.
+
+**Request configuration reaches the node, and the bridge throws the answer away.** Pressed at
+13:29:24, it was acked with `result` 0, and two `CONFIG_ACK` frames arrived with `st` 0:
+
+```text
+13:29:26  lran/gatelink/cmd/ack  {"outcome":"acked","seq":1,"attempts":1,"result":0,"detail":0}
+13:29:27  rxlog  "d":"rx","peer":1,"type":11,"schema":18,"seq":5,"st":0
+13:29:28  rxlog  "d":"rx","peer":1,"type":11,"schema":18,"seq":6,"st":0
+```
+
+No `config/state` followed. `ConfigPath::on_config_ack()` (`config_path.cpp:269`) counts any
+`CONFIG_ACK` outside `AwaitingAck` and `AwaitingReadback` as `ack_ignored`, and a
+`REQUEST_CONFIG` goes through the command path, so the config path is idle when its answer
+arrives. That answers the bridge handoff's question from 2026-10-28: the readback arrives and
+goes unused.
+
+**A bridge restart blanks the node's rows, and nothing asks again.** The readback mirror is RAM.
+`RebootWatch` takes the first `STATUS` after a bridge boot as its reference and reports nothing,
+so a readback waits for a node reboot or a `CONFIG_CHANGE`. The retained `config/state` from
+13:26:56 carried `poll_interval_s` and `deployed` and null node rows.
+
+**A `get_all` fills every row but three.** Published to
+`lran/gatelink/config/set` at 13:29:52, it answered 37 rows in about 3 s, all `ok`. `config/state`
+then held `buzzer_enable`, `inject_spacing_ms` and `watchdog_timeout_s` as null, though the
+`config/ack` gave them 0, 1000 and 10. The mirror holds `kMirrorRows` = 32 (`config_store.h:285`)
+and GateLink reports 35 node rows, and those three are the last by parameter ID. Its comment
+sizes the mirror against GateLink's count of 25 from W10. HA now shows
+`number.gatelink_inject_spacing_ms`, `number.gatelink_watchdog_timeout_s` and
+`switch.gatelink_buzzer_enable` as `unknown`, and every other GateLink number has a value.
+
+**The bridge's retained `lran/gatelink/gate/state` has read `open_countdown` since 13:13:17**, with
+`in_open` and `in_moving` true and `input_bits` 3, while the bench's inputs were reported tied to
+their inactive state. The state did not change for at least 16 minutes. Not explained.
+
+**All three defects are fixed and checked on the bench** (bridge engineering log, same date).
+After the flash, `config/state` filled by itself in about 5 s, at 37 rows with none null. Request
+configuration at 13:54:08 was acked, and `config/state` followed at 13:54:12, with
+`cfg_unsolicited_readbacks` at 1.
+
+**The operator explained `input_bits` 3: IN1 and IN2 were not tied high.** With both on +12 V, the
+gate went to `closed` with `input_bits` 0 at 13:36:15.
+
+**The load output follows the MPPT's streetlight mode.** VictronConnect shows streetlight with
+BatteryLife, by operator report. `load_on` went true at 13:38:57, after the operator disconnected
+the PV, with `pv_mv` at 10. So a disconnect does change it, after a delay nobody has measured.
+HEX `0xEDA8` answered `0x01` at 13:54:22, while `load_on` read true. Why it went false at 06:53
+with no panel connected is still not known. HA has no setting for these modes, and the proxy
+reads them: `0xEDAB` answered `0x81`. This entry does not decode the other registers read, because
+no reference was checked for them.
