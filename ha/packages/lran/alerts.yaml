@@ -536,6 +536,8 @@ automation:
         response_variable: ev
       - condition: template
         value_template: "{{ ev.admit }}"
+      # sensor.lran_gatelink_boots counts these, so a duplicate MQTT delivery counts once.
+      - event: lran_gatelink_boot_admitted
       - variables:
           now_s: "{{ now().timestamp() | int }}"
           boots: >-

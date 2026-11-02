@@ -1,7 +1,7 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.29
+**Version:** 0.30
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
@@ -858,7 +858,9 @@ failing panel or charge controller.
   cold event may have used much more reserve than the count shows. **Falsified by** a
   count larger than the charge a known load drew from the pack.
 
-  Without a BMS read since charging was last active, GateLink sends `UINT16_MAX`. A
+  With no reference reading, GateLink sends `UINT16_MAX`. A short charge between two BMS
+  reads keeps the last reference, so a passing cloud does not blank the value. Charging
+  that outlasts two BMS polls with no read drops it (operator, 2026-11-02). A
   reset loses the reference reading, so GateLink sends `UINT16_MAX` from then until
   charging is next active (Protocol Spec §7.2.10).
 - **R-6.4d.** Upgrading the panel does not help while charging is inhibited, and the
@@ -1088,6 +1090,9 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.30** — **R-6.4c states when the count is unavailable** as the firmware already
+  behaves: only with no reference reading. No firmware change (operator, 2026-11-02).
 
 - **v0.29** — **R-3.2.3f: a crossing holds off the next detection** until both sensors have
   been clear for `detect_sequence_idle_ms`. The wire format and the parameter table do not

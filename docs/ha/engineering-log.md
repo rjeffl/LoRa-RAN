@@ -1051,3 +1051,18 @@ exposed too. This session did not set any of them and does not know who did.
 **Added later on 2026-11-02, from the operator.** Voice control is parked too. Nobody asked for it,
 and production deployment does not need it. It may be nice to have some day, so plan §9.5 keeps it
 beside the approach prompt. The sandbox's exposure settings were not changed.
+
+## 2026-11-02 — Boots from the `BOOT` event, and a lower-bound label
+
+**The Events view's boots chart now reads `sensor.lran_gatelink_boots`.** GateLink's `boot_count`
+stays unbuilt by operator decision, so the old `sensor.gatelink_boot_count` never had a number to
+chart. `lran_2_node_boot` fires `lran_gatelink_boot_admitted` after `lran_event_admit`, and a
+trigger-based template sensor counts those events, so a duplicate delivery counts once.
+
+**On the sandbox, the config check passed, and one event fired by hand read `1`,** with
+`state_class` `total_increasing`. That count is a test, and it stays in the sandbox's history. The
+automation's new step has not seen a real boot, and the chart was not rendered. A GateLink reboot is
+the check for both.
+
+**The dashboard row now reads *Drawn since charging (at least)***, because PRD R-6.4c makes the count
+a lower bound. The entity keeps its discovery name, so the bridge's image does not change.

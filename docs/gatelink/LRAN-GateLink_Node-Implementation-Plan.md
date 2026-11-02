@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.48
+**Version:** 0.49
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.29
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.30
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -305,7 +305,7 @@ EXCOM_IN3 ── drain   2N7000
 EXIT, so its stage inverts as theirs do. The alarm output drives 12 V on an alarm, by the
 operator's description, so an asserted alarm holds the 2N7000 on and energizes IN6.
 `inputs_from_levels()` flips IN3, IN4 and IN5 (`kInputsActiveLow` `0x1C`) and masks IN7 and
-IN8. **M3 confirms both polarities before IN5 and IN6 are connected at the gate.** Whether
+IN8. **M3's polarities were measured at the gate (operator, 2026-11-02), and they match.** Whether
 the alarm output idles low enough to hold the 2N7000 off, or needs a pull-down, is part of
 it.
 
@@ -1598,6 +1598,8 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 ## 10. Changelog
 
+- **v0.49** — **PRD v0.28 → v0.30.** R-3.2.3f is built, and R-6.4c's new wording matches the
+  firmware. §3.2 records M3's polarities as measured.
 - **v0.48** — **PRD v0.27 → v0.28.** R-6.4c's count becomes a lower bound, which changes nothing built or
   planned here. §4.1's schema row now says GateLink sends `0x13`, as PRD v0.27 does.
 - **v0.47** — **The firmware freeze's items are built** (engineering log, 2026-11-01): §5.2's
