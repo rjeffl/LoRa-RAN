@@ -68,8 +68,8 @@ Status. The review brief recommends `snooze: "off"` on the hard-shutdown latch a
 
 ## What the last session established
 
-- **LRAN Configuration has GateLink, WellLink, Bridge and Notification views**, and alerts
-  and reminders can reach two lists of additional devices and emails (plan v0.19, §7.3,
+- **LRAN Configuration has GateLink, WellLink, Bridge and Notification views**, and each alert
+  and reminder has a switch that also sends it to two lists of devices and emails (plan v0.19, §7.3,
   §8.2; engineering log, 2026-11-01, Configuration views). **A production `site.yaml` needs
   the new `lran_site_email_to`**, as in `site.yaml.example`. The sandbox's writes a persistent
   notification.

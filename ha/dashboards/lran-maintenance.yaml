@@ -349,7 +349,7 @@ views:
               - entity: input_select.lran_alert_held_open_long
               - entity: input_select.lran_alert_open_at_night
               - entity: input_select.lran_alert_open_nobody_home
-          # The two lists lran_notify reads for alerts and reminders only (plan 7.3).
+          # The two lists, and the switch per message that sends to them (plan 7.3).
           - type: custom:fluvy-helpers-card
             title: Additional recipients
             rows:
@@ -359,10 +359,31 @@ views:
                 name: Additional emails
           - type: markdown
             content: >-
-              Comma-separated. Alerts and reminders go to these as well as to the admin, at
-              the same levels and under the same mute and email settings. A device is its
-              notify action, such as `mobile_app_sams_phone`. Health and reports go to the
-              admin only.
+              Comma-separated. A message switched on below goes to these as well as to the
+              admin, at the same level and under the same mute and email settings. A device
+              is its notify action, such as `mobile_app_sams_phone`. Health and reports go
+              to the admin only.
+          - type: custom:fluvy-helpers-card
+            title: Send to additional recipients
+            rows:
+              - entity: input_boolean.lran_additional_vehicle_while_held
+                name: Vehicle while held open
+              - entity: input_boolean.lran_additional_fire
+                name: FIRE asserted
+              - entity: input_boolean.lran_additional_hard_shutdown
+                name: Hard shutdown
+              - entity: input_boolean.lran_additional_bms_alarm
+                name: BMS alarm
+              - entity: input_boolean.lran_additional_gatelink_offline
+                name: GateLink offline
+              - entity: input_boolean.lran_additional_bridge_offline
+                name: Bridge offline
+              - entity: input_boolean.lran_additional_held_open_long
+                name: Held open long
+              - entity: input_boolean.lran_additional_open_at_night
+                name: Gate open at night
+              - entity: input_boolean.lran_additional_open_nobody_home
+                name: Gate open, nobody home
 
       - type: grid
         cards:

@@ -103,11 +103,11 @@ def main():
             for missing in sorted(wanted - passed):
                 errors.append(f"{name}: {text} uses {{{missing}}}, which the call does not pass")
 
-    # A misspelt name here would quietly leave the additional recipients off that alert.
-    notify = packages["core.yaml"]["script"]["lran_notify"]
-    for name in notify["variables"].get("additional_alerts", []):
-        if name not in selectors:
-            errors.append(f"core.yaml: additional_alerts names {name!r}, which has no selector")
+    # A misspelt switch would quietly leave the additional recipients off that alert.
+    for name, pkg in packages.items():
+        for key in pkg.get("input_boolean") or {}:
+            if key.startswith("lran_additional_") and key[len("lran_additional_"):] not in selectors:
+                errors.append(f"{name}: input_boolean.{key} has no alert selector")
 
     for e in errors:
         print(f"FAIL {e}")

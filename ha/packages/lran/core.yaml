@@ -37,7 +37,8 @@ input_text:
   lran_report_alerts:
     name: LRAN alerts since the report
     max: 255
-  # Who else gets alerts and reminders, as comma-separated lists the admin edits on LRAN
+  # Who else gets an alert or reminder whose input_boolean.lran_additional_<alert> is on, as
+  # comma-separated lists the admin edits on LRAN
   # Configuration's Notification view (plan 7.3). A device is its notify action, with or
   # without the notify. prefix.
   lran_additional_devices:
@@ -298,8 +299,8 @@ script:
 
   # The one place LRAN notifies (plan 7.3). Automations call this, never a notify action,
   # so the channels change in one place. The channels themselves are site.yaml's
-  # lran_site_push and lran_site_email, which reach the admin. Alerts and reminders also go
-  # to the two additional-recipient lists, by the same rules (plan 7.3).
+  # lran_site_push and lran_site_email, which reach the admin. An alert or reminder with its
+  # switch on also goes to the two additional-recipient lists, by the same rules (plan 7.3).
   #
   # An automation names its alert and passes raw fields. The words come from messages.yml
   # and the delivery level from the alert's selector (plan 7.5), so neither is in an
@@ -402,26 +403,17 @@ script:
         {{ level if level in ['off', 'critical', 'high', 'normal', 'low']
            else severity if severity in ['critical', 'high', 'normal', 'low'] else 'high' }}
       is_follow_up: "{{ follow_up is sameas true }}"
-      # Tier 1 and tier 3. Everything else reaches the admin only (plan 7.3).
-      # tools/checks/ha_messages.py holds this list to the selectors.
-      additional_alerts:
-        - fire
-        - vehicle_while_held
-        - hard_shutdown
-        - bms_alarm
-        - gatelink_offline
-        - bridge_offline
-        - held_open_long
-        - open_at_night
-        - open_nobody_home
+      # Only tier 1 and tier 3 have this switch, so health and reports reach the admin only
+      # (plan 7.3). A follow-up names its alert, so it follows that alert's switch.
+      to_additional: "{{ is_state('input_boolean.lran_additional_' ~ alert, 'on') }}"
       additional_devices: >-
-        {% if alert in additional_alerts %}
+        {% if to_additional %}
           {{ states('input_text.lran_additional_devices').split(',') | map('trim')
              | map('replace', 'notify.', '') | reject('in', ['', 'unknown', 'unavailable'])
              | list }}
         {% else %}[]{% endif %}
       additional_emails: >-
-        {% if alert in additional_alerts %}
+        {% if to_additional %}
           {{ states('input_text.lran_additional_emails').split(',') | map('trim')
              | reject('in', ['', 'unknown', 'unavailable']) | list }}
         {% else %}[]{% endif %}

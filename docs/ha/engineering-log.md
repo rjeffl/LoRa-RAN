@@ -893,3 +893,11 @@ so the heading still parses. It rendered centred at 1000 px.
 temporary non-admin storage dashboard, since deleted, with only the first and last thresholds
 on the copy. The GateLink, WellLink and Bridge views are the same sections moved, and were not
 rendered as views. The operator should look at them.
+
+**Who gets which message: the operator's correction, the same day.** The two lists stay, and each
+alert and reminder gains its own switch, `input_boolean.lran_additional_<alert>`, off by
+default. That replaces the `additional_alerts` list in `lran_notify`. Tested at level High with
+email on and both lists set: `vehicle_while_held` with its switch on reached the additional
+device and `lran_site_email_to`, and `bms_alarm` with its switch off reached only the admin's
+channels. The operator's sandbox devices received those two test pushes, and the switches,
+lists and email went back to off and empty.
