@@ -60,20 +60,23 @@ views:
                 name: Request status
               - entity: button.gatelink_request_configuration
                 name: Request configuration
-          # Every GateLink setting back to its default, at once, so it asks first. A scene
-          # card, because the actions card's rows take no tap action to confirm.
-          - type: custom:fluvy-scene-card
-            entity: button.gatelink_restore_defaults
-            name: Restore defaults
+          # Every GateLink setting back to its default, at once, so it asks first. A scenes
+          # card, because the scene card presses its button and ignores tap_action, which sent
+          # this with no dialog (2026-11-02). The actions card's rows take no tap action.
+          - type: custom:fluvy-scenes-card
+            columns: 1
             grid_options:
               columns: 12
-            tap_action:
-              action: perform-action
-              perform_action: button.press
-              target:
-                entity_id: button.gatelink_restore_defaults
-              confirmation:
-                text: Restore every GateLink setting to its default?
+            scenes:
+              - entity: button.gatelink_restore_defaults
+                name: Restore defaults
+                tap_action:
+                  action: perform-action
+                  perform_action: button.press
+                  target:
+                    entity_id: button.gatelink_restore_defaults
+                  confirmation:
+                    text: Restore every GateLink setting to its default?
           # Charge-controller writes are a battery-affecting path (GateLink PRD S-11), so
           # the switch sits under a statement of that. Fluvy has no card for fixed text.
           - type: markdown

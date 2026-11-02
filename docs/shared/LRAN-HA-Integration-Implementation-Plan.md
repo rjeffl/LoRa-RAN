@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.19
+**Version:** 0.20
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
 **Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01
-**Last updated:** 2026-11-01
+**Last updated:** 2026-11-02
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
@@ -528,7 +528,7 @@ cannot save to a YAML dashboard.
 | `entities`, read-only rows | `custom:fluvy-entities-card` |
 | `entities`, settable rows | `custom:fluvy-helpers-card`: a stepper per number, chips per select, a switch per boolean |
 | `entities`, button and script rows | `custom:fluvy-actions-card` |
-| The *Restore defaults* button row | `custom:fluvy-scene-card`, whose `tap_action` keeps the confirmation |
+| The *Restore defaults* button row | `custom:fluvy-scenes-card` with one tile, whose `tap_action` keeps the confirmation. `fluvy-scene-card` presses its button and ignores `tap_action` |
 | `gauge` | `custom:fluvy-gauge-card`, `gauge: battery` |
 | `history-graph`, and a line `statistics-graph` up to 90 days | `custom:fluvy-chart-card` |
 | A bar `statistics-graph` of `change` | `custom:fluvy-history-bars-card` |
@@ -817,6 +817,7 @@ cover when it is.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.20 | 2026-11-02 | §8.1 and §8.3: the SOC gauge is Fluvy's `battery` gauge, by operator choice. §8.3: *Restore defaults* moved to a scenes card, because the scene card sent it with no dialog. |
 | 0.19 | 2026-11-01 | By operator choice: §8.2's LRAN Configuration has GateLink, WellLink, Bridge and Notification views, and only a system-wide name carries LRAN. §7.3 sends an alert or reminder to two additional-recipient lists when its own switch is on (§7.1), through a new site script (§6). §8.1 centres the status, prefixes it *Gate Status:*, and moves the link below the actions. §8.4 titles the log |
 | 0.18 | 2026-11-01 | By operator choice, the dashboard rework, H12. §2 has four dashboards, and §6's block registers them. §8.1's Gate is operation only, §8.2 gains a Temperature view and *Gate Pier Lights*, and §8.4 is new. §5 adds F5. §9.4's counter counts a confirmed crossing, held-open crossings included. §7.4 and §10 add the new sensors. §8.3 records what the chart card did with mixed units |
 | 0.1 | 2026-10-25 | First draft. Operator choices recorded in §2, including units and no SMS; the sandbox survey in §4; bridge gaps F1–F3; tasks H0–H10 |
