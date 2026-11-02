@@ -30,7 +30,11 @@
 //
 // __has_include rather than a bare #include: a fresh clone has no secrets.h, and
 // "no such file: secrets.h" does not tell anyone what to do about it.
-#if __has_include("secrets.h")
+//
+// The heltec-sandbox env names its own file; every other build reads the root secrets.h.
+#if defined(LRAN_SECRETS_FILE)
+#include LRAN_SECRETS_FILE
+#elif __has_include("secrets.h")
 #include "secrets.h"
 #else
 #error "secrets.h not found. Run `cp secrets.h.example secrets.h` at the repo root and fill it in - see LRAN-Bridge_Node-Implementation-Plan 11.4. Never commit the copy."
