@@ -29,6 +29,10 @@ no session of their own. Neither remaining group needs GateLink at the gate.
 |---|---|---|
 | **5. Documents and tools** | Nothing | Host only |
 
+**Spec v0.19's bridge side is done** (deployment brief's R1; engineering log, 2026-11-02, the two
+R1 entries). D85 passed on the air. D84 stays host-tested, because the real pack reports all four
+temperatures. `heltec` and `heltec-sandbox` both carry it from this merge, so B3 builds after it.
+
 **Group 8's bridge items are done** (2026-10-15, engineering log, the three *Group 8*
 entries). The operator approved GateLink's configuration rows, and `hex_timeout_ms` now
 stops at 1000. The "Node supply current" entity is gone. A `config/set` of 512 bytes or
