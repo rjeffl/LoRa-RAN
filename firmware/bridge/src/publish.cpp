@@ -716,16 +716,27 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
       held.cells_valid = true;
       for (uint8_t c = 0; c < lran::schema::kMaxCells; ++c) {
         std::snprintf(key, sizeof(key), "cell%u_temp_c", static_cast<unsigned>(c + 1));
-        if (c < cells) j.i32(key, s.cell_temp_c[c]); else j.null(key);
+        // R-5.2c, spec 7.2.3 (D84) - INT8_MIN is a sensor the pack did not report, and it can
+        // sit inside cell_count.
+        if (c < cells && s.cell_temp_c[c] != INT8_MIN) j.i32(key, s.cell_temp_c[c]);
+        else j.null(key);
       }
       j.u32("cycles", s.bms_cycles);
       j.decimal("capacity_ah", s.bms_capacity_dah, 1);  // 0.1 Ah on the wire
-      j.u32("alarms", s.bms_alarms);
-      j.boolean("charge_fet", (s.bms_flags & kBmsChargeFet) != 0);
-      j.boolean("discharge_fet", (s.bms_flags & kBmsDischargeFet) != 0);
-      j.boolean("charge_inhibited", (s.bms_flags & kBmsChargeInhibited) != 0);
-      j.boolean("protection", (s.bms_flags & kBmsProtection) != 0);
-      j.boolean("balancing", (s.bms_flags & kBmsBalancing) != 0);
+      // R-5.2c, spec 7.2.7 (D85) - bms_flags bits 1-5 share bms_alarms' source, so its
+      // sentinel makes them unknown. false would read as a pack with nothing wrong.
+      if (s.bms_alarms == lran::kU16NotAvailable) {
+        static const char* const kUnknown[] = {"alarms",           "charge_fet", "discharge_fet",
+                                               "charge_inhibited", "protection", "balancing"};
+        for (const char* k : kUnknown) j.null(k);
+      } else {
+        j.u32("alarms", s.bms_alarms);
+        j.boolean("charge_fet", (s.bms_flags & kBmsChargeFet) != 0);
+        j.boolean("discharge_fet", (s.bms_flags & kBmsDischargeFet) != 0);
+        j.boolean("charge_inhibited", (s.bms_flags & kBmsChargeInhibited) != 0);
+        j.boolean("protection", (s.bms_flags & kBmsProtection) != 0);
+        j.boolean("balancing", (s.bms_flags & kBmsBalancing) != 0);
+      }
     } else {
       static const char* const kKeys[] = {
           "soc", "soc_source", "pack_mv", "pack_ma", "cell_count", "cell1_mv", "cell2_mv",

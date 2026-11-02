@@ -142,10 +142,6 @@ is not shown, because the simulated MPPT has no path for making that change.
 
 ### 5. Documents and tools
 
-- **Spec v0.19's bridge side is not built** (PRD R-5.2c, **D84**, **D85**).
-  `battery/state` should publish `null` for a `cell_temp_c` of `INT8_MIN`, and for `alarms`
-  and the four `bms_flags` flags while `bms_alarms` is `UINT16_MAX`. `publish.cpp` sends
-  `-128`, `65535` and `false`.
 - **The whole-document style passes** are owed, on a branch of their own.
 - **A comment is stale, found while reconciling the `library.json` citations.**
   `lib/lran-config`'s `bandwidth_khz` rows read "125 until an envelope decision", and D1
