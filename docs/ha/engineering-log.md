@@ -968,3 +968,11 @@ HEX `0xEDA8` answered `0x01` at 13:54:22, while `load_on` read true. Why it went
 with no panel connected is still not known. HA has no setting for these modes, and the proxy
 reads them: `0xEDAB` answered `0x81`. This entry does not decode the other registers read, because
 no reference was checked for them.
+
+**The load output was not faulty: the MPPT's MOSFET needs a real load to turn on**, by operator
+test. With a real load on the terminals the output worked, and the operator then restored the
+MPPT's load configuration. A meter alone reads nothing across Load+ and Load- even with the
+controller reporting on, so the earlier reading does not show a fault, and the causes raised
+above do not apply. `load_on` and *Gate Pier Lights* can only be checked at the terminals with
+a load connected.
+
