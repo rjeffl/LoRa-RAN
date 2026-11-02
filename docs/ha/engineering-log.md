@@ -976,3 +976,28 @@ controller reporting on, so the earlier reading does not show a fault, and the c
 above do not apply. `load_on` and *Gate Pier Lights* can only be checked at the terminals with
 a load connected.
 
+**The three actions pass as real tile taps.** With relay dry-run on, at 14:30:31 to 14:30:43, each
+drew `result` 16, and the operator saw no relay move. With it off, at 14:32:55 to 14:33:09, each
+drew `result` 0 and pulsed as expected, by operator report, with K4 heard but not metered. The firmware
+maps Open to K3, Hold to K1, and Close to K2 then K4. Dry-run is back off.
+
+**Restore defaults fired with no dialog.** The tap at 14:35:07 reached `config/set`, and every row of
+`config/state` afterwards matched the 13:56 document, PHY overrides included. Fluvy's scene card
+calls `button.press` itself and never reads `tap_action`. A scenes card with one tile showed the
+dialog, and cancelling sent nothing.
+
+**Real inputs have proved only the stop at the first sensor.** Four IN3 detections, events 3 to 6,
+each logged *Vehicle started entering … but did not cross* with the count at 0. My first prompt
+had the operator overlap the sensors, which a vehicle does not do. The operator corrected it: a real
+entry is one sensor on and off, then the other. `detect.cpp` reads rising edges only, so that order
+resolves as an entry. IN4 did not rise on any run, so no crossing has been seen.
+
+**IN4 does not assert when disconnected.** It rests near 12 V and drops only to about 4.6 V
+(operator's meter). IN3 does assert. Event 6 arrived during that test, at 14:55:32, with
+`input_bits` 4, so the wire being moved may have reached IN3. Which terminal it was is not known,
+and neither is the cause.
+
+**A small vehicle leaving may log a false partial.** The detector goes idle once both sensors clear
+after resolving, so a second SAFETY pulse starts a new detection. This comes from reading the code,
+and no run has shown it.
+
