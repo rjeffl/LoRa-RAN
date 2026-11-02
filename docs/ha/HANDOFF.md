@@ -5,8 +5,8 @@ Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at t
 H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the alert
 levels and the message catalog, on 2026-10-27 at the end of H5, on 2026-10-28 at the
 end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operator
-chose Fluvy (task H11), on 2026-10-30 at the end of H11, and on 2026-10-30 after the
-Fluvy port review.**
+chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
+Fluvy port review, and on 2026-11-01 at the end of the dashboard rework (task H12).**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -24,15 +24,16 @@ Continue from docs/ha/HANDOFF.md: task H8.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5, H6, H7, H9 and H11 are done. **H8 is next**, and the
-sandbox can build it but not verify its trigger, because it needs a production `person`
-entity. H10, the port to production, waits on bridge task B6.
+cited below as *plan*. H4, H4b, H5, H6, H7, H9 and H11 are done, and H12 is built. **H12's
+post-soak checks are next.** H8 then builds, and the sandbox can verify its push but not
+its trigger, because that needs a production `person` entity. H10, the port to production,
+waits on bridge task B6.
 
 | Task | Read |
 |---|---|
+| **H12** Post-soak checks | *The next job*; plan §8, §11's H12 row; engineering log, 2026-11-01 |
 | **H8** Tier 5 approach prompt | Plan §9.5, §7.3; §11's H8 row |
 | **H10** Port to production | Plan §12; §8.3's porting issues; §11's H10 row |
-| The Fluvy review's open decisions | `briefs/2026-10-30-fluvy-port-review.md`, *Recommendations*; plan §8.1, §8.3 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -40,27 +41,39 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H8, the approach prompt** (plan §9.5). It sends a plain push that opens the Gate
-dashboard, as the reminders do. Its trigger needs a tracked `person`, which the sandbox
-does not have, so the sandbox can check the push but not the trigger.
+**Run these once the soak has ended.** None could run during it, or from here.
 
-**The Gate dashboard's Open gate and Close gate tiles have not been pressed.** Before
-production, turn GateLink's relay dry-run on and press each once, as H6 did: `cmd/ack`
-should carry `result` 16 and the gate should not move. The review brief's other three
-open decisions wait on the operator: the SOC gauge's bands, alert snooze on the Gate
-dashboard, and the Restore defaults dialog.
+1. **Flash the sandbox bridge from a committed tree, and check F5.** The operator does the
+   OTA upload. `binary_sensor.gatelink_load_output` should appear, and
+   `tools/ha/check_entities.py` should pass, which it cannot until then. Check *Gate Pier
+   Lights* on LRAN Status against the real load output. GateLink has twice gone silent after
+   a bridge flash until restarted (GateLink handoff, *Open*), so time the flash with the
+   soak's end.
+2. **Find out why GateLink's config numbers read `unknown`.** 28 of 29 did, from before this
+   work began, and Request configuration did not fill them. LRAN Configuration shows the
+   same gap, so this comes before production.
+3. **Run a real crossing, each way, and one that stops at the first sensor.** The log infers
+   direction from the first event's `input_bits` (plan §8.4), and only injected events have
+   exercised that. Confirm the words, the count and the red text with the gate held. The
+   sensors and the gate's state decide how, so agree it with the operator.
+4. **The operator taps each thing nothing here can tap**: the three actions, with relay
+   dry-run on, reading `cmd/ack` for `result` 16; and Restore defaults, cancelling at its
+   dialog.
 
-**H7's SOC and yield figures are unchecked with real values.** Rerun
-`automation.lran_4_morning_report` through `automation.trigger` once GateLink's BMS and
-MPPT readings are available.
+**The operator should confirm two defaults**, set while their answers were outstanding:
+Vehicles is open to every user, and the SOC gauge is a ring with no bands. **One decision
+is open**: whether whoever views the alerts can snooze them, now that the card is on LRAN
+Status. The review brief recommends `snooze: "off"` on the hard-shutdown latch at least.
 
 ## What the last session established
 
-- **The Gate dashboard's Open and Close are named tiles** (plan v0.17, §8.1, §8.3;
-  engineering log, 2026-10-30, named tiles). Fluvy's cover card draws them as bare arrows.
-  **Neither tile has been pressed**: dry-run is off, so repeat H6's dry-run check first.
-  The review brief, `briefs/2026-10-30-fluvy-port-review.md`, lists four open decisions:
-  the SOC gauge's bands, alert snooze, the Restore defaults dialog and mixed-unit charts.
+- **H12 is built and on the sandbox** (plan v0.18; engineering log, 2026-11-01). Gate is
+  operation only, Vehicles is new, Temperature is its own view, and both LRAN dashboards are
+  admin only. **The sandbox's `configuration.yaml` and `site.yaml` were edited by hand** to
+  match plan §6 and `site.yaml.example`, so they are not a copy from the repository.
+- **A confirmed crossing is what counts now**, held-open crossings included (plan §9.4).
+- **H7's SOC and yield read real values** on 2026-11-01. The charts' mixed units look
+  separately scaled (plan §8.3).
 
 - **H11 is met** (plan v0.16, §8.3; engineering log, 2026-10-30, H11). Fluvy v1.11.3
   runs on the sandbox, the theme is the default and its *Scope* is `everywhere`. The
@@ -174,8 +187,8 @@ Its source answers what the docs leave out, such as the alert matcher in
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11 |
-| Queue | H8, then H10 at the port. Bridge tasks F1 to F4 are built (plan §5) |
+| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11. H12 is built, with its post-soak checks open |
+| Queue | H12's checks, H8, then H10 at the port. Bridge tasks F1 to F5 are built (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
@@ -191,7 +204,7 @@ token. The REST flow before then needed `~/.lran_ha_token`, which only one machi
 
 ```bash
 cd ha/packages/lran && cp core.yaml templates.yaml alerts.yaml reminders.yaml reports.yaml messages.yml /Volumes/config/packages/lran/ && cd -
-cp ha/dashboards/gate.yaml /Volumes/config/dashboards/lran/      # a YAML dashboard reloads with the page
+cp ha/dashboards/*.yaml /Volumes/config/dashboards/lran/      # a YAML dashboard reloads with the page
 ```
 
 Then, through ha-mcp:
@@ -288,16 +301,15 @@ those two targets changed, which plan §7.3 names.
 - **To force a dashboard condition without the broker**, `POST /api/states/<entity>` with
   the entity's current attributes. The next MQTT update overwrites it, so it never reaches
   the broker. Restore what you forced. **ha-mcp has no tool for this**: it is a REST
-  endpoint, not a service or a WebSocket command. It still needs a long-lived token in
-  `~/.lran_ha_token`, which the Mac does not have (*Open*).
+  endpoint, not a service or a WebSocket command. It needs a long-lived token in
+  `~/.lran_ha_token`. The Mac has one, and `~/.local/bin/ha-sandbox` reads it.
 
 ## Open, and not closable from here
 
 - **A Fluvy update can change a card under a YAML dashboard nobody re-checks**, so each
   update needs a render of every view on the sandbox before production takes it.
-- **Two things are unverified under Fluvy.** How its chart card scales series in
-  different units needs BMS and MPPT readings. HA's own pages need a browser, because
-  Puppet renders dashboards only.
+- **HA's own pages are unverified under Fluvy.** They need a browser, because Puppet renders
+  dashboards only, and the app's browser pane was refused the sandbox's address.
 - **The 08:00:08 2026-10-28 `lran_notify` run has no logbook entry in ha-mcp's read**,
   though its trace reached `logbook.log`. Not chased.
 - **Real SMTP.** Needs an account in the sandbox's `site.yaml` and `secrets.yaml`, or waits
@@ -310,15 +322,13 @@ those two targets changed, which plan §7.3 names.
   does not fire** until the condition clears and recurs. This covers `lran_2_soc_low`,
   `lran_2_enclosure_hot` and `lran_2_cell_spread`. A re-check on start and on reload
   would close it. The operator left it open on 2026-10-27.
-- **The BMS's four temperatures have no HA entity.** The bridge publishes them on
-  `lran/gatelink/battery/state` as `cell1_temp_c` to `cell4_temp_c` (spec §7.2.3,
-  `cell_temp_c[0..3]`), but `discovery.cpp` has no row for them, which makes this a bridge
-  task. **The operator set the rule on 2026-10-27: the reference for low-temperature
-  charging is the lowest of the four.** GateLink's inhibit already uses that rule
-  (`charge_inhibit.cpp`, R-6.4a, `charge_inhibit_temp_c`). HA should show the four and a
-  derived minimum beside `charge_inhibit_temp_c`. The four may not all be cell sensors,
-  though: `aiobmsble` labels them ambient, MOSFET, cell, cell, and nothing has confirmed
-  that on this pack (bms-protocol §10).
+- **The BMS's four temperatures may not all be cell sensors.** `aiobmsble` labels them
+  ambient, MOSFET, cell, cell, and nothing has confirmed that on this pack (bms-protocol
+  §10). The Temperature view shows all four and their lowest, which is GateLink's reference
+  for inhibiting charge (R-6.4a).
+- **The test log is on the sandbox's history.** The injected crossings added 7 to
+  `sensor.lran_gatelink_traversals`' statistics for 2026-11-02 UTC, and they cannot be
+  taken back without editing statistics.
 - **`lran_2_mppt_error` can name the error from `detail`.** Spec v0.19 §8.9 puts the
   VE.Direct `ERR` code in `MPPT_ERROR`'s `detail`, and `bms_alarms` in `BMS_ALARM`'s
   (**D86**). The alert still reads `sensor.gatelink_mppt_error`, which can lag the event.
@@ -329,9 +339,9 @@ those two targets changed, which plan §7.3 names.
 - **CI cannot run H9's live half.** The checks job runs `check_entities.py --offline`,
   which parses every package and dashboard. Whether the IDs exist needs ha-mcp, so that
   half runs by hand, on each install.
-- **ha-mcp cannot render `lran-maintenance`.** Its screenshot returns HA's home page,
-  which is what a non-admin user gets for an admin-only dashboard. H11 rendered a copy as
-  a temporary non-admin storage dashboard instead. Making Puppet's user an admin would
+- **ha-mcp cannot render `lran-maintenance` or `lran-detail`.** Its screenshot returns HA's
+  home page, which is what a non-admin user gets for an admin-only dashboard. H11 and H12
+  rendered copies on a temporary non-admin storage dashboard instead. Making Puppet's user an admin would
   fix it; whether to is the operator's call.
 - **Puppet on production** is a decision for H10: its port takes no authentication, and
   production's network may be less trusted than the sandbox's.

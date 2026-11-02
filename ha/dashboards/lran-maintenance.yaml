@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Robert J. Lee
 #
-# The LRAN Maintenance dashboard (HA Integration Implementation Plan 8.2): configuration,
+# The LRAN Configuration dashboard (HA Integration Implementation Plan 8.2): configuration,
 # switches and the MPPT readback. YAML mode, so this file is the source (plan 6); install
 # it as /config/dashboards/lran/lran-maintenance.yaml.
 #
@@ -14,9 +14,9 @@
 # row, because Fluvy's entities card shows a number as a value and not a control; a
 # button is an actions-card row. The two fixed-text notes stay HA markdown cards.
 
-title: LRAN maintenance
+title: LRAN Configuration
 views:
-  - title: Maintenance
+  - title: Configuration
     path: maintenance
     icon: mdi:tune-variant
     type: sections

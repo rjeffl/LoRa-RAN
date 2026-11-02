@@ -779,3 +779,87 @@ of travel, as the cover card's buttons did.
 found Fluvy's `battery` gauge colours a warning below 40 % and danger below 20 %, where
 LRAN's SOC alarm defaults to 25 %. Four of the Gate dashboard's six alerts can be snoozed
 by the viewer. Neither is changed yet.
+
+## 2026-11-01 — The dashboard rework, and crossings the counter never saw
+
+**The operator asked for four dashboards in place of three**: Gate for operation only,
+Vehicles with a log of the day's gate crossings, and LRAN Status and LRAN Configuration
+both admin only. Plan v0.18 and H12 record it. The soak was running, and the operator
+approved HA restarts, injected events and dry-run commands during it.
+
+**A crossing while the gate was held was never counted.** `detect.cpp` sends
+`VEHICLE_WHILE_HELD_OPEN` in place of `VEHICLE_DETECTED`, and `lran_4_count_traversal` read
+only the second. The daily count, the 30-day chart and the morning report all ran low by
+every such crossing. `lran_1_vehicle_while_held` now counts them, inside its own run,
+because the event filter admits an event once.
+
+**The first event's direction was thought to arrive late. The operator pointed out that
+only the confirmation does.** The first event says `undetermined`, but its `input_bits`
+show which sensor fired, and spec 8.6 ties that sensor to the direction. The log writes
+*entering* or *leaving* at once. The follow-up confirms it, or flags a vehicle that tripped
+one sensor and backed away, and only a confirmed crossing counts. GateLink's firmware did
+not change.
+
+**The log passed every case with injected events**, `ctx_id` 4294967295, not retained,
+from 8:47 PM EST:
+
+| Case | Entry |
+|---|---|
+| SAFETY first, then a follow-up `entry` | *Vehicle entered at 8:47 PM* |
+| The same first event again | No change |
+| EXIT first, then a follow-up `exit` | *Vehicle left at 8:47 PM* |
+| One sensor, follow-up with no direction | *Vehicle started entering at 8:47 PM but did not cross*, and the same for leaving |
+| Both sensors at once | *Vehicle crossed at 8:47 PM, direction unknown* |
+| `vehicle_while_held_open`, then its follow-up | *Vehicle left at 8:47 PM, gate held open*, in red |
+| `vehicle_detected` with `gate_state` `open_held` | *Vehicle entered at 8:47 PM, gate held open*, in red |
+| `vehicle_detected`, then a held-open alert with a new `event_id`, then its follow-up | One entry, in red |
+| `synthetic: true` | No entry |
+| A follow-up with no first event | *Vehicle left at 8:48 PM* |
+| A first event with no follow-up | *Vehicle leaving at 8:48 PM* |
+
+Ten entries and a count of 7 came out, as expected, and both held across an HA restart.
+The injected held-open events also raised the Tier 1 alert. The log and the counter were
+then cleared.
+
+**The three actions drew `DRY_RUN`.** `bench.py run --mqtt` logged them with relay dry-run
+on:
+
+```text
+20:50:10  lran/gatelink/cmd/gate/set  OPEN
+20:50:13  lran/gatelink/cmd/ack       {"outcome":"acked","seq":6,"attempts":1,"result":16,"detail":0}
+20:50:19  lran/gatelink/cmd/hold/set  ON
+20:50:21  lran/gatelink/cmd/ack       {"outcome":"acked","seq":7,"attempts":1,"result":16,"detail":0}
+20:50:27  lran/gatelink/cmd/gate/set  CLOSE
+20:50:29  lran/gatelink/cmd/ack       {"outcome":"acked","seq":8,"attempts":1,"result":16,"detail":0}
+```
+
+The gate state did not change, and dry-run went back off, read from
+`binary_sensor.gatelink_relay_dry_run`. **The commands went out as service calls, not taps.** Nothing here
+can tap a tile: the app's browser pane was refused the sandbox's address, and Puppet only
+renders.
+
+**H7's figures now read real values.** `automation.trigger` on the morning report gave
+*Battery 99 %, -1 % in 24 h. Solar yesterday 0.03 kWh.*
+
+**Every gate status read as written**, with `sensor.gatelink_gate` and the cover forced
+through the REST API and restored. The status's words are in plan 7.4.
+
+**Fluvy's card frames read as buttons**, so the gate and link status moved to a `text_only`
+markdown card, whose `<font>` and `<ha-icon>` both rendered. `<font color="red">` rendered in
+the log too. On a Fluvy template card, `color: amber` with `active` came out in the accent
+colour, and `#FFB300` with `tint: always` came out amber. The render used a temporary
+non-admin storage dashboard and a state forced on `binary_sensor.gatelink_load_output`, and
+the dashboard is deleted.
+
+**Not checked:**
+
+- **F5 on a flashed bridge.** The sandbox's bridge has not published the new row, so
+  `check_entities.py` will report `binary_sensor.gatelink_load_output` until it does.
+- **A real crossing.** Whether a real vehicle's first edge carries the bits the log reads.
+- **A tap on any tile**, and Restore defaults' dialog.
+
+**All but one of the config numbers read `unknown`**: 28 of GateLink's 29, with only
+`poll_interval_s` known. `charge_inhibit_temp_c`'s history reads `unknown` from at least
+18:37 UTC, before this session's first restart. Pressing Request configuration did not fill
+them in the following minutes. Not chased, and it is why Temperature's *Charge inhibit
+below* reads Unknown.

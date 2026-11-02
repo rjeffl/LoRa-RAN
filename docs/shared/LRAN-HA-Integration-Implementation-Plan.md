@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.17
+**Version:** 0.18
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30
-**Last updated:** 2026-10-30
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01
+**Last updated:** 2026-11-01
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
@@ -54,16 +54,16 @@ together with the entities. The bridge handoff asked for this plan before GL8.
 
 | Question | Choice |
 |---|---|
-| Dashboard layout | **Two dashboards.** *Gate* for daily use; *LRAN* with Power, Network, Events and Maintenance views. On 2026-10-26 the operator moved Maintenance to a third, admin-only dashboard, because HA cannot gate a view (§8.2) |
+| Dashboard layout | **Four dashboards** (operator, 2026-11-01). *Gate* and *Vehicles* are for everyone. *LRAN Status* and *LRAN Configuration* are admin only (§8). Until then there were *Gate*, *LRAN* and an admin-only *LRAN maintenance* |
 | Card set | ~~**Core cards only.** Nothing to install on production, and no HACS dependency to keep current~~ **Superseded 2026-10-30:** the operator chose Fluvy (`acosta290/fluvy`) for production, theme and cards, for one look across HA. The LRAN dashboards use Fluvy's cards wherever Fluvy has one (task H11) |
 | Fluvy version | **Pinned at v1.11.3**, the latest release on 2026-10-30. Three releases came out on 2026-10-28, so an update is taken deliberately, once the sandbox has run it |
 | Fluvy scope | **Everywhere.** Fluvy's *Scope* setting restyles the sidebar and HA's own pages as well as the dashboards, on the sandbox as on production |
 | Dashboard source | **YAML-mode files in the repository, unchanged** (§6). Fluvy's card editors cannot save to a YAML dashboard, so its cards are written from its documentation |
-| Gate command confirmation | **Not required** (operator, 2026-10-30). The dashboard's Open gate and Close gate tiles send with no confirmation dialog (§8.1). The gate's own controls have never asked for one |
+| Gate command confirmation | **Not required** (operator, 2026-10-30). The Gate dashboard's three actions send with no confirmation dialog (§8.1). The gate's own controls have never asked for one |
 | Gate control entity | **Fix it in the bridge.** Discovery publishes the D8 `cover` and hold `switch` (§5, task F1). F1 was built 2026-10-28, and the dashboards use the cover and the switch in place of the four command buttons |
 | Automation tiers | **All five:** alerts, health, reminders, reports, convenience (§9) |
 | Notification channels | **Companion-app push now; SMTP email later, behind a switch.** Email is built and tested, then held off by `input_boolean.lran_email_enabled` until the operator turns it on. **No SMS:** push replaces it |
-| Units | **The bridge keeps publishing mV and mA**, GateLink's native units on the wire. The Gate dashboard shows V and A through HA-side conversion (§7.4). The LRAN dashboard shows mV and mA |
+| Units | **The bridge keeps publishing mV and mA**, GateLink's native units on the wire. LRAN Status shows pack voltage in V through HA-side conversion (§7.4), and mV and mA otherwise |
 
 These choices are about the HA layer, not about the protocol or the architecture, so the
 Decision Register does not carry them.
@@ -94,7 +94,7 @@ targets that release's automation syntax (`triggers`, `conditions`, `actions`). 
 |---|---|
 | Gate | `sensor.gatelink_gate`, `sensor.gatelink_hold_source`, `sensor.gatelink_movement_cause`, `sensor.gatelink_last_direction`, `sensor.gatelink_last_vehicle`, `binary_sensor.gatelink_held_open`, `binary_sensor.gatelink_vehicle_while_held_open`, `binary_sensor.gatelink_safety_loop`, `binary_sensor.gatelink_exit_wand`, `binary_sensor.gatelink_fire_input`, `binary_sensor.gatelink_alarm_input`, `binary_sensor.gatelink_hard_shutdown_latch`; buttons `open`, `close`, `hold_open`, `release_hold` |
 | Battery | `sensor.gatelink_battery` (SOC), `pack_voltage`, `pack_current`, `cell_1_voltage` … `cell_4_voltage`, `battery_cycles`, `charge_drawn_since_charging`, `bms_reading_age`, `bms_link_rssi`; `binary_sensor.gatelink_battery_protection`, `charging_inhibited`, `charging_inhibited_bms` |
-| Solar | `pv_power`, `pv_voltage`, `solar_yield_today`, `solar_yield_total`, `mppt_charge_state`, `mppt_error`, `battery_voltage_mppt`, `battery_current_mppt`, `load_current`, and the MPPT configuration readback sensors |
+| Solar | `pv_power`, `pv_voltage`, `solar_yield_today`, `solar_yield_total`, `mppt_charge_state`, `mppt_error`, `battery_voltage_mppt`, `battery_current_mppt`, `load_current`, `binary_sensor.gatelink_load_output` (§5, F5), and the MPPT configuration readback sensors |
 | Environment | `enclosure_temperature`, `mppt_temperature`, `node_supply_voltage` |
 | Link | `rssi`, `snr`, `missed_polls`, `last_seen`, `protocol_version`, the PHY settings; bridge `frames_received`, `frames_transmitted`, `frames_discarded`, firmware version, commit and OTA slot |
 | Configuration | 55 `number` entities across the bridge, GateLink and WellLink; `switch.gatelink_deployed`, `buzzer_enable`, `mppt_write_enable`, `switch.lora_bridge_simnode_diag_enable`; `binary_sensor.gatelink_relay_dry_run`, `configuration_persisted` |
@@ -131,6 +131,12 @@ column says what closed it.
 | **F3** | No HA `event` entities for FIRE and vehicle-while-held-open | GateLink PRD §7.2 lists both as `event`, non-retained | None for automations, which subscribe to the MQTT topics directly. Without F3, the logbook shows these events only through the Events view's automation-written entries (§8.2). **Done:** `event.gatelink_fire_asserted` and `event.gatelink_vehicle_while_held_open` |
 | **F4** | No entity for yesterday's solar yield. The bridge publishes `yield_yesterday_kwh` in `solar/state`, and discovery skips it | GateLink PRD §7.2 | `reports.yaml` defines `sensor.lran_gatelink_solar_yield_yesterday` as an MQTT sensor, with discovery's availability, for the morning report (§9.4). It goes when F4 lands. **Done:** `sensor.gatelink_solar_yield_yesterday`, which the morning report now reads; the stand-in is removed |
 
+**F5 came later, from the same kind of gap.** The bridge publishes `load_on` in
+`solar/state` (spec §7.2.6, bit 0), and discovery skipped it. The charger's load output
+powers the gate pier lights, and `load_current` cannot show the output on while nothing
+draws from it. `binary_sensor.gatelink_load_output` closes it. Built 2026-11-01. It reaches
+an install at that bridge's next flash.
+
 **F1 removed the gate's four buttons.** Once the cover existed, the buttons duplicated it,
 and the PRD has no requirement for them. Request status and Request configuration stay.
 
@@ -151,8 +157,9 @@ ha/
     site.yaml.example   the per-install values: push and email scripts, SMTP, recorder, zones
   dashboards/
     gate.yaml           the Gate dashboard (§8.1)
-    lran.yaml           the LRAN dashboard: Power, Network, Events (§8.2)
-    lran-maintenance.yaml  its Maintenance view, admin only (§8.2)
+    vehicles.yaml       the Vehicles dashboard (§8.4)
+    lran.yaml           LRAN Status: Power, Temperature, Network, Events, admin only (§8.2)
+    lran-maintenance.yaml  LRAN Configuration, admin only (§8.2)
 tools/ha/
   check_entities.py     every entity ID the YAML names exists in a live HA (H9)
 ```
@@ -172,17 +179,23 @@ lovelace:
       title: Gate
       icon: mdi:gate
       show_in_sidebar: true
+    lran-vehicles:
+      mode: yaml
+      filename: dashboards/lran/vehicles.yaml
+      title: Vehicles
+      icon: mdi:car-multiple
+      show_in_sidebar: true
     lran-detail:
       mode: yaml
       filename: dashboards/lran/lran.yaml
-      title: LRAN
+      title: LRAN Status
       icon: mdi:radio-tower
       show_in_sidebar: true
-      require_admin: false
+      require_admin: true
     lran-maintenance:
       mode: yaml
       filename: dashboards/lran/lran-maintenance.yaml
-      title: LRAN maintenance
+      title: LRAN Configuration
       icon: mdi:tune-variant
       show_in_sidebar: true
       require_admin: true
@@ -220,7 +233,7 @@ every key. Thresholds are helpers (§7.1), so they need no entry here.
 | `input_boolean.lran_alert_levels_seeded` | Set once the alert levels are applied, by `lran_0_seed_alert_levels` | off |
 | `input_text.lran_gatelink_boot_times` | GateLink's boot times in the last hour, for `lran_2_node_boot`'s count (§9.2). In `alerts.yaml` | empty |
 | `input_text.lran_gatelink_offline_since` | When the GateLink outage that alerted began, epoch seconds, for the return push (§9.1). Cleared by that push. In `alerts.yaml` | empty |
-| `counter.lran_gatelink_traversals_today` | Vehicle traversals, reset at midnight | 0 |
+| `counter.lran_gatelink_traversals_today` | Confirmed gate crossings, reset at midnight (§9.4) | 0 |
 | `input_text.lran_report_alerts`, `counter.lran_report_alert_count` | Each alert title since the last morning report, listed once, and the number of alerts, repeats included (§9.4). Cleared by that report | empty, 0 |
 
 **Every threshold is a starting value, not a measured one.** The SOC thresholds, the cell
@@ -325,9 +338,12 @@ is unavailable, as System PRD §6.2 requires.
 | `sensor.lran_gatelink_draw` | The `integration` integration over the draw current, mAh, cumulative |
 | `sensor.lran_gatelink_draw_7d` | The `statistics` integration's `change` in the draw over 7 days |
 | `sensor.lran_gatelink_autonomy_days` | SOC × `lran_pack_capacity_ah`, over the mean daily draw across the days the 7-day window covers. Unavailable until it covers a day. **An estimate**, labelled as one on the card |
-| `sensor.lran_gatelink_link_quality` | `poor` at 3 or more missed polls or SNR below −10 dB; `marginal` at 1 or more or below −5 dB; otherwise `good`. For the Gate dashboard's status chip |
+| `sensor.lran_gatelink_link_quality` | `poor` at 3 or more missed polls or SNR below −10 dB; `marginal` at 1 or more or below −5 dB; otherwise `good`. For the Gate dashboard's link line |
 | `sensor.lran_gatelink_enclosure_temp_max_24h`, `_min_24h` | The `statistics` integration over 24 h |
 | `sensor.lran_gatelink_traversals` | The traversal counter's value, with `state_class: total_increasing`, so the Events view's 30 d chart has statistics to read (§8.2). The midnight reset reads as a new cycle |
+| `sensor.lran_gatelink_gate_status` | The Gate dashboard's words for the gate: *Closed*, *Opening*, *Closing*, *Open and holding*, *Open and auto close pending*, *Fault* or *Status unknown*. The cover gives the direction, and `sensor.gatelink_gate` tells the two open states apart |
+| `sensor.lran_gatelink_crossing_log` | Today's gate crossings, newest first, in its `entries` attribute (§8.4). The state is the number of entries. Trigger-based, so it keeps them across a restart |
+| `sensor.lran_gatelink_lowest_pack_temperature` | The `min_max` integration over the four BMS temperatures: GateLink's reference for inhibiting charge (R-6.4a) |
 | `sensor.lran_gatelink_mppt_{bulk,absorption,float,off}_7d` | The `history_stats` integration: hours in that MPPT charge state over 7 days, for the weekly report (§9.4). In `reports.yaml` |
 
 **Net power and the draw read the pack, not the MPPT's load output.** v0.1 had net power
@@ -342,10 +358,9 @@ about −12.5 dB SNR, so −5 dB leaves 7.5 dB of margin and −10 dB leaves 2.5
 part of the rule: SNR is the margin that matters on this link, and RSSI is on the Network
 view.
 
-**The Gate dashboard's V comes from rescaling template sensors**,
+**LRAN Status shows V through rescaling template sensors**,
 `sensor.lran_gatelink_pack_voltage_v` and `sensor.lran_gatelink_pv_voltage_v`. Each is the
-raw mV value ÷ 1000, rounded to two decimals. §8.1 shows no current, so there is no A
-sensor. They carry no device class. With `voltage`, HA suggests a display precision of
+raw mV value ÷ 1000, rounded to two decimals. They carry no device class. With `voltage`, HA suggests a display precision of
 0 and shows 13.31 V as 13 V, and the template schema rejects
 `suggested_display_precision`. They are excluded from the recorder (§10), so they add no history rows. Graphs read
 the raw sensors. A per-entity display-unit override in HA's registry would do the same, but
@@ -400,50 +415,51 @@ cards elsewhere: `sections` views and `grid` sections, `conditional`, `logbook`,
 `entities` for the firmware rows. §8.3
 gives the mapping and what it cost. A sections view reflows to one column on a phone.
 
-### 8.1 Gate (daily use, phone first)
+### 8.1 Gate (for everyone, operation only)
 
-From top to bottom:
+The operator narrowed this dashboard on 2026-11-01: gate actions, gate status and link
+status, and nothing else. From top to bottom:
 
-1. **Alert banners**, one Fluvy alerts card that shows each alert only while its
-   condition holds: FIRE input asserted; vehicle while held open; hard-shutdown latch;
-   GateLink unavailable; charging inhibited; battery protection. The card hides while all
-   are clear. FIRE and the held-open vehicle cannot be snoozed. Charging inhibited reads
-   GateLink's derived indication (R-6.4a), which still reads while VE.Direct is stale.
-2. **Gate control.** A Fluvy tile on the cover, whose state carries the direction, then
-   two tiles named *Open gate* and *Close gate* that send at once (§2), and the movement
-   cause beneath. They are a Fluvy scenes card, because the cover card labels its buttons
-   with arrows only (§8.3). A tile toggles
-   the "Hold gate open" switch, also without confirmation. Hold source shows only while
-   the gate is held.
-3. **Last vehicle.** Time and direction, and today's traversal count.
-4. **Power at a glance.** SOC gauge, pack voltage in V, PV power, net power, and the MPPT
-   charge state.
-5. **Link chip.** `link_quality` and `last_seen` as two half-width tiles. Tapping either
-   opens the LRAN Network view, at `/lran-detail/network`, so §8.2's Network view takes the
-   path `network`.
+1. **Status.** An icon and words for the gate, from `sensor.lran_gatelink_gate_status`,
+   and an icon and words for the link beneath. Both are text on the page, in a
+   `text_only` markdown card, so neither reads as a button or takes a tap. The link icon is
+   green for good, orange for marginal or poor, and gray for no link. Marginal keeps its
+   own word (operator, 2026-11-01).
+2. **Three actions**, as a Fluvy scenes card (§8.3), each sending at once (§2):
 
-**`last_seen` is a tile of its own, not the link tile's secondary text.** A tile shows only
-its own entity's state and attributes. Copying `last_seen` into an attribute of
-`link_quality` would write a recorder row at every publish, which §10 excludes `last_seen`
-to avoid.
+   | Action | Service | What the gate does (GateLink PRD §7.1) |
+   |---|---|---|
+   | **Open - AutoClose** | `cover.open_cover` | Opens, then auto-close closes it. On a held gate it pulses and the hold stays (operator, 2026-11-01) |
+   | **Open - Hold** | `switch.turn_on` on the hold switch | Opens and locks |
+   | **Close** | `cover.close_cover` | Releases any hold, then closes at once |
 
-**The SOC gauge has no severity bands.** A gauge's bands are fixed numbers, and the SOC
-thresholds are helpers (§7.1), so the bands would drift from them.
+**The alert banners moved to LRAN Status**, and the pushes are unchanged. A viewer of this
+dashboard who is not an admin sees no banner anywhere. The power, last-vehicle and
+movement-cause tiles are on LRAN Status as well.
 
-### 8.2 LRAN (detail)
+**The link line opens nothing.** The tiles it replaced opened `/lran-detail/network`, which
+is now admin only, so for most viewers the tap would lead nowhere.
+
+**The SOC gauge is a ring with no severity bands** (LRAN Status, Power view). A gauge's
+bands are fixed numbers, and the SOC thresholds are helpers (§7.1), so the bands would
+drift from them. Fluvy's `battery` gauge colours bands of its own.
+
+### 8.2 LRAN Status and LRAN Configuration (admin only)
 
 | View | Contents |
 |---|---|
-| **Power** | SOC, pack voltage and current, the four cells and their spread, cycles, protection and charge-inhibit flags. PV power and voltage, yield today and total, charge state, charger error. Enclosure, MPPT and the four pack temperatures. SOC source. Graphs: 24 h and 7 d of history; 30 d and 1 y of SOC and enclosure temperature (min, mean, max); daily yield for 30 d and monthly for 1 y |
+| **Power** | The alert banners (§8.1). SOC, pack voltage and current, the four cells and their spread, cycles, protection and charge-inhibit flags. PV power and voltage, yield today and total, charge state, charger error. *Gate Pier Lights*, a bulb on `binary_sensor.gatelink_load_output`. SOC source. Graphs: 24 h and 7 d of history; 30 d and 1 y of SOC (min, mean, max); daily yield for 30 d and monthly for 1 y |
+| **Temperature** | Enclosure, with its 24 h max and min, and MPPT. The four pack temperatures, their lowest and `charge_inhibit_temp_c`. Graphs: 24 h and 7 d of enclosure, MPPT and lowest pack; 30 d and 1 y of enclosure (min, mean, max) |
 | **Network** | Bridge frames received, transmitted and discarded. GateLink RSSI, SNR, missed polls and last seen, with 7 d history. PHY settings, protocol version, unsupported-version flag. Firmware version, commit and OTA slot. BMS BLE RSSI as a 30 d statistics graph, which is the trend M23 reads. WellLink rows, unavailable until it is deployed |
 | **Events** | A `logbook` card of LRAN events and gate state changes. Traversals per day for 30 d. Node boots with their reset cause, which is how a boot loop shows (spec §8.14) |
-| **Maintenance** | `require_admin`. The *Alerts* card: a level selector per alert, mute, email and *Restore default levels* (§7.5). The configuration `number` entities, grouped by node and by subsystem. The deployed, dry-run, buzzer, BMS polling and MPPT write-enable switches. Request status, request configuration and *Restore defaults*, which asks first. The MPPT configuration readback. Configuration persisted, shown first, because `off` means the node is running unsaved settings |
+| **Configuration** | Its own dashboard. The *Alerts* card: a level selector per alert, mute, email and *Restore default levels* (§7.5). The configuration `number` entities, grouped by node and by subsystem. The deployed, dry-run, buzzer, BMS polling and MPPT write-enable switches. Request status, request configuration and *Restore defaults*, which asks first. The MPPT configuration readback. Configuration persisted, shown first, because `off` means the node is running unsaved settings |
 
-**Maintenance is a dashboard of its own, `lran-maintenance`, because it is admin only.** HA
-gates a dashboard with `require_admin` and has no equivalent for a view. A view's only
-gate is a `visible` list of user IDs, which differ on every install and so would not
-survive the copy to production. The other three views stay in `lran-detail`. The
-operator chose this on 2026-10-26.
+**LRAN Configuration stays a dashboard of its own, `lran-maintenance`, though LRAN Status
+is now admin only too.** The operator split them on 2026-10-26, when only Maintenance was
+gated: HA gates a dashboard with `require_admin` and has no equivalent for a view. A view's
+only gate is a `visible` list of user IDs, which differ on every install and so would not
+survive the copy to production. On 2026-11-01 the operator renamed both and gated both,
+and kept them apart. The URL paths did not change.
 
 **Traversals per day come from `sensor.lran_gatelink_traversals`** (§7.4). The counter has
 no state class, so HA keeps no long-term statistics for it, and its recorder history ends at
@@ -452,10 +468,10 @@ no state class, so HA keeps no long-term statistics for it, and its recorder his
 `sensor.gatelink_boot_count`. The logbook card lists entities, so `script.lran_notify`
 logs each entry against itself (§7.3).
 
-**The gate controls are not on the LRAN dashboard.** Each one is a relay pulse at the
+**The gate controls are not on LRAN Status.** Each one is a relay pulse at the
 gate, and the Gate dashboard already carries them.
 
-**The Maintenance view carries an MPPT write-enable warning.** Charge-controller writes
+**LRAN Configuration carries an MPPT write-enable warning.** Charge-controller writes
 are a battery-affecting path (GateLink PRD **S-11**). The switch shows with a markdown card
 above it stating that, and the view is admin only.
 
@@ -473,11 +489,12 @@ cannot save to a YAML dashboard.
 | `entities`, settable rows | `custom:fluvy-helpers-card`: a stepper per number, chips per select, a switch per boolean |
 | `entities`, button and script rows | `custom:fluvy-actions-card` |
 | The *Restore defaults* button row | `custom:fluvy-scene-card`, whose `tap_action` keeps the confirmation |
-| `gauge` | `custom:fluvy-gauge-card`, `gauge: battery` |
+| `gauge` | `custom:fluvy-gauge-card`, `gauge: ring` |
 | `history-graph`, and a line `statistics-graph` up to 90 days | `custom:fluvy-chart-card` |
 | A bar `statistics-graph` of `change` | `custom:fluvy-history-bars-card` |
-| The cover tile | `custom:fluvy-tile-card`, `size: compact` |
-| The Open and Close tiles | `custom:fluvy-scenes-card`, one tile per command, each with its own `tap_action` |
+| The gate's actions | `custom:fluvy-scenes-card`, one tile per action, each with its own `tap_action` |
+| *Gate Pier Lights*, the crossing count | `custom:fluvy-template-card`, with no entity |
+| The gate and link status, the crossing log | HA's `markdown`: Fluvy has no card without a tile's frame, and none that colours a row of text |
 | A conditional `ha-alert` banner, and the *Alerts off* template | `custom:fluvy-alerts-card` |
 
 **What Fluvy makes redundant** is in the dashboards alone: the seven conditional
@@ -511,13 +528,46 @@ statistics.
 - **Fluvy's cover card labels open and close with arrows only.** Its buttons are fixed
   up and down glyphs, the words only a tooltip (`actions()` in `packages/ui/src/parts.ts`),
   which a phone never shows. By operator choice, 2026-10-30, the Gate dashboard uses a
-  scenes card with two named tiles instead. A scenes tile does not grey out at the end of
+  scenes card with named tiles instead. A scenes tile does not grey out at the end of
   travel, as the cover card's buttons do, so Open on an open gate is still a relay pulse.
-- **Unverified:** how the chart card scales series in different units on one plot. The
-  24 h and 7 d power charts mix %, mV, mA, W and °F, and the bench had no BMS or MPPT
-  readings to show it.
-- **ha-mcp still cannot render `lran-maintenance`**, which is admin only. H11 rendered a
-  copy as a temporary non-admin storage dashboard, then deleted it.
+- **The chart card appears to scale each series alone.** With live BMS and MPPT readings on
+  2026-11-01, 13,330 mV did not flatten 99 % on one plot. It draws no axis, so the plot
+  shows each series' shape, and the legend gives its value. Only a few hours of data were
+  in the window. The power charts no longer carry a temperature series.
+- **ha-mcp cannot render `lran-maintenance` or `lran-detail`**, which are admin only. H11
+  and H12 rendered copies on a temporary non-admin storage dashboard, then deleted it.
+
+### 8.4 Vehicles (for everyone)
+
+The history of vehicles through the gate, which the operator ranks above the last vehicle
+alone (2026-11-01). It has today's count of gate crossings and a log book of each one.
+
+**A gate crossing is what the entity IDs call a traversal.** The words on the dashboards
+changed, and the IDs did not.
+
+**An entry is written from the first event, and confirmed by the follow-up.** The first
+event's `direction` is `undetermined` (spec §7.3), but its `input_bits` show which sensor
+fired, and that sensor gives the direction: SAFETY first is a vehicle entering, and EXIT
+first a vehicle leaving (spec §8.6). The operator made this call on 2026-11-01. It is an
+inference in HA, and GateLink's own classification, in the follow-up, overrides it.
+
+| What arrived | State | Entry |
+|---|---|---|
+| First event only | `pending` | *Vehicle entering at 2:32 PM* |
+| Follow-up with a direction | `crossed` | *Vehicle entered at 2:32 PM*, or *Vehicle left at 2:32 PM* |
+| Follow-up with no direction and one sensor at most | `partial` | *Vehicle started entering at 2:32 PM but did not cross*. The vehicle tripped one sensor and backed away |
+| Both sensors at once | `crossed` | *Vehicle crossed at 2:32 PM, direction unknown* |
+
+**An entry with the gate held open reads red and ends `, gate held open`.** It is held if
+the event is `vehicle_while_held_open` or its `gate_state` is `open_held`. The second test
+catches a crossing that `held_open_alert_repeat_s` rate-limited to `vehicle_detected`.
+
+**A held-open alert inside a detection adds no entry.** GateLink raises one from a later
+edge if the gate became held mid-detection (`detect.cpp`), with an `event_id` of its own.
+It marks the latest entry held and takes over its key, so the follow-up still finds it.
+
+**The log holds today only, up to 200 entries.** Repeated events change nothing, and
+`synthetic: true` events are ignored. An entry whose follow-up is lost stays `pending`.
 
 ## 9. Automations
 
@@ -605,9 +655,9 @@ so the first reminder after either can come up to one interval late.
 
 | ID | When | Content |
 |---|---|---|
-| `lran_4_morning` | 07:00 daily, `normal` | SOC and its 24 h change, yesterday's yield, traversals yesterday, enclosure min and max, missed polls, any event in the last 24 h |
+| `lran_4_morning` | 07:00 daily, `normal` | SOC and its 24 h change, yesterday's yield, gate crossings yesterday, enclosure min and max, missed polls, any event in the last 24 h |
 | `lran_4_weekly_battery` | Sunday 08:00, `normal` | SOC range over the week, cycles added, worst cell spread, BMS link RSSI trend, MPPT time in each charge state |
-| `lran_4_count_traversal` | `lran/gatelink/event/vehicle_detected` | Increments the traversal counter. No notification |
+| `lran_4_count_traversal` | `lran/gatelink/event/vehicle_detected` | Increments the traversal counter on a confirmed crossing. No notification |
 | `lran_4_reset_counter` | Midnight | Resets it |
 
 **The reports read long-term statistics through `recorder.get_statistics`**, so a figure over
@@ -630,9 +680,16 @@ whether it was sent or not, so the window stays one day. Each report has a level
 and a `messages.yml` entry, as an alert does (§7.5). The automations pass each value already
 formatted with its unit, or empty, which reads as `not reported`.
 
-**The counter counts a first edge, not a follow-up.** `lran_4_count_traversal` goes through
-the event filter (§7.2), and skips an event with `follow_up: true`, because the follow-up
-refines a traversal already counted (spec §7.3).
+**The counter counts a confirmed crossing, so it counts the follow-up.** Until 2026-11-01
+it counted first edges, which included a vehicle that backed away. A follow-up counts if it
+carries a direction or both sensors are set (§8.4). HA cannot take a partial back, because
+`sensor.lran_gatelink_traversals` is `total_increasing` and a fall reads as a meter reset.
+A crossing whose follow-up is lost is not counted.
+
+**A crossing while the gate is held counts too.** GateLink sends `vehicle_while_held_open`
+in place of `vehicle_detected` (`detect.cpp`), so until 2026-11-01 those crossings were
+never counted. `lran_1_vehicle_while_held` increments the counter itself, because the event
+filter (§7.2) admits an event once, and a second automation on that topic would be refused.
 
 ### 9.5 Tier 5 — convenience
 
@@ -649,7 +706,7 @@ keeps 5-minute and hourly statistics indefinitely for every sensor with a `state
 and most GateLink power, temperature and link sensors have one. The 30 d and 1 y graphs in
 §8.2 read those statistics.
 
-Three recorder changes are proposed for production, all in `site.yaml` because the recorder
+Four recorder changes are proposed for production, all in `site.yaml` because the recorder
 is install-wide:
 
 - **Exclude `sensor.gatelink_last_seen` and `sensor.gatelink_bms_reading_age`.** Both
@@ -658,6 +715,8 @@ is install-wide:
 - **Exclude the rescaling `sensor.lran_gatelink_*_voltage_v` template sensors** (§7.4).
   The raw sensors already hold that history. `site.yaml.example` carries this exclusion
   already filled in, because every install needs it.
+- **Exclude `sensor.lran_gatelink_crossing_log`** (§8.4). Each crossing rewrites its whole
+  list, and it holds only today.
 - **Raise `purge_keep_days` to 30**, if the production database has room, so the Events
   logbook reaches back a month.
 
@@ -679,8 +738,9 @@ from the YAML.
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal. **Met 2026-10-28**: both reports rendered, with statistics from the sandbox, and reached the phone. SOC and yesterday's yield read `not reported`, because the bench's BMS and MPPT readings were unavailable. A bench traversal counted once, and its follow-up did not |
 | **H8** | Tier 5 approach prompt | H6; production `person` entities | Tapping the prompt opens the Gate dashboard. Voice control uses F1's cover |
 | **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Met 2026-10-28** against the sandbox, once its bridge ran 760e9a3 |
-| **H10** | Port to production | H1–H9, H11; bridge **B6** | §12's procedure, then GL8 |
+| **H10** | Port to production | H1–H9, H11, H12; bridge **B6** | §12's procedure, then GL8 |
 | **H11** | Fluvy: install it on the sandbox, and move the three dashboards to its cards (§2) | H2, H3; F1 | Fluvy v1.11.3 is installed through HACS, and its theme applies everywhere. Each card in the three dashboards is a Fluvy card where Fluvy has one, with the entity IDs unchanged, and `check_entities.py` passes. Each view renders in a screenshot. The plan names each LRAN template, banner or automation that Fluvy makes redundant, and each porting issue found |
+| **H12** | The dashboard rework of 2026-11-01: Gate for operation only, Vehicles, Temperature view, Gate Pier Lights, both LRAN dashboards renamed and admin only; bridge task F5 | H11 | Each gate action draws `DRY_RUN` with relay dry-run on. Each crossing case in §8.4 reads as the table says, with injected events, and survives a restart. Each gate status renders its words. **Partly met 2026-11-01**: all of those pass, the actions through service calls and not tile taps. Not yet: a tap on each tile, a real crossing, and F5 on a flashed bridge |
 
 **F1 to F4 are bridge tasks** (§5), built 2026-10-28. H2's Gate dashboard moved to the
 cover and hold switch in the same change. H6's reminders read `sensor.gatelink_gate` and
@@ -717,6 +777,7 @@ cover when it is.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.18 | 2026-11-01 | By operator choice, the dashboard rework, H12. §2 has four dashboards, and §6's block registers them. §8.1's Gate is operation only, §8.2 gains a Temperature view and *Gate Pier Lights*, and §8.4 is new. §5 adds F5. §9.4's counter counts a confirmed crossing, held-open crossings included. §7.4 and §10 add the new sensors. §8.3 records what the chart card did with mixed units |
 | 0.1 | 2026-10-25 | First draft. Operator choices recorded in §2, including units and no SMS; the sandbox survey in §4; bridge gaps F1–F3; tasks H0–H10 |
 | 0.2 | 2026-10-25 | H0 and H1 done. §7.2's key carries the follow-up bit, which v0.1's would have dropped, and the filter is a script. §7.4's net power and draw read the pack, by operator choice, because the loads are on the battery bus. Defaults seeded once (§7.1); site scripts (§6); link-quality thresholds stated |
 | 0.4 | 2026-10-26 | H3 done. §8.2's Maintenance view is its own admin-only dashboard, `lran-maintenance`, because HA gates dashboards, not views (§6). §7.4 adds `sensor.lran_gatelink_traversals` for the 30 d traversal chart. §7.3's logbook entries name `script.lran_notify`, so the Events view's logbook card can list them |
