@@ -138,6 +138,17 @@ automation:
         response_variable: ev
       - condition: template
         value_template: "{{ ev.admit }}"
+      # Here and not in lran_4_count_traversal: the filter admits an event once, and this
+      # automation has already asked. The same rule as that automation's.
+      - if:
+          - condition: template
+            value_template: >-
+              {{ p.follow_up is sameas true
+                 and (p.direction in ['entry', 'exit']
+                      or (p.input_bits | int(0)) | bitwise_and(12) == 12) }}
+        then:
+          - action: counter.increment
+            target: { entity_id: counter.lran_gatelink_traversals_today }
       - action: script.lran_notify
         data:
           alert: vehicle_while_held

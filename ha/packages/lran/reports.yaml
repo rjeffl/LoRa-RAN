@@ -61,7 +61,9 @@ sensor:
 
 automation:
   # Plan 9.4. Through the event filter, so a retransmission or a synthetic event is not
-  # counted. A follow-up refines a traversal already counted (spec 7.3), so it is skipped.
+  # counted. Only the follow-up counts, because it alone says whether the vehicle crossed
+  # (spec 7.3): a direction, or both sensors at once. A crossing while the gate is held
+  # raises the held-open event instead, which lran_1_vehicle_while_held counts.
   - id: lran_4_count_traversal
     alias: "LRAN 4 - count traversal"
     mode: queued
@@ -78,7 +80,10 @@ automation:
           payload: "{{ p }}"
         response_variable: ev
       - condition: template
-        value_template: "{{ ev.admit and p.follow_up is not sameas true }}"
+        value_template: >-
+          {{ ev.admit and p.follow_up is sameas true
+             and (p.direction in ['entry', 'exit']
+                  or (p.input_bits | int(0)) | bitwise_and(12) == 12) }}
       - action: counter.increment
         target: { entity_id: counter.lran_gatelink_traversals_today }
 

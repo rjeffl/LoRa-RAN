@@ -64,5 +64,6 @@ recorder:
     entities:
       - sensor.gatelink_last_seen
       - sensor.gatelink_bms_reading_age
+      - sensor.lran_gatelink_crossing_log
   # 30 days, if the database has room, so the Events logbook reaches back a month.
   purge_keep_days: 30

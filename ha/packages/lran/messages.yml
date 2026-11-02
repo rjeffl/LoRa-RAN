@@ -226,7 +226,7 @@ morning_report:
   level: Normal
   title: GateLink morning report
   message: >-
-    Battery {soc}, {soc_change}. Solar yesterday {yield}. Traversals yesterday
+    Battery {soc}, {soc_change}. Solar yesterday {yield}. Gate crossings yesterday
     {traversals}. Enclosure {enc_min} to {enc_max} in 24 h. Most missed polls in a row
     {missed_polls}. Alerts since the last report: {alerts}.
   soc_change:
