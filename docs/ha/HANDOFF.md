@@ -317,6 +317,7 @@ those two targets changed, which plan §7.3 names.
 
 ## Open, and not closable from here
 
+- **Why `load_on` went false at 06:53 on 2026-11-02 with no panel connected is not known.**
 - **`boot_count` reads null on `lran/gatelink/node/state`**, and the Events view charts boots per
   day from it. Not chased (2026-11-02).
 - **A requested readback whose first message is lost can still mirror a partial table.** Only an
