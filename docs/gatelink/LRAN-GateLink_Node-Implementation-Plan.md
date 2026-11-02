@@ -1,17 +1,17 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.47
+**Version:** 0.48
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.27
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.28
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-28
+**Last updated:** 2026-11-02
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -471,7 +471,7 @@ restated. Implementation obligations for this node:
 | Item | Value |
 |---|---|
 | Node ID | `0x01` |
-| Schemas emitted | `0x10` status, `0x11` event, `0x12` config, `0xF0` health. **Spec v0.18 adds status `0x13`** (§7.2.10, **D82**): `0x10` plus `ah_drawn_dah`, for PRD R-6.4c. GateLink sends `0x10` until that is built |
+| Schemas emitted | `0x10` status, `0x11` event, `0x12` config, `0xF0` health. **Spec v0.18 adds status `0x13`** (§7.2.10, **D82**): `0x10` plus `ah_drawn_dah`, for PRD R-6.4c. GateLink sends `0x13` |
 | Driver | RadioLib, SX1262, **pinned at the fleet's version** (`jgromes/RadioLib@7.7.1`, **D32**, root rule 9) |
 | Pin map / TCXO / RF switch | **Injected by configuration**, never compiled in (spec §12.2). A `lran::link::RadioPins` value: §3.3's pins, `tcxo_mv` 1800, `dio2_as_rf_switch` true, `rf_sw` G40 |
 | PHY | `lran::link::kPhy` is the default (spec §12.1, Envelope A). The committed group replaces it at boot and at each retune (spec §12.4, **D56**) |
@@ -1598,6 +1598,8 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 ## 10. Changelog
 
+- **v0.48** — **PRD v0.27 → v0.28.** R-6.4c's count becomes a lower bound, which changes nothing built or
+  planned here. §4.1's schema row now says GateLink sends `0x13`, as PRD v0.27 does.
 - **v0.47** — **The firmware freeze's items are built** (engineering log, 2026-11-01): §5.2's
   `ACTUATOR_FAULT`, and §6.4's fault log and `file` command. §6.4 says `state.json` is not
   built, and what the fault log leaves out. **PRD v0.26 → v0.27**, which records the same.

@@ -45,6 +45,17 @@ instead, by operator decision (engineering log, 2026-10-27, *R-6.4b's PV power t
 or decided, and so are R-5.4e's fault log and the `file` command (engineering log, 2026-11-01).
 The bench image is `gatelink-sandbox`.
 
+**Updated 2026-11-01 by the bench-readiness session.** The MPPT and the pack are connected on
+the bench, and GateLink reads both. The session took R-6.4c's baseline, 98.9 Ah, and handed the
+night's setup to the operator (engineering log, 2026-11-01, *R-6.4c's overnight check*). It
+changed no firmware and did not start B3.
+
+**Updated 2026-11-02 by the morning-read session.** The BMS counted 0.1 Ah across 19.3 h on
+GateLink's load alone, against about 0.8 Ah expected, so `ah_drawn` is a lower bound by
+operator decision (PRD v0.28; engineering log, 2026-11-02). GateLink did not reset. The panel
+went on under heavy overcast and could not start the charger, so B1 waits for sun. H12's
+checks run first (`docs/ha/HANDOFF.md`).
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -59,16 +70,27 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The firmware list is finished. What remains before the gate is the operator's B3**, and
+**The firmware list is finished. One reading comes before B3, and it needs the pack on the
+bench.** B3's GateLink flash is its last on the bench, and
 [`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders the
 rest. `gatelink` builds the production image from the root `secrets.h`. `gatelink-sandbox`
 builds the bench image from `secrets.sandbox.h`, and only that one talks to the sandbox bridge.
 
 | Tier | Task | Read |
 |---|---|---|
+| 4 | **B1's harness measurement and the first real `ah_drawn`**, once the MPPT charges. The panel is connected and needs more light | below |
 | 4 | **B3**: production builds of the bridge and GateLink, from a committed, clean tree. **Keep GateLink's `firmware.elf`**, because a core dump read at the gate needs it | brief, *Blocking* |
 | 4 | **The at-gate sequence** | brief, *At-gate sequence* |
-| — | R-6.4c's overnight check, if the pack comes back to the bench first | PRD R-6.4c |
+
+**B1's measurement.** Compare `solar/state`'s `batt_mv` with `battery/state`'s `pack_mv` at
+`batt_ma` under charge. Subtract the 20 mV the two read apart at −10 mA. The fix's resistance is
+the rest over the current, against the 0.22 Ω it replaced. The BMS line is up to `bms_poll_s` old,
+so pick a steady stretch. **The pack read 99 % on 2026-11-02 and may take little current**,
+which leaves only a few millivolts to read, so B1 may read better after the pack has been
+drawn down, or at the gate.
+
+**The first real `ah_drawn`.** A BMS read while charging is active sets its reference, and the
+field then reads 0 on `battery/state`. It has only ever been sent as `UINT16_MAX`.
 
 ### The soak's setup
 
@@ -131,7 +153,8 @@ aborted (engineering log, 2026-10-26, *`/bms.log` read*). In the final soak `bms
 read each such window 6 or 7 s later (engineering log, 2026-10-27, *The final soak*).
 
 **The MPPT's battery harness is fixed** (brief's B1; operator, 2026-11-01). The fix has no
-measurement recorded here yet.
+measurement recorded here yet, because PV read 10 mV on 2026-11-01. *Start here* has the
+method.
 
 **At the gate, each needing its own visit:** GL2 (the 1050 powered; confirm K3 and K4 wake
 it on Radio Open and Close), M23, GL6, then GL7. The bridge handoff carries the bridge and
@@ -217,12 +240,12 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink-sandbox`, flashed over USB from the Mac on 2026-11-01. Read the banner for its commit. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding `{}`, so no overrides (`file cat`, 2026-11-01) | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink-sandbox`, flashed over USB from the Mac on 2026-11-01. Read the banner for its commit. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding `{}`, so no overrides (`file cat`, 2026-11-01) | On the operator's workbench with the carrier fitted, VIN on the pack through the production harness, and USB attached (operator, 2026-11-02). **Inputs tied to their inactive state for live testing.** IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem1101` on 2026-11-02. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator and `bms temp`, flashed 2026-10-14 at `a49a90a` | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
-| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack were on the bench from 2026-10-26 for the final soak and D81's run on the air, and can return to the gate. Not yet rewired or reprogrammed (GL2) |
+| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack are connected on the bench (operator, 2026-11-01). A 30 W panel is on the MPPT (operator, 2026-11-02). They stay there through B1's measurement. Not yet rewired or reprogrammed (GL2) |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
 that looks configured and never answers. The Kit's control lines are GPIO 38–42; the header
@@ -308,10 +331,9 @@ board's are its D-pads (expansion board §6.1).
 - **`bench.py attach` is not tested on Linux**, and the field laptop runs Kubuntu. A `BOOT`
   event during it is the falsifier. If it resets there, the card's `/bms.log` and fault log
   still hold the counters.
-- **R-6.4c's `ah_drawn_dah` assumes the BMS's remaining capacity falls under GateLink's
-  44 mA draw**, which `pack_ma` cannot show. Unmeasured. PRD R-6.4c names the check: the
-  real pack across a night with GateLink's load alone, expecting about 0.5 Ah over 12 h.
-  The check needs the real pack. `ah_drawn_dah` has only been sent as `UINT16_MAX`.
+- **`ah_drawn` under-counts, and why is not established** (engineering log, 2026-11-02). A
+  deadband in the BMS would fit, untested. No larger load has been checked. HA's *Charge drawn
+  since charging* and spec §7.2.10's "how much reserve" do not say it is a lower bound.
 - **Spec §7.2.10 still says the node defines "the current it integrates"**, while PRD R-6.4c
   says no current is integrated. The firmware follows the PRD. A spec wording fix, for the
   next revision.

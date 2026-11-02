@@ -8,7 +8,7 @@
 //
 // NO CURRENT IS INTEGRATED. The count is the fall in the BMS's own remaining capacity, in
 // its 0.1 Ah steps, because neither current GateLink reads can carry its 44 mA standing draw
-// (R-6.4c). That the capacity falls under such a draw is unmeasured; R-6.4c names the check.
+// (R-6.4c). The capacity under-counts that draw, so the count is a lower bound (R-6.4c).
 //
 // THE REFERENCE LIVES IN RAM, so a reset reads UINT16_MAX until charging is next active with
 // a BMS read. Restarting from 0 would understate the reserve used (spec 7.2.10).
