@@ -37,19 +37,31 @@ input_text:
   lran_report_alerts:
     name: LRAN alerts since the report
     max: 255
+  # Who else gets an alert or reminder whose input_boolean.lran_additional_<alert> is on, as
+  # comma-separated lists the admin edits on LRAN
+  # Configuration's Notification view (plan 7.3). A device is its notify action, with or
+  # without the notify. prefix.
+  lran_additional_devices:
+    name: Additional devices
+    icon: mdi:cellphone-message
+    max: 255
+  lran_additional_emails:
+    name: Additional emails
+    icon: mdi:email-plus-outline
+    max: 255
 
 # No `initial:` on these. HA applies `initial` at every start, which would undo a value
 # tuned in the UI. lran_0_seed_defaults sets the plan 7.1 defaults once instead.
 input_number:
   lran_soc_warn_pct:
-    name: LRAN SOC warning
+    name: GateLink SOC warning
     min: 0
     max: 100
     step: 1
     unit_of_measurement: "%"
     mode: box
   lran_soc_alarm_pct:
-    name: LRAN SOC alarm
+    name: GateLink SOC alarm
     min: 0
     max: 100
     step: 1
@@ -59,28 +71,28 @@ input_number:
   # sensor.gatelink_enclosure_temperature converts by that sensor's unit, because HA
   # shows temperatures in the install's unit system, which is Fahrenheit on the sandbox.
   lran_enclosure_temp_warn_c:
-    name: LRAN enclosure temperature warning
+    name: GateLink enclosure temperature warning
     min: 0
     max: 85
     step: 1
     unit_of_measurement: "°C"
     mode: box
   lran_cell_spread_warn_mv:
-    name: LRAN cell spread warning
+    name: GateLink cell spread warning
     min: 0
     max: 500
     step: 5
     unit_of_measurement: mV
     mode: box
   lran_offline_warn_min:
-    name: LRAN node offline warning
+    name: GateLink offline warning
     min: 1
     max: 240
     step: 1
     unit_of_measurement: min
     mode: box
   lran_held_open_reminder_h:
-    name: LRAN held-open reminder
+    name: GateLink held-open reminder
     min: 1
     max: 48
     step: 1
@@ -88,7 +100,7 @@ input_number:
     mode: box
   # R-6.1a: 100 Ah, all of it usable. The autonomy estimate in templates.yaml reads it.
   lran_pack_capacity_ah:
-    name: LRAN pack capacity
+    name: GateLink pack capacity
     min: 1
     max: 1000
     step: 1
@@ -287,7 +299,8 @@ script:
 
   # The one place LRAN notifies (plan 7.3). Automations call this, never a notify action,
   # so the channels change in one place. The channels themselves are site.yaml's
-  # lran_site_push and lran_site_email.
+  # lran_site_push and lran_site_email, which reach the admin. An alert or reminder with its
+  # switch on also goes to the two additional-recipient lists, by the same rules (plan 7.3).
   #
   # An automation names its alert and passes raw fields. The words come from messages.yml
   # and the delivery level from the alert's selector (plan 7.5), so neither is in an
@@ -390,6 +403,20 @@ script:
         {{ level if level in ['off', 'critical', 'high', 'normal', 'low']
            else severity if severity in ['critical', 'high', 'normal', 'low'] else 'high' }}
       is_follow_up: "{{ follow_up is sameas true }}"
+      # Only tier 1 and tier 3 have this switch, so health and reports reach the admin only
+      # (plan 7.3). A follow-up names its alert, so it follows that alert's switch.
+      to_additional: "{{ is_state('input_boolean.lran_additional_' ~ alert, 'on') }}"
+      additional_devices: >-
+        {% if to_additional %}
+          {{ states('input_text.lran_additional_devices').split(',') | map('trim')
+             | map('replace', 'notify.', '') | reject('in', ['', 'unknown', 'unavailable'])
+             | list }}
+        {% else %}[]{% endif %}
+      additional_emails: >-
+        {% if to_additional %}
+          {{ states('input_text.lran_additional_emails').split(',') | map('trim')
+             | reject('in', ['', 'unknown', 'unavailable']) | list }}
+        {% else %}[]{% endif %}
       # Critical sounds through Do Not Disturb: iOS critical: 1, Android alarm_stream.
       # Keys for the other platform are ignored, so one data block serves both.
       push_data: >-
@@ -464,6 +491,21 @@ script:
               title: "{{ title_text }}"
               message: "{{ message_text }}"
               data: "{{ push_data }}"
+          # script.turn_on, so each send is a run of its own. A mistyped device fails that
+          # run and logs the action HA could not find. Called directly, it would end this
+          # script before the emails, and continue_on_error does not catch it (engineering
+          # log, 2026-11-01).
+          - repeat:
+              for_each: "{{ additional_devices }}"
+              sequence:
+                - action: script.turn_on
+                  target: { entity_id: script.lran_additional_push }
+                  data:
+                    variables:
+                      device: "{{ repeat.item }}"
+                      title: "{{ title_text }}"
+                      message: "{{ message_text }}"
+                      data: "{{ push_data }}"
       - if:
           - condition: template
             value_template: >-
@@ -477,6 +519,35 @@ script:
             data:
               title: "{{ title_text }}"
               message: "{{ message_text }}"
+          - if:
+              - condition: template
+                value_template: "{{ additional_emails | count > 0 }}"
+            then:
+              - action: script.turn_on
+                target: { entity_id: script.lran_site_email_to }
+                data:
+                  variables:
+                    recipients: "{{ additional_emails }}"
+                    title: "{{ title_text }}"
+                    message: "{{ message_text }}"
+
+  # One push to one additional device (plan 7.3). lran_notify starts this with
+  # script.turn_on, once per device.
+  lran_additional_push:
+    alias: LRAN additional push
+    mode: parallel
+    max: 20
+    fields:
+      device: { selector: { text: } }
+      title: { selector: { text: } }
+      message: { selector: { text: } }
+      data: { selector: { object: } }
+    sequence:
+      - action: "notify.{{ device }}"
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+          data: "{{ data }}"
 
   # Plan 9.4. A script of its own, `queued`, because lran_notify runs in parallel: two
   # alerts at once would otherwise each read the list before the other wrote it. The list

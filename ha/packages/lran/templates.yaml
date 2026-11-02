@@ -93,7 +93,23 @@ template:
           {% elif missed >= 1 or snr < -5 %}marginal
           {% else %}good{% endif %}
 
-      # For the Gate dashboard only (plan 7.4). The recorder excludes them (site.yaml), and
+      # The Gate dashboard's status line (plan 8.1). The cover carries the direction the
+      # bridge infers (spec 8.3), and the raw gate state tells the two open states apart.
+      - name: LRAN GateLink gate status
+        unique_id: lran_gatelink_gate_status
+        icon: mdi:gate
+        state: >-
+          {% set gate = states('sensor.gatelink_gate') %}
+          {% set cover = states('cover.gatelink_gate') %}
+          {% if gate == 'fault' %}Fault
+          {% elif cover == 'closed' %}Closed
+          {% elif cover == 'opening' %}Opening
+          {% elif cover == 'closing' %}Closing
+          {% elif gate == 'open_held' %}Open and holding
+          {% elif gate == 'open_countdown' %}Open and auto close pending
+          {% else %}Status unknown{% endif %}
+
+      # For display only (plan 7.4). The recorder excludes them (site.yaml), and
       # graphs read the raw mV sensors. No device class: with one, HA suggests a display
       # precision of 0 and shows 13.31 V as 13 V, and the template schema rejects
       # suggested_display_precision (engineering log, 2026-10-25).
@@ -122,7 +138,92 @@ template:
         availability: "{{ has_value('counter.lran_gatelink_traversals_today') }}"
         state: "{{ states('counter.lran_gatelink_traversals_today') | int }}"
 
+  # The Vehicles dashboard's log (plan 7.4): today's gate crossings, newest first. A
+  # trigger-based sensor keeps them across a restart, and the recorder excludes it
+  # (site.yaml), because every crossing rewrites the whole list.
+  #
+  # The first event names no direction (spec 7.3), so the sensor that fired, in input_bits,
+  # names it: SAFETY first is entering and EXIT first is leaving (spec 8.6). The follow-up
+  # confirms the crossing or, with no direction and one sensor at most, says it did not
+  # finish. A second event inside one detection is a held-open alert raised by a later edge
+  # (detect.cpp), so it marks the same entry held and adds none. Repeats change nothing, so
+  # this needs no event filter.
+  - triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/vehicle_detected
+      - trigger: mqtt
+        topic: lran/gatelink/event/vehicle_while_held_open
+      # Clears yesterday's entries, through the day check below.
+      - trigger: time
+        at: "00:00:00"
+    variables:
+      entries: >-
+        {%- set me = 'sensor.lran_gatelink_crossing_log' -%}
+        {%- set today = now().date() | string -%}
+        {%- set log = (state_attr(me, 'entries') or [])
+              if state_attr(me, 'day') == today else [] -%}
+        {%- set p = trigger.payload_json | default({}) if trigger.platform == 'mqtt' else {} -%}
+        {%- set key = '%d:%d' % (p.ctx_id, p.event_id)
+              if p.ctx_id is number and p.event_id is number else '' -%}
+        {%- set follow = p.follow_up is sameas true -%}
+        {%- set found = log | selectattr('key', 'eq', key) | list -%}
+        {%- if not key or p.synthetic is sameas true or (found and not follow) -%}
+          {{- log -}}
+        {%- else -%}
+          {%- set alert = p.event_type == 'vehicle_while_held_open' -%}
+          {%- set bits = p.input_bits | int(0) -%}
+          {%- set safety = bits | bitwise_and(4) != 0 -%}
+          {%- set exit = bits | bitwise_and(8) != 0 -%}
+          {%- set known = p.direction if p.direction in ['entry', 'exit'] else '' -%}
+          {%- set sensed = 'entry' if safety and not exit
+                else 'exit' if exit and not safety else '' -%}
+          {%- set merge = alert and not follow and not found and log | length > 0
+                and (known != '' or log[0].state == 'pending') -%}
+          {%- set base = found[0] if found else log[0] if merge else none -%}
+          {%- set dir = known or (base.dir if base else '') or (sensed if not follow else '') -%}
+          {%- set state = base.state if merge
+                else 'crossed' if known or (safety and exit)
+                else 'partial' if follow else 'pending' -%}
+          {%- set held = alert or p.gate_state == 'open_held' or (base.held if base else false) -%}
+          {%- set time = base.time if base else now().strftime('%-I:%M %p') -%}
+          {%- set words = {
+                'crossed': {'entry': 'Vehicle entered', 'exit': 'Vehicle left', '': 'Vehicle crossed'},
+                'pending': {'entry': 'Vehicle entering', 'exit': 'Vehicle leaving', '': 'Vehicle at the gate'},
+                'partial': {'entry': 'Vehicle started entering', 'exit': 'Vehicle started leaving',
+                            '': 'Vehicle tripped a sensor'}} -%}
+          {%- set text = words[state][dir] ~ ' at ' ~ time
+                ~ (' but did not cross' if state == 'partial' else '')
+                ~ (', direction unknown' if state == 'crossed' and not dir else '')
+                ~ (', gate held open' if held else '') -%}
+          {%- set entry = dict(key=key, time=time, dir=dir, state=state, held=held, text=text) -%}
+          {%- set ns = namespace(out=[] if base else [entry]) -%}
+          {%- for e in log -%}
+            {%- set ns.out = ns.out + [entry if base and e.key == base.key else e] -%}
+          {%- endfor -%}
+          {{- ns.out[:200] -}}
+        {%- endif -%}
+    sensor:
+      - name: LRAN GateLink crossing log
+        unique_id: lran_gatelink_crossing_log
+        icon: mdi:book-clock-outline
+        state: "{{ entries | length }}"
+        attributes:
+          day: "{{ now().date() | string }}"
+          entries: "{{ entries }}"
+
 sensor:
+  # What the charge-inhibit temperature is compared with (R-6.4a): the lowest of the four
+  # BMS sensors, because any of them may be the coldest cell.
+  - platform: min_max
+    name: LRAN GateLink lowest pack temperature
+    unique_id: lran_gatelink_lowest_pack_temperature
+    type: min
+    entity_ids:
+      - sensor.gatelink_pack_temperature_1
+      - sensor.gatelink_pack_temperature_2
+      - sensor.gatelink_pack_temperature_3
+      - sensor.gatelink_pack_temperature_4
+
   # mAh drawn, cumulative. max_sub_interval advances it while the draw holds steady,
   # because the source updates only when its value changes.
   - platform: integration

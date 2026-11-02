@@ -71,7 +71,8 @@ def named_ids():
     """Return ({entity_id: [file, ...]}, {prefix: [file, ...]}).
 
     A service name is not an entity: input_number.set_value under action: is skipped. A
-    script's service is also its entity, so script.* stays. An ID ending in _ is a prefix a
+    script's service is also its entity, so script.* stays, apart from script.turn_on, which
+    is the domain's own. An ID ending in _ is a prefix a
     template completes ('input_select.lran_alert_' ~ alert); one live entity must match it.
     """
     ids, prefixes = {}, {}
@@ -88,7 +89,7 @@ def named_ids():
             for _, s in pairs:
                 for m in _ID.finditer(s):
                     eid = m.group(0)
-                    if eid in services and m.group(1) != "script":
+                    if eid in services and (m.group(1) != "script" or eid == "script.turn_on"):
                         continue
                     into = prefixes if eid.endswith("_") else ids
                     into.setdefault(eid, [])

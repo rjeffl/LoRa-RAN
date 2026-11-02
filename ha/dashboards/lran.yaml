@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Robert J. Lee
 #
-# The LRAN dashboard (HA Integration Implementation Plan 8.2): the detail behind the Gate
-# dashboard. YAML mode, so this file is the source (plan 6); install it as
-# /config/dashboards/lran/lran.yaml.
+# The LRAN Status dashboard (HA Integration Implementation Plan 8.2): admin only, and the
+# detail behind the Gate dashboard. YAML mode, so this file is the source (plan 6); install
+# it as /config/dashboards/lran/lran.yaml.
 #
-# Three views here; the fourth, Maintenance, is lran-maintenance.yaml, because it is
-# admin only and HA gates by dashboard. Every entity plan 4 lists appears on one of the
-# two, apart from the gate cover and the hold switch. They stay on the Gate dashboard,
-# because each command is a relay pulse at the gate (H3's acceptance).
+# Four views here; LRAN Configuration is lran-maintenance.yaml. Every entity plan 4 lists
+# appears on one of the two, apart from the gate cover and the hold switch. They stay on
+# the Gate dashboard, because each command is a relay pulse at the gate (H3's acceptance).
 #
 # Graphs read the raw mV and mA sensors, not the rescaled V sensors, which the recorder
 # excludes (plan 10). Graphs beyond 10 days read long-term statistics, because the
@@ -20,7 +19,7 @@
 # days. The logbook stays HA's own, as Fluvy has none. A Fluvy heading takes one grid
 # cell where HA's takes the row, hence columns: full.
 
-title: LRAN
+title: LRAN Status
 views:
   - title: Power
     path: power
@@ -28,23 +27,66 @@ views:
     type: sections
     max_columns: 3
     sections:
+      # Alert banners, moved from the Gate dashboard, which is for operation only (plan 8.1,
+      # 8.2). Each alert shows only while its entity is in the state it names, and the card
+      # hides while all are clear. While GateLink is unavailable its binary sensors are too,
+      # and a Fluvy matcher never matches unavailable unless it names it, so only that alert
+      # shows. FIRE and the held-open vehicle cannot be snoozed, as their pushes cannot be
+      # muted (plan 7.5).
+      - type: grid
+        column_span: 3
+        cards:
+          - type: custom:fluvy-alerts-card
+            variant: rows
+            alerts:
+              - name: FIRE input asserted
+                entity: binary_sensor.gatelink_fire_input
+                state: "on"
+                severity: critical
+                snooze: "off"
+              - name: Vehicle while held open
+                entity: binary_sensor.gatelink_vehicle_while_held_open
+                state: "on"
+                severity: critical
+                snooze: "off"
+              - name: Hard-shutdown latch
+                entity: binary_sensor.gatelink_hard_shutdown_latch
+                state: "on"
+                severity: critical
+              # Every GateLink entity follows the node's availability topic (R-3.3d), so
+              # the gate state stands for all of them.
+              - name: GateLink unavailable
+                entity: sensor.gatelink_gate
+                state: unavailable
+                severity: warning
+              # GateLink's derived indication (R-6.4a) rather than the BMS's own flag: it
+              # reads while VE.Direct is stale.
+              - name: Charging inhibited
+                entity: binary_sensor.gatelink_charging_inhibited
+                state: "on"
+                severity: warning
+              - name: Battery protection
+                entity: binary_sensor.gatelink_battery_protection
+                state: "on"
+                severity: warning
+
       - type: grid
         cards:
           - type: custom:fluvy-heading-card
             title: Battery
             grid_options:
               columns: full
-          # No severity bands, as on the Gate dashboard: the SOC thresholds are helpers
-          # (plan 7.1), and fixed bands would drift from them.
+          # A ring, because Fluvy's battery gauge colours fixed bands, and the SOC thresholds
+          # are helpers (plan 7.1) that the bands would drift from.
           - type: custom:fluvy-gauge-card
             entity: sensor.gatelink_battery
-            gauge: battery
+            gauge: ring
             name: State of charge
             min: 0
             max: 100
           - type: custom:fluvy-entities-card
             rows:
-              - entity: sensor.gatelink_pack_voltage
+              - entity: sensor.lran_gatelink_pack_voltage_v
                 name: Pack voltage
               - entity: sensor.gatelink_pack_current
                 name: Pack current
@@ -109,9 +151,27 @@ views:
                 name: Battery current (MPPT)
               - entity: sensor.gatelink_load_current
                 name: Load output current
+          # The charger's load output powers the pier lights. A status, so a tap does nothing.
+          - type: custom:fluvy-template-card
+            name: Gate Pier Lights
+            icon: >-
+              {{ 'mdi:lightbulb-on' if is_state('binary_sensor.gatelink_load_output', 'on')
+                 else 'mdi:lightbulb-outline' }}
+            secondary: >-
+              {{ {'on': 'On', 'off': 'Off'}.get(states('binary_sensor.gatelink_load_output'),
+                                                'Unavailable') }}
+            color: >-
+              {{ '#FFB300' if is_state('binary_sensor.gatelink_load_output', 'on') else 'grey' }}
+            tint: always
+            tap_action: { action: none }
+            hold_action: { action: none }
+            grid_options:
+              columns: 12
           - type: custom:fluvy-entities-card
             title: Consumption
             rows:
+              - entity: sensor.gatelink_node_supply_voltage
+                name: Node supply voltage
               - entity: sensor.lran_gatelink_draw_current
                 name: Draw current
               - entity: sensor.lran_gatelink_draw_7d
@@ -121,35 +181,6 @@ views:
               # An estimate (plan 7.4), and unavailable until the 7-day window covers a day.
               - entity: sensor.lran_gatelink_autonomy_days
                 name: Autonomy (estimate)
-
-      - type: grid
-        cards:
-          - type: custom:fluvy-heading-card
-            title: Temperatures
-            grid_options:
-              columns: full
-          - type: custom:fluvy-entities-card
-            rows:
-              - entity: sensor.gatelink_enclosure_temperature
-                name: Enclosure
-              - entity: sensor.lran_gatelink_enclosure_temp_max_24h
-                name: Enclosure, 24 h max
-              - entity: sensor.lran_gatelink_enclosure_temp_min_24h
-                name: Enclosure, 24 h min
-              - entity: sensor.gatelink_mppt_temperature
-                name: MPPT
-              - entity: sensor.gatelink_node_supply_voltage
-                name: Node supply voltage
-              # R-4.5b's third source. Numbered, because which BMS sensor is which is
-              # unconfirmed (bms-protocol 10).
-              - entity: sensor.gatelink_pack_temperature_1
-                name: Pack 1
-              - entity: sensor.gatelink_pack_temperature_2
-                name: Pack 2
-              - entity: sensor.gatelink_pack_temperature_3
-                name: Pack 3
-              - entity: sensor.gatelink_pack_temperature_4
-                name: Pack 4
 
       - type: grid
         column_span: 3
@@ -174,9 +205,6 @@ views:
               - entity: sensor.gatelink_pv_power
                 name: PV power
                 source: history
-              - entity: sensor.gatelink_enclosure_temperature
-                name: Enclosure
-                source: history
             grid_options:
               columns: 12
           - type: custom:fluvy-chart-card
@@ -194,9 +222,6 @@ views:
                 source: history
               - entity: sensor.gatelink_pv_power
                 name: PV power
-                source: history
-              - entity: sensor.gatelink_enclosure_temperature
-                name: Enclosure
                 source: history
             grid_options:
               columns: 12
@@ -240,6 +265,109 @@ views:
             stat_types: [min, mean, max]
             grid_options:
               columns: 12
+          # The total's daily change rather than yield today's: the total only rises, so
+          # a missed midnight reset cannot double-count a day.
+          - type: custom:fluvy-history-bars-card
+            entity: sensor.gatelink_solar_yield_total
+            name: Daily yield, 30 days
+            days: 30
+            period: day
+            stat: change
+            grid_options:
+              columns: 12
+          - type: custom:fluvy-history-bars-card
+            entity: sensor.gatelink_solar_yield_total
+            name: Monthly yield, 1 year
+            days: 12
+            period: month
+            stat: change
+            grid_options:
+              columns: 12
+
+  - title: Temperature
+    path: temperature
+    icon: mdi:thermometer
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: custom:fluvy-heading-card
+            title: Enclosure and charger
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure
+              - entity: sensor.lran_gatelink_enclosure_temp_max_24h
+                name: Enclosure, 24 h max
+              - entity: sensor.lran_gatelink_enclosure_temp_min_24h
+                name: Enclosure, 24 h min
+              - entity: sensor.gatelink_mppt_temperature
+                name: MPPT
+
+      - type: grid
+        cards:
+          - type: custom:fluvy-heading-card
+            title: Pack
+            grid_options:
+              columns: full
+          - type: custom:fluvy-entities-card
+            rows:
+              # R-4.5b's third source. Numbered, because which BMS sensor is which is
+              # unconfirmed (bms-protocol 10).
+              - entity: sensor.gatelink_pack_temperature_1
+                name: Pack 1
+              - entity: sensor.gatelink_pack_temperature_2
+                name: Pack 2
+              - entity: sensor.gatelink_pack_temperature_3
+                name: Pack 3
+              - entity: sensor.gatelink_pack_temperature_4
+                name: Pack 4
+              # GateLink inhibits charging on the lowest of the four (R-6.4a).
+              - entity: sensor.lran_gatelink_lowest_pack_temperature
+                name: Lowest
+              - entity: number.gatelink_charge_inhibit_temp_c
+                name: Charge inhibit below
+
+      - type: grid
+        column_span: 2
+        cards:
+          - type: custom:fluvy-heading-card
+            title: History
+            grid_options:
+              columns: full
+          - type: custom:fluvy-chart-card
+            title: 24 hours
+            span: 24h
+            series:
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure
+                source: history
+              - entity: sensor.gatelink_mppt_temperature
+                name: MPPT
+                source: history
+              - entity: sensor.lran_gatelink_lowest_pack_temperature
+                name: Pack, lowest
+                source: history
+            grid_options:
+              columns: 12
+          - type: custom:fluvy-chart-card
+            title: 7 days
+            span: 7d
+            series:
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure
+                source: history
+              - entity: sensor.gatelink_mppt_temperature
+                name: MPPT
+                source: history
+              - entity: sensor.lran_gatelink_lowest_pack_temperature
+                name: Pack, lowest
+                source: history
+            grid_options:
+              columns: 12
           - type: custom:fluvy-chart-card
             title: Enclosure temperature, 30 days
             span: 30d
@@ -272,27 +400,7 @@ views:
             stat_types: [min, mean, max]
             grid_options:
               columns: 12
-          # The total's daily change rather than yield today's: the total only rises, so
-          # a missed midnight reset cannot double-count a day.
-          - type: custom:fluvy-history-bars-card
-            entity: sensor.gatelink_solar_yield_total
-            name: Daily yield, 30 days
-            days: 30
-            period: day
-            stat: change
-            grid_options:
-              columns: 12
-          - type: custom:fluvy-history-bars-card
-            entity: sensor.gatelink_solar_yield_total
-            name: Monthly yield, 1 year
-            days: 12
-            period: month
-            stat: change
-            grid_options:
-              columns: 12
 
-  # The Gate dashboard's link tiles open /lran-detail/network (plan 8.1), so this path is
-  # fixed.
   - title: Network
     path: network
     icon: mdi:radio-tower
@@ -493,12 +601,14 @@ views:
               - entity: sensor.gatelink_last_direction
                 name: Direction
               - entity: counter.lran_gatelink_traversals_today
-                name: Traversals today
+                name: Gate crossings today
+              - entity: sensor.gatelink_movement_cause
+                name: Movement cause
               - entity: sensor.gatelink_hold_source
                 name: Hold source
           - type: custom:fluvy-history-bars-card
             entity: sensor.lran_gatelink_traversals
-            name: Traversals per day, 30 days
+            name: Gate crossings per day, 30 days
             days: 30
             period: day
             stat: change

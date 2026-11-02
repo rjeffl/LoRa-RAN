@@ -11,6 +11,18 @@
 # As in alerts.yaml, no wording lives here. Each reminder has a selector below and an entry
 # in messages.yml (plan 7.5).
 
+# Off by default. On sends this message to the additional recipients too (plan 7.3).
+input_boolean:
+  lran_additional_held_open_long:
+    name: Held open long to additional recipients
+    icon: mdi:account-multiple-plus-outline
+  lran_additional_open_at_night:
+    name: Gate open at night to additional recipients
+    icon: mdi:account-multiple-plus-outline
+  lran_additional_open_nobody_home:
+    name: Gate open, nobody home to additional recipients
+    icon: mdi:account-multiple-plus-outline
+
 input_select:
   lran_alert_held_open_long:
     name: Held open long

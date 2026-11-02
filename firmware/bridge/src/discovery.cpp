@@ -211,6 +211,10 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      "W", "power", "measurement", nullptr, nullptr, 0, false},
     {"load_current", "Load current", "sensor", "solar/state", "load_ma",
      "mA", "current", "measurement", nullptr, nullptr, 0, false},
+    // Spec 7.2.6 bit 0. The charger's load output powers the gate pier lights, and the
+    // current alone cannot say the output is on while nothing draws from it.
+    {"load_output", "Load output", "binary_sensor", "solar/state", "load_on",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
     {"yield_today", "Solar yield today", "sensor", "solar/state", "yield_today_kwh",
      "kWh", "energy", "total_increasing", nullptr, nullptr, 0, false},
     // Yesterday's total, fixed for a day: no state class, because it falls at midnight

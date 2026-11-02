@@ -85,9 +85,9 @@ gatelink_online:
 # Push only, whatever the level: the HA host that would send the email may be what failed.
 bridge_offline:
   level: High
-  title: LRAN bridge offline
+  title: Bridge offline
   message: >-
-    The LRAN bridge has been off the MQTT broker for 5 minutes. HA cannot see or command
+    The bridge has been off the MQTT broker for 5 minutes. HA cannot see or command
     any LRAN node until it returns.
 
 # --- Tier 2, health (plan 9.2) ---
@@ -226,7 +226,7 @@ morning_report:
   level: Normal
   title: GateLink morning report
   message: >-
-    Battery {soc}, {soc_change}. Solar yesterday {yield}. Traversals yesterday
+    Battery {soc}, {soc_change}. Solar yesterday {yield}. Gate crossings yesterday
     {traversals}. Enclosure {enc_min} to {enc_max} in 24 h. Most missed polls in a row
     {missed_polls}. Alerts since the last report: {alerts}.
   soc_change:
