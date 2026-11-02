@@ -7,7 +7,8 @@ levels and the message catalog, on 2026-10-27 at the end of H5, on 2026-10-28 at
 end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operator
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
-LRAN Configuration's views and the additional recipients.**
+LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
+read, for H12's post-soak checks.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -42,17 +43,29 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**Run these once the soak has ended.** None could run during it, or from here.
+**The soak has ended, so these can run now.** The bench is set up for them (*Hardware state*).
 
-1. **Flash the sandbox bridge from a committed tree, and check F5.** The operator does the
-   OTA upload. `binary_sensor.gatelink_load_output` should appear, and
-   `tools/ha/check_entities.py` should pass, which it cannot until then. Check *Gate Pier
-   Lights* on LRAN Status against the real load output. GateLink has twice gone silent after
-   a bridge flash until restarted (GateLink handoff, *Open*), so time the flash with the
-   soak's end.
+1. **Flash the sandbox bridge from a committed tree, and check F5.** The bridge runs
+   `addfd6b`, which predates F5 (`91953a7`). `binary_sensor.gatelink_load_output` should
+   appear, and `tools/ha/check_entities.py` should pass, which it cannot until then. Check
+   *Gate Pier Lights* on LRAN Status against the real load output. GateLink has twice gone
+   silent after a bridge flash until restarted (GateLink handoff, *Open*).
+   - **`firmware/bridge` has no sandbox environment.** `heltec` reads the root `secrets.h`,
+     which is production, so its image would leave the sandbox broker. Add one as
+     `gatelink-sandbox` does, in its own commit, and flash that. Only
+     `firmware/gatelink/src/main.cpp` reads `LRAN_SECRETS_FILE` today, so the bridge's
+     source needs the same change.
+   - **The bridge is on USB today**, so this flash needs no OTA password. An OTA upload
+     stays the operator's.
+   - **`load_on` went false at 06:53 on 2026-11-02 with no panel connected**, and `load_ma`
+     read 0 (GateLink engineering log, 2026-11-02). Nothing explains it yet, so expect the
+     check to meet it.
 2. **Find out why GateLink's config numbers read `unknown`.** 28 of 29 did, from before this
    work began, and Request configuration did not fill them. LRAN Configuration shows the
-   same gap, so this comes before production.
+   same gap, so this comes before production. **Start at the bridge:** the overnight log
+   holds `lran/gatelink/config/state` only as retained replays, with the rest of its rows
+   null. Request configuration at 20:53:17 on 2026-11-01 was acked with `result` 0, and no
+   document followed (GateLink engineering log, 2026-11-02).
 3. **Run a real crossing, each way, and one that stops at the first sensor.** The log infers
    direction from the first event's `input_bits` (plan §8.4), and only injected events have
    exercised that. Confirm the words, the count and the red text with the gate held. The
@@ -252,10 +265,13 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Home Assistant OS VM at 192.168.2.52, with Mosquitto | the sandbox | its address, and `/config/packages/lran/site.yaml`, which is on no other install | HA 2026.10.4 | `/config` holds the installed packages and the sandbox's own `site.yaml`, the only copy of it | running; the bench soak ended on 2026-10-27. GateLink's relay dry-run is off |
+| Home Assistant OS VM at 192.168.2.52, with Mosquitto | the sandbox | its address, and `/config/packages/lran/site.yaml`, which is on no other install | HA 2026.10.4 | `/config` holds the installed packages and the sandbox's own `site.yaml`, the only copy of it | running. GateLink's relay dry-run is off |
 | The sandbox's `/config`, shared over Samba | the mount | mounted at `/Volumes/config` as `ha-samba-user` | — | — | mounted on the macOS machine |
 | The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | beta flags on: beta features and dashboard screenshots, set in its web UI's *Server Settings* | running; its config check read `valid` on 2026-10-26 |
 | The Puppet app on the sandbox | Puppet | app slug `0f1cc410_puppet`, port 10000 | Puppet 2.6.0 | a long-lived token in its `access_token` option | running; renders for ha-mcp's screenshots. **Port 10000 takes no authentication** |
+| GateLink on the operator's bench | the StamPLC | `firmware/gatelink -e gatelink-sandbox` | see the GateLink handoff | — | **Inputs tied to their inactive state for live testing** (operator, 2026-11-02), on the pack, the MPPT and a panel, with USB attached at `/dev/cu.usbmodem1101` |
+| The bridge | the bridge board | `firmware/bridge`, running `addfd6b` | see the bridge handoff | — | **On USB** at `/dev/cu.usbserial-0001` (2026-11-02) |
+| Soak logger | `bench.log` | `~/lran-soak-r64c`, `bench.py run --mqtt` against `secrets.sandbox.h` | — | — | Still running from 2026-11-01, started by the operator. It logs `lran/#`, so it can read these checks too |
 
 **The sandbox `site.yaml` exists only on the sandbox.** It pushes to the Mac only and sends
 email to a persistent notification. Rebuilding it is a copy of `site.yaml.example` with

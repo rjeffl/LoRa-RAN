@@ -1248,3 +1248,9 @@ button to see its state. The gate state stayed `closed`.
 - **`load_on` went false at 06:53 with the panel disconnected**, and `load_ma` read 0
   throughout. `mppt-config.md` does not mention a load schedule. That bears on H12's check of
   *Gate Pier Lights*.
+
+**The panel went on at about 12:53 and did not start the charger.** The console read PV at
+13.23 V, 0 W, charger `off`, no error, against a battery at 13.29 V. Disconnected, the 30 W panel
+metered 15.27 V, under heavy overcast, by operator report. Why the MPPT's terminals read about
+2 V less than the disconnected panel was not looked into. **B1 and the first real `ah_drawn`
+have no result**, and both wait for more light.
