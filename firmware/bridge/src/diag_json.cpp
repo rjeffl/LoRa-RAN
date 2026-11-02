@@ -38,7 +38,8 @@ size_t diag_rx_json(const lran::Counters& c, const RollStats& roll, char* out, s
   return j.finish();
 }
 
-size_t diag_command_json(const CommandStats& s, const RollStats& roll, char* out, size_t cap) {
+size_t diag_command_json(const CommandStats& s, const RollStats& roll, const ConfigStats& cfg,
+                         uint32_t mirror_overflow, char* out, size_t cap) {
   JsonObject j(out, cap);
   j.u32("cmd_submitted", s.submitted);
   j.u32("cmd_refused_busy", s.refused_busy);
@@ -50,6 +51,13 @@ size_t diag_command_json(const CommandStats& s, const RollStats& roll, char* out
   j.u32("cmd_resync_failed", s.resync_failed);
   j.u32("cmd_unconfirmed", s.unconfirmed);
   j.u32("cmd_ack_ignored", s.ack_ignored);
+  // Unpublished until 2026-11-02, which is how REQUEST_CONFIG's dropped answer went unseen.
+  j.u32("cfg_ack_ignored", cfg.ack_ignored);
+  j.u32("cfg_refused_busy", cfg.refused_busy);
+  j.u32("cfg_unsolicited_readbacks", cfg.unsolicited_readbacks);
+  j.u32("cfg_readbacks_completed", cfg.readbacks_completed);
+  j.u32("cfg_readback_abandoned", cfg.config_readback_abandoned);
+  j.u32("cfg_mirror_overflow", mirror_overflow);
   j.u32("cmd_refused_roll_pending", roll.cmd_refused);
   j.u32("roll_sent", roll.sent);
   j.u32("roll_retries", roll.retries);

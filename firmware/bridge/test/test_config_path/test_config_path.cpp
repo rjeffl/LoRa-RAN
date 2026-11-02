@@ -225,6 +225,91 @@ void test_an_unsolicited_readback_is_not_matched_by_seq() {
 }
 
 // ---------------------------------------------------------------------------
+// REQUEST_CONFIG goes through the command path, so its answer finds this path idle (spec 7.4)
+// ---------------------------------------------------------------------------
+
+void test_an_idle_path_takes_request_configs_answer() {
+  ConfigPath path;
+  path.on_config_ack(kNodeGateLink, ack_with(32, /*more=*/true), /*ack_seq=*/5, 1000);
+  TEST_ASSERT_TRUE(path.busy());
+  TEST_ASSERT_TRUE(path.next(1000).action == ConfigAction::None);  // spec 16.7.4: held
+  path.on_config_ack(kNodeGateLink, ack_with(3, /*more=*/false, 0x1050), /*ack_seq=*/6, 1500);
+
+  const ConfigStep done = path.next(1500);
+  TEST_ASSERT_TRUE(done.action == ConfigAction::Resolve);
+  TEST_ASSERT_TRUE(done.op_outcome == ConfigOutcome::ReadbackOk);
+  TEST_ASSERT_TRUE(done.readback_only);
+  TEST_ASSERT_TRUE(done.updates_state);
+  TEST_ASSERT_EQUAL_UINT8(kNodeGateLink, done.dst);
+  TEST_ASSERT_EQUAL_UINT32(35, done.result_count);
+  TEST_ASSERT_EQUAL_UINT32(1, path.stats().unsolicited_readbacks);
+  TEST_ASSERT_EQUAL_UINT32(1, path.stats().readbacks_completed);
+  TEST_ASSERT_EQUAL_UINT32(0, path.stats().ack_ignored);
+  TEST_ASSERT_FALSE(path.busy());
+}
+
+// Its first message was lost, so the walk does not start at the table's first row. Taking the
+// rest would replace the mirror with half a table, which spec 16.7.4 forbids.
+void test_an_idle_path_refuses_an_answer_missing_its_start() {
+  ConfigPath path;
+  path.on_config_ack(kNodeGateLink, ack_with(3, /*more=*/false, 0x1050), /*ack_seq=*/6, 1000);
+  TEST_ASSERT_FALSE(path.busy());
+  TEST_ASSERT_TRUE(path.next(1000).action == ConfigAction::None);
+  TEST_ASSERT_EQUAL_UINT32(1, path.stats().ack_ignored);
+  TEST_ASSERT_EQUAL_UINT32(0, path.stats().unsolicited_readbacks);
+}
+
+// A late answer to a SET describes only what that set named.
+void test_an_idle_path_ignores_a_set_answer() {
+  ConfigPath path;
+  schema::NodeConfigAckV1 a = ack_with(1, /*more=*/false);
+  a.op                      = ConfigOp::Set;
+  path.on_config_ack(kNodeGateLink, a, /*ack_seq=*/6, 1000);
+  TEST_ASSERT_FALSE(path.busy());
+  TEST_ASSERT_EQUAL_UINT32(1, path.stats().ack_ignored);
+}
+
+// spec 7.4.1 - the abandoned answer changes nothing retained, and tells sched_task to ask again.
+void test_an_unfinished_unsolicited_answer_is_abandoned() {
+  ConfigPath path;
+  path.set_readback_timeout_ms(15000);
+  path.on_config_ack(kNodeGateLink, ack_with(32, /*more=*/true), /*ack_seq=*/5, 1000);
+  TEST_ASSERT_TRUE(path.next(15999).action == ConfigAction::None);
+
+  const ConfigStep done = path.next(16000);
+  TEST_ASSERT_TRUE(done.action == ConfigAction::Resolve);
+  TEST_ASSERT_TRUE(done.op_outcome == ConfigOutcome::Abandoned);
+  TEST_ASSERT_TRUE(done.unsolicited);
+  TEST_ASSERT_TRUE(done.readback_only);
+  TEST_ASSERT_FALSE(done.updates_state);
+  TEST_ASSERT_FALSE(path.busy());
+}
+
+// A POLL's readback is the request, so abandoning it must not read as owing another.
+void test_a_requested_readback_is_not_unsolicited() {
+  ConfigPath path;
+  ConfigJob  job;
+  job.dst           = kNodeGateLink;
+  job.readback_only = true;
+  TEST_ASSERT_TRUE(path.submit(job, 0, 0, 0));
+  TEST_ASSERT_TRUE(path.next(0).action == ConfigAction::RequestReadback);
+  path.on_sent(0);
+  path.on_config_ack(kNodeGateLink, ack_with(3, /*more=*/false), /*ack_seq=*/5, 500);
+  const ConfigStep done = path.next(500);
+  TEST_ASSERT_TRUE(done.op_outcome == ConfigOutcome::ReadbackOk);
+  TEST_ASSERT_FALSE(done.unsolicited);
+  TEST_ASSERT_EQUAL_UINT32(0, path.stats().unsolicited_readbacks);
+}
+
+// sched_task puts the job back on the queue when this refuses it.
+void test_a_job_is_refused_while_an_unsolicited_answer_is_staging() {
+  ConfigPath path;
+  path.on_config_ack(kNodeGateLink, ack_with(32, /*more=*/true), /*ack_seq=*/5, 1000);
+  TEST_ASSERT_FALSE(path.submit(job_for(kNodeGateLink), 0, 7, 1001));
+  TEST_ASSERT_EQUAL_UINT32(1, path.stats().refused_busy);
+}
+
+// ---------------------------------------------------------------------------
 // Spec 7.4.1's abandon rule, and the retained topic it protects
 // ---------------------------------------------------------------------------
 
@@ -388,6 +473,15 @@ bool heard(RebootWatch& w, uint32_t uptime_s, uint16_t boot_count, uint32_t rx_m
 
 }  // namespace
 
+// The mirror is RAM, so a bridge owes a readback for a node it has not yet heard.
+void test_a_node_counts_as_heard_after_its_first_status() {
+  RebootWatch w;
+  TEST_ASSERT_FALSE(w.heard(kNodeSim1));
+  TEST_ASSERT_FALSE(heard(w, 1000, 3, 0));
+  TEST_ASSERT_TRUE(w.heard(kNodeSim1));
+  TEST_ASSERT_FALSE(w.heard(kNodeGateLink));
+}
+
 // The first STATUS sets the reference. Polls a minute apart, uptime a minute on: no
 // reboot, and a roll between them changes neither field, so it cannot fire this.
 void test_steady_uptime_is_not_a_reboot() {
@@ -549,6 +643,13 @@ int main(int, char**) {
   RUN_TEST(test_config_change_is_read_from_a_status);
 
   RUN_TEST(test_the_ack_window_counts_from_when_the_config_aired);
+  RUN_TEST(test_an_idle_path_takes_request_configs_answer);
+  RUN_TEST(test_an_idle_path_refuses_an_answer_missing_its_start);
+  RUN_TEST(test_an_idle_path_ignores_a_set_answer);
+  RUN_TEST(test_an_unfinished_unsolicited_answer_is_abandoned);
+  RUN_TEST(test_a_requested_readback_is_not_unsolicited);
+  RUN_TEST(test_a_job_is_refused_while_an_unsolicited_answer_is_staging);
+  RUN_TEST(test_a_node_counts_as_heard_after_its_first_status);
   RUN_TEST(test_steady_uptime_is_not_a_reboot);
   RUN_TEST(test_uptime_going_backwards_is_a_reboot);
   RUN_TEST(test_a_reboot_across_a_long_gap_is_caught);

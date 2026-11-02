@@ -88,9 +88,6 @@ same day. The other two stay host-tested, because one needs a reset timed inside
 trial's restore and the other a flag set while NVS refuses the write.
 
 - **An answer lost before the reset was not reproduced.** Group 7 carries it.
-- **The Request configuration button left `config/state`'s node rows null** on
-  2026-10-28, where a `get_all` filled them (engineering log, same date). Capture `cmd/ack`
-  and the frame log to see whether `REQUEST_CONFIG`'s readback arrives.
 
 ### 2. BF-27's simulators, and the watchdog's reach
 
@@ -330,8 +327,9 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `addfd6b`, flashed over OTA on 2026-10-28** (engineering log, *A
-node's Restore defaults keeps `deployed`*). **Both simnodes run `32503d5`**, flashed over USB the same
+**The bridge runs `fb21513`, flashed over USB from `heltec-sandbox` on 2026-11-02** (HA
+engineering log, same date), so `lran/bridge/version` no longer reads the OTA image of
+2026-10-28 (engineering log, *A node's Restore defaults keeps `deployed`*). **Both simnodes run `32503d5`**, flashed over USB the same
 day (engineering log, *Group 7's bench evidence*). **`restore_defaults` cleared the
 bridge's rows**, apart from the six PHY rows. Those read `override` at Envelope A's values,
 because `restore_defaults` does not reach the PHY group. `simnode0` to `simnode2` still

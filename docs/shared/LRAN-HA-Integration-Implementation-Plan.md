@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.19
+**Version:** 0.20
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
 **Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01
-**Last updated:** 2026-11-01
+**Last updated:** 2026-11-02
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
@@ -462,9 +462,9 @@ movement-cause tiles are on LRAN Status as well.
 **The link line opens nothing.** The tiles it replaced opened `/lran-detail/network`, which
 is now admin only, so for most viewers the tap would lead nowhere.
 
-**The SOC gauge is a ring with no severity bands** (LRAN Status, Power view). A gauge's
-bands are fixed numbers, and the SOC thresholds are helpers (§7.1), so the bands would
-drift from them. Fluvy's `battery` gauge colours bands of its own.
+**The SOC gauge is Fluvy's `battery` gauge, a fill icon** (LRAN Status, Power view; operator,
+2026-11-02). It colours fixed bands of its own, and the SOC thresholds are helpers (§7.1), so
+its colours can disagree with the alerts. The number and the alerts are what to act on.
 
 ### 8.2 LRAN Status and LRAN Configuration (admin only)
 
@@ -528,8 +528,8 @@ cannot save to a YAML dashboard.
 | `entities`, read-only rows | `custom:fluvy-entities-card` |
 | `entities`, settable rows | `custom:fluvy-helpers-card`: a stepper per number, chips per select, a switch per boolean |
 | `entities`, button and script rows | `custom:fluvy-actions-card` |
-| The *Restore defaults* button row | `custom:fluvy-scene-card`, whose `tap_action` keeps the confirmation |
-| `gauge` | `custom:fluvy-gauge-card`, `gauge: ring` |
+| The *Restore defaults* button row | `custom:fluvy-scenes-card` with one tile, whose `tap_action` keeps the confirmation. `fluvy-scene-card` presses its button and ignores `tap_action` |
+| `gauge` | `custom:fluvy-gauge-card`, `gauge: battery` |
 | `history-graph`, and a line `statistics-graph` up to 90 days | `custom:fluvy-chart-card` |
 | A bar `statistics-graph` of `change` | `custom:fluvy-history-bars-card` |
 | The gate's actions | `custom:fluvy-scenes-card`, one tile per action, each with its own `tap_action` |
@@ -780,7 +780,7 @@ from the YAML.
 | **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Met 2026-10-28** against the sandbox, once its bridge ran 760e9a3 |
 | **H10** | Port to production | H1–H9, H11, H12; bridge **B6** | §12's procedure, then GL8 |
 | **H11** | Fluvy: install it on the sandbox, and move the three dashboards to its cards (§2) | H2, H3; F1 | Fluvy v1.11.3 is installed through HACS, and its theme applies everywhere. Each card in the three dashboards is a Fluvy card where Fluvy has one, with the entity IDs unchanged, and `check_entities.py` passes. Each view renders in a screenshot. The plan names each LRAN template, banner or automation that Fluvy makes redundant, and each porting issue found |
-| **H12** | The dashboard rework of 2026-11-01: Gate for operation only, Vehicles, Temperature view, Gate Pier Lights, both LRAN dashboards renamed and admin only; bridge task F5 | H11 | Each gate action draws `DRY_RUN` with relay dry-run on. Each crossing case in §8.4 reads as the table says, with injected events, and survives a restart. Each gate status renders its words. **Partly met 2026-11-01**: all of those pass, the actions through service calls and not tile taps. Not yet: a tap on each tile, a real crossing, and F5 on a flashed bridge |
+| **H12** | The dashboard rework of 2026-11-01: Gate for operation only, Vehicles, Temperature view, Gate Pier Lights, both LRAN dashboards renamed and admin only; bridge task F5 | H11 | Each gate action draws `DRY_RUN` with relay dry-run on. Each crossing case in §8.4 reads as the table says, with injected events, and survives a restart. Each gate status renders its words. **Met 2026-11-02**: all of those pass, including real tile taps, F5 on a flashed bridge, and each §8.4 crossing case on real inputs |
 
 **F1 to F4 are bridge tasks** (§5), built 2026-10-28. H2's Gate dashboard moved to the
 cover and hold switch in the same change. H6's reminders read `sensor.gatelink_gate` and
@@ -817,6 +817,7 @@ cover when it is.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.20 | 2026-11-02 | §8.1 and §8.3: the SOC gauge is Fluvy's `battery` gauge, by operator choice. §8.3: *Restore defaults* moved to a scenes card, because the scene card sent it with no dialog. |
 | 0.19 | 2026-11-01 | By operator choice: §8.2's LRAN Configuration has GateLink, WellLink, Bridge and Notification views, and only a system-wide name carries LRAN. §7.3 sends an alert or reminder to two additional-recipient lists when its own switch is on (§7.1), through a new site script (§6). §8.1 centres the status, prefixes it *Gate Status:*, and moves the link below the actions. §8.4 titles the log |
 | 0.18 | 2026-11-01 | By operator choice, the dashboard rework, H12. §2 has four dashboards, and §6's block registers them. §8.1's Gate is operation only, §8.2 gains a Temperature view and *Gate Pier Lights*, and §8.4 is new. §5 adds F5. §9.4's counter counts a confirmed crossing, held-open crossings included. §7.4 and §10 add the new sensors. §8.3 records what the chart card did with mixed units |
 | 0.1 | 2026-10-25 | First draft. Operator choices recorded in §2, including units and no SMS; the sandbox survey in §4; bridge gaps F1–F3; tasks H0–H10 |

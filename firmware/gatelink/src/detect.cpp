@@ -51,6 +51,7 @@ void Detector::first_event(uint32_t now_ms, const GateContext& g, const DetectPa
 void Detector::resolve(Direction dir, bool traversal, uint32_t now_ms, const GateContext& g,
                        PushList* out) {
   last_direction_ = dir;
+  crossed_        = traversal;
   if (traversal) {
     traversal_seen_ = true;
     traversal_ms_   = now_ms;
@@ -117,7 +118,10 @@ void Detector::update(uint8_t inputs, uint32_t now_ms, const GateContext& g,
     case Phase::Settling:
       // Resolved already, so the alert carries the direction and needs no follow-up.
       if (late_alert) first_event(now_ms, g, p, last_direction_, out);
-      if (quiet_) phase_ = Phase::Idle;
+      // R-3.2.3f - a crossing needs the sensors clear for idle_ms, because a small vehicle
+      // pulses SAFETY again on its way out. A partial has already waited that out, or was
+      // cut off by the window with a vehicle still on the sensor.
+      if (quiet_ && (!crossed_ || now_ms - quiet_since_ms_ >= p.idle_ms)) phase_ = Phase::Idle;
       break;
   }
 }

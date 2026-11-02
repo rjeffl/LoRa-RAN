@@ -901,3 +901,136 @@ email on and both lists set: `vehicle_while_held` with its switch on reached the
 device and `lran_site_email_to`, and `bms_alarm` with its switch off reached only the admin's
 channels. The operator's sandbox devices received those two test pushes, and the switches,
 lists and email went back to off and empty.
+
+## 2026-11-02 — H12's post-soak checks: F5 on a flashed bridge, and three reasons the config numbers read `unknown`
+
+**F5 is on a flashed bridge.** `firmware/bridge` gained a `heltec-sandbox` env, flashed over USB
+from `a9bc78b` at 13:26 EST. `lran/bridge/version` reports that commit, and
+`tools/ha/check_entities.py` passes: 238 entity IDs and 2 prefixes. GateLink answered its first
+poll about a second after the bridge reconnected, so the silence after a bridge flash did not
+recur this time.
+
+**`binary_sensor.gatelink_load_output` reads `off`, matching `load_on: false` and `load_ma: 0`.**
+That agrees with the MQTT document only. Nothing here has compared it with the real load output.
+
+**Request configuration reaches the node, and the bridge throws the answer away.** Pressed at
+13:29:24, it was acked with `result` 0, and two `CONFIG_ACK` frames arrived with `st` 0:
+
+```text
+13:29:26  lran/gatelink/cmd/ack  {"outcome":"acked","seq":1,"attempts":1,"result":0,"detail":0}
+13:29:27  rxlog  "d":"rx","peer":1,"type":11,"schema":18,"seq":5,"st":0
+13:29:28  rxlog  "d":"rx","peer":1,"type":11,"schema":18,"seq":6,"st":0
+```
+
+No `config/state` followed. `ConfigPath::on_config_ack()` (`config_path.cpp:269`) counts any
+`CONFIG_ACK` outside `AwaitingAck` and `AwaitingReadback` as `ack_ignored`, and a
+`REQUEST_CONFIG` goes through the command path, so the config path is idle when its answer
+arrives. That answers the bridge handoff's question from 2026-10-28: the readback arrives and
+goes unused.
+
+**A bridge restart blanks the node's rows, and nothing asks again.** The readback mirror is RAM.
+`RebootWatch` takes the first `STATUS` after a bridge boot as its reference and reports nothing,
+so a readback waits for a node reboot or a `CONFIG_CHANGE`. The retained `config/state` from
+13:26:56 carried `poll_interval_s` and `deployed` and null node rows.
+
+**A `get_all` fills every row but three.** Published to
+`lran/gatelink/config/set` at 13:29:52, it answered 37 rows in about 3 s, all `ok`. `config/state`
+then held `buzzer_enable`, `inject_spacing_ms` and `watchdog_timeout_s` as null, though the
+`config/ack` gave them 0, 1000 and 10. The mirror holds `kMirrorRows` = 32 (`config_store.h:285`)
+and GateLink reports 35 node rows, and those three are the last by parameter ID. Its comment
+sizes the mirror against GateLink's count of 25 from W10. HA now shows
+`number.gatelink_inject_spacing_ms`, `number.gatelink_watchdog_timeout_s` and
+`switch.gatelink_buzzer_enable` as `unknown`, and every other GateLink number has a value.
+
+**The bridge's retained `lran/gatelink/gate/state` has read `open_countdown` since 13:13:17**, with
+`in_open` and `in_moving` true and `input_bits` 3, while the bench's inputs were reported tied to
+their inactive state. The state did not change for at least 16 minutes. Not explained.
+
+**All three defects are fixed and checked on the bench** (bridge engineering log, same date).
+After the flash, `config/state` filled by itself in about 5 s, at 37 rows with none null. Request
+configuration at 13:54:08 was acked, and `config/state` followed at 13:54:12, with
+`cfg_unsolicited_readbacks` at 1.
+
+**The gate's `input_bits` 3 cleared once IN1 and IN2 were on +12 V**, by operator report. The gate
+went to `closed` with `input_bits` 0 at 13:36:15.
+
+**`load_on` follows the MPPT's streetlight mode, and the terminals do not follow `load_on`.**
+VictronConnect shows streetlight with BatteryLife, by operator report. `load_on` went true at
+13:38:57, after the operator disconnected the PV, with `pv_mv` at 10. So a disconnect does change
+it, after a delay nobody has measured. With the load reported on, the operator metered battery
+voltage from Load+ to Battery-, none from Load+ to Load-, and Load- to Battery- open. The output
+carried 4 A on an earlier date (GateLink log, 2026-10-05 to 2026-10-15), and the operator reports
+it worked before the soak. It fits a low-side switch that is not conducting, which no Victron
+document consulted here confirms. Cause not known. `load_ma` read 0 in all 117 logged documents,
+`0xEDAD` answered 0, and the log holds no MPPT write during the soak. **So *Gate Pier Lights* shows
+what the controller claims, not whether the output is live.**
+HEX `0xEDA8` answered `0x01` at 13:54:22, while `load_on` read true. Why it went false at 06:53
+with no panel connected is still not known. HA has no setting for these modes, and the proxy
+reads them: `0xEDAB` answered `0x81`. This entry does not decode the other registers read, because
+no reference was checked for them.
+
+**The load output was not faulty: the MPPT's MOSFET needs a real load to turn on**, by operator
+test. With a real load on the terminals the output worked, and the operator then restored the
+MPPT's load configuration. A meter alone reads nothing across Load+ and Load- even with the
+controller reporting on, so the earlier reading does not show a fault, and the causes raised
+above do not apply. `load_on` and *Gate Pier Lights* can only be checked at the terminals with
+a load connected.
+
+**The three actions pass as real tile taps.** With relay dry-run on, at 14:30:31 to 14:30:43, each
+drew `result` 16, and the operator saw no relay move. With it off, at 14:32:55 to 14:33:09, each
+drew `result` 0 and pulsed as expected, by operator report, with K4 heard but not metered. The firmware
+maps Open to K3, Hold to K1, and Close to K2 then K4. Dry-run is back off.
+
+**Restore defaults fired with no dialog.** The tap at 14:35:07 reached `config/set`, and every row of
+`config/state` afterwards matched the 13:56 document, PHY overrides included. Fluvy's scene card
+calls `button.press` itself and never reads `tap_action`. A scenes card with one tile showed the
+dialog, and cancelling sent nothing.
+
+**Real inputs have proved only the stop at the first sensor.** Four IN3 detections, events 3 to 6,
+each logged *Vehicle started entering … but did not cross* with the count at 0. My first prompt
+had the operator overlap the sensors, which a vehicle does not do. The operator corrected it: a real
+entry is one sensor on and off, then the other. `detect.cpp` reads rising edges only, so that order
+resolves as an entry. IN4 did not rise on any run, so no crossing has been seen.
+
+**IN4 does not assert when disconnected.** It rests near 12 V and drops only to about 4.6 V
+(operator's meter). IN3 does assert. Event 6 arrived during that test, at 14:55:32, with
+`input_bits` 4, so the wire being moved may have reached IN3. Which terminal it was is not known,
+and neither is the cause.
+
+**A small vehicle leaving may log a false partial.** The detector goes idle once both sensors clear
+after resolving, so a second SAFETY pulse starts a new detection. This comes from reading the code,
+and no run has shown it.
+
+## 2026-11-02 — H12's real crossings pass, once IN4's FET was replaced
+
+**Every crossing case in plan §8.4 has passed on real inputs.** The operator replaced IN4's
+2N7000, and the runs were one sensor on and off, then the other (GateLink log, same date).
+
+| Case | Time | Log entry | Count |
+|---|---|---|---|
+| Entering | 16:07 | *Vehicle entered at 4:07 PM* | 1 |
+| Leaving | 16:11 | *Vehicle left at 4:11 PM* | 2 |
+| Small vehicle leaving, old firmware | 16:12 | *Vehicle left at 4:12 PM*, and a false *Vehicle started entering at 4:12 PM but did not cross* | 3 |
+| Small vehicle entering | 16:13 | *Vehicle entered at 4:13 PM* | 4 |
+| Small vehicle leaving, R-3.2.3f | 16:20 | *Vehicle left at 4:20 PM* | 5 |
+| Gate held | 16:23 | *Vehicle left at 4:23 PM, gate held open* | 6 |
+| IN4 alone, twice | 16:09 | *Vehicle started leaving at 4:09 PM but did not cross* | unchanged |
+
+**The gate held entry reads red** in a screenshot of Vehicles. The operator ran it leaving, not
+entering as prompted. `lran_1_vehicle_while_held_open` triggered at 16:23:28, and the operator
+reports the push reached the Mac.
+
+**The hard-shutdown latch cannot be snoozed now**, by operator decision, so its row matches FIRE
+and the held-open vehicle. A snooze only hides the row, and the push still goes. That the card
+now offers no snooze has not been looked at in the frontend.
+
+**`load_on` and *Gate Pier Lights* match the terminals with the load on.** With the operator's
+4+ A load connected and the PV off, `binary_sensor.gatelink_load_output` went `on` at 16:27:27,
+with `load_on` true and `load_ma` 4300. After the PV went back on, `load_ma` read 0 at 16:32:26,
+and `load_on` and the entity went false at 16:33:26. Nobody has reported when the load itself
+dropped out. Why `load_on` went false at 06:53 this morning with no panel connected is still
+not known.
+
+**Added later on 2026-11-02, from the operator.** The load went off when the PV came back. The
+operator has no exact time for it, and it coincided with the PV on event. The SOC gauge's battery
+icon has been viewed and is acceptable.

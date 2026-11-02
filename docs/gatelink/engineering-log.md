@@ -1254,3 +1254,27 @@ button to see its state. The gate state stayed `closed`.
 metered 15.27 V, under heavy overcast, by operator report. Why the MPPT's terminals read about
 2 V less than the disconnected panel was not looked into. **B1 and the first real `ah_drawn`
 have no result**, and both wait for more light.
+
+## 2026-11-02 — IN4's 2N7000 was bad, and a small vehicle leaving logged a false entry
+
+**IN4 not asserting was a bad 2N7000.** It showed 200 kΩ across drain and source, by operator's
+meter, and IN4 has asserted since the operator replaced it. The 4.6 V in the HA log, with the wire
+off (same date), has not recurred as a problem. What damaged the part is not known.
+
+**IN3 to IN6 then read correctly from real inputs**, from the boot at 16:06:52: `input_bits` 8 for
+IN4, `fire_asserted` at 24 with IN4 still held, and `hard_shutdown` at 40, which took the gate to
+`fault` until IN6 cleared.
+
+**A small vehicle leaving logged a false entry, as the HA handoff predicted from `detect.cpp`.**
+IN4, IN3, IN3 again, at 16:12:40: event 8 resolved `exit`, and the second IN3 pulse at 16:12:52
+started event 9, which resolved `undetermined`. The small vehicle entering had no such problem,
+because the repeat pulse comes before the crossing resolves (event 10, `entry`).
+
+**The operator chose the firmware fix, R-3.2.3f (PRD v0.29).** After a traversal, `Settling` waits
+for both sensors to stay clear for `detect_sequence_idle_ms`. Two of the five new `test_detect`
+cases fail without the change. Flashed over USB from `2e50f5e`, booted at 16:16:55. The same
+sequence at 16:20:54 logged event 2, `exit`, with no second detection.
+
+**A held gate alerted from real inputs.** IN1 asserted with IN2 clear read `open_held`, `manual`,
+at 16:22:21. IN4 then IN3 sent `vehicle_while_held_open`, then its `exit` follow-up at 16:23:29.
+

@@ -141,6 +141,11 @@ bool status_reports_config_change(const lran::Header& hdr, const uint8_t* payloa
 // says BOOT. app_task alone calls this, so it takes no lock.
 class RebootWatch {
  public:
+  // True once on_status() has taken a reading from `src`. The mirror is RAM, so a bridge
+  // that has not heard a node yet holds nothing for it and owes a readback, though the
+  // node did not reboot. Without one, config/state keeps null rows until the node reboots.
+  bool heard(lran::NodeId src) const;
+
   // True when this STATUS shows `src` rebooted since its last one. `rx_ms` is the
   // bridge's receive time.
   bool on_status(const lran::Header& hdr, const uint8_t* payload, size_t len,
@@ -185,6 +190,11 @@ struct ConfigStep {
   lran::CtxId                ctx_id = 0;
 
   // Resolve
+  // A readback that answers no set, so it publishes `config/state` and no `config/ack`.
+  bool           readback_only = false;
+  // The node's answer began the transaction, and a request did not. An abandoned one has
+  // not yet been asked for again (spec 7.4.1).
+  bool           unsolicited   = false;
   ConfigOutcome  op_outcome = ConfigOutcome::Pending;
   lran::ConfigOp op         = lran::ConfigOp::Set;
   AckPersist     persist    = AckPersist::Unknown;
@@ -209,7 +219,8 @@ struct ConfigStats {
   // Spec 7.4.1's bridge-local counter, and deliberately NOT a spec 14.1 one: nothing was
   // discarded on the wire and schema 0xF0 is a node health schema.
   uint32_t config_readback_abandoned = 0;
-  uint32_t ack_ignored               = 0;  // wrong src, or nothing in flight
+  uint32_t ack_ignored               = 0;  // wrong src, or a transaction it does not fit
+  uint32_t unsolicited_readbacks     = 0;  // answers that began a transaction themselves
   uint32_t staging_overflow          = 0;  // an answer larger than this bridge can hold
 };
 
@@ -241,6 +252,11 @@ class ConfigPath {
   // A CONFIG_ACK passed the receive ladder. `ack_seq` is the header's `seq`: a solicited
   // answer repeats the request's on every message, and an unsolicited readback takes one
   // from the node's status space per message (D45), so it is NOT matched for a readback.
+  //
+  // An idle path takes an unsolicited GET_ALL as a readback of its own. REQUEST_CONFIG goes
+  // through the command path, so this is where its answer arrives (spec 7.4). The answer
+  // must start at the table's first row: a walk is ascending (spec 7.4.1), so a later
+  // first row means its first message was lost, and the mirror must not take the rest.
   void on_config_ack(lran::NodeId src, const lran::schema::NodeConfigAckV1& ack,
                      lran::Seq ack_seq, uint32_t now_ms);
 
@@ -260,6 +276,7 @@ class ConfigPath {
   void finish(ConfigOutcome outcome);
 
   ConfigJob   job_{};
+  bool        unsolicited_ = false;
   Phase       phase_  = Phase::Idle;
   lran::Seq   seq_    = 0;
   lran::CtxId ctx_    = 0;

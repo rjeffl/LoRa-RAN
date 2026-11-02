@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks.**
+read, for H12's post-soak checks, and on 2026-11-02 at the end of H12.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -26,14 +26,12 @@ Continue from docs/ha/HANDOFF.md: task H8.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5, H6, H7, H9 and H11 are done, and H12 is built. **H12's
-post-soak checks are next.** H8 then builds, and the sandbox can verify its push but not
-its trigger, because that needs a production `person` entity. H10, the port to production,
-waits on bridge task B6.
+cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 builds next, and the sandbox can verify its
+push but not its trigger, because that needs a production `person` entity. H10, the port to
+production, waits on bridge task B6.
 
 | Task | Read |
 |---|---|
-| **H12** Post-soak checks | *The next job*; plan §8, §11's H12 row; engineering log, 2026-11-01 |
 | **H8** Tier 5 approach prompt | Plan §9.5, §7.3; §11's H8 row |
 | **H10** Port to production | Plan §12; §8.3's porting issues; §11's H10 row |
 
@@ -43,44 +41,28 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**The soak has ended, so these can run now.** The bench is set up for them (*Hardware state*).
-
-1. **Flash the sandbox bridge from a committed tree, and check F5.** The bridge runs
-   `addfd6b`, which predates F5 (`91953a7`). `binary_sensor.gatelink_load_output` should
-   appear, and `tools/ha/check_entities.py` should pass, which it cannot until then. Check
-   *Gate Pier Lights* on LRAN Status against the real load output. GateLink has twice gone
-   silent after a bridge flash until restarted (GateLink handoff, *Open*).
-   - **`firmware/bridge` has no sandbox environment.** `heltec` reads the root `secrets.h`,
-     which is production, so its image would leave the sandbox broker. Add one as
-     `gatelink-sandbox` does, in its own commit, and flash that. Only
-     `firmware/gatelink/src/main.cpp` reads `LRAN_SECRETS_FILE` today, so the bridge's
-     source needs the same change.
-   - **The bridge is on USB today**, so this flash needs no OTA password. An OTA upload
-     stays the operator's.
-   - **`load_on` went false at 06:53 on 2026-11-02 with no panel connected**, and `load_ma`
-     read 0 (GateLink engineering log, 2026-11-02). Nothing explains it yet, so expect the
-     check to meet it.
-2. **Find out why GateLink's config numbers read `unknown`.** 28 of 29 did, from before this
-   work began, and Request configuration did not fill them. LRAN Configuration shows the
-   same gap, so this comes before production. **Start at the bridge:** the overnight log
-   holds `lran/gatelink/config/state` only as retained replays, with the rest of its rows
-   null. Request configuration at 20:53:17 on 2026-11-01 was acked with `result` 0, and no
-   document followed (GateLink engineering log, 2026-11-02).
-3. **Run a real crossing, each way, and one that stops at the first sensor.** The log infers
-   direction from the first event's `input_bits` (plan §8.4), and only injected events have
-   exercised that. Confirm the words, the count and the red text with the gate held. The
-   sensors and the gate's state decide how, so agree it with the operator.
-4. **The operator taps each thing nothing here can tap**: the three actions, with relay
-   dry-run on, reading `cmd/ack` for `result` 16; and Restore defaults, cancelling at its
-   dialog.
-
-**The operator should confirm two defaults**, set while their answers were outstanding:
-Vehicles is open to every user, and the SOC gauge is a ring with no bands. **One decision
-is open**: whether whoever views the alerts can snooze them, now that the card is on LRAN
-Status. The review brief recommends `snooze: "off"` on the hard-shutdown latch at least.
+**Build H8, the Tier 5 approach prompt** (plan §9.5, §7.3, and §11's H8 row). The sandbox has no
+production `person` entity, so verify the push there and leave the trigger for production.
 
 ## What the last session established
 
+- **H12 is met** (plan §11; engineering log, 2026-11-02, real crossings). Each §8.4 crossing case
+  passed on real inputs. With a 4+ A load, *Gate Pier Lights* read on with `load_ma` 4300, and off
+  after the PV returned. The operator saw the load go off with the PV, with no exact time.
+- **R-3.2.3f changed detection** (PRD v0.29; GateLink log, 2026-11-02). After a crossing, a new
+  detection waits until both sensors have been clear for `detect_sequence_idle_ms`. A second
+  vehicle inside that time is not counted, and raises no second held-open alert.
+- **IN4's fault was a bad 2N7000**, 200 kΩ across drain and source by the operator's meter, now
+  replaced. What damaged it is not known.
+- **The SOC gauge's battery icon is accepted**, viewed by the operator.
+- **The hard-shutdown latch cannot be snoozed now**, by operator decision. Nobody has looked at the
+  card in the frontend to confirm it offers no snooze.
+
+- **Three bridge defects left GateLink's config numbers `unknown`, and all three are fixed**
+  (bridge Impl Plan §6.7.7; engineering log, 2026-11-02). `firmware/bridge` also has a
+  `heltec-sandbox` env now, which is the one to flash on this bench.
+- **Fluvy's scene card ignores `tap_action`**, so Restore defaults fired with no dialog. It ran once
+  at 14:35:07 on 2026-11-02 and changed no value. It is on a scenes card now (plan §8.3).
 - **LRAN Configuration has GateLink, WellLink, Bridge and Notification views**, and each alert
   and reminder has a switch that also sends it to two lists of devices and emails (plan v0.19, §7.3,
   §8.2; engineering log, 2026-11-01, Configuration views). **A production `site.yaml` needs
@@ -209,8 +191,8 @@ Its source answers what the docs leave out, such as the alert matcher in
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11. H12 is built, with its post-soak checks open |
-| Queue | H12's checks, H8, then H10 at the port. Bridge tasks F1 to F5 are built (plan §5) |
+| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11, H12 |
+| Queue | H8, then H10 at the port. Bridge tasks F1 to F5 are built (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
@@ -269,8 +251,8 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | The sandbox's `/config`, shared over Samba | the mount | mounted at `/Volumes/config` as `ha-samba-user` | — | — | mounted on the macOS machine |
 | The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | beta flags on: beta features and dashboard screenshots, set in its web UI's *Server Settings* | running; its config check read `valid` on 2026-10-26 |
 | The Puppet app on the sandbox | Puppet | app slug `0f1cc410_puppet`, port 10000 | Puppet 2.6.0 | a long-lived token in its `access_token` option | running; renders for ha-mcp's screenshots. **Port 10000 takes no authentication** |
-| GateLink on the operator's bench | the StamPLC | `firmware/gatelink -e gatelink-sandbox` | see the GateLink handoff | — | **Inputs tied to their inactive state for live testing** (operator, 2026-11-02), on the pack, the MPPT and a panel, with USB attached at `/dev/cu.usbmodem1101` |
-| The bridge | the bridge board | `firmware/bridge`, running `addfd6b` | see the bridge handoff | — | **On USB** at `/dev/cu.usbserial-0001` (2026-11-02) |
+| GateLink on the operator's bench | the StamPLC | `firmware/gatelink -e gatelink-sandbox` | see the GateLink handoff | — | **Inputs wired to their inactive state for live testing** (operator, 2026-11-02), on the pack and the MPPT, with USB attached at `/dev/cu.usbmodem1101`. PV connected and a 4+ A load on the MPPT's load output when last reported. **Its gate relays pulse on a command unless dry-run is on** |
+| The bridge | the bridge board | `firmware/bridge -e heltec-sandbox` | see the bridge handoff | — | **On USB** at `/dev/cu.usbserial-0001` (2026-11-02). `lran/bridge/version` gives its commit |
 | Soak logger | `bench.log` | `~/lran-soak-r64c`, `bench.py run --mqtt` against `secrets.sandbox.h` | — | — | Still running from 2026-11-01, started by the operator. It logs `lran/#`, so it can read these checks too |
 
 **The sandbox `site.yaml` exists only on the sandbox.** It pushes to the Mac only and sends
@@ -292,6 +274,10 @@ those two targets changed, which plan §7.3 names.
 
 ## Traps that cost real time here
 
+- **The MPPT's load output reads dead on a meter alone.** Its MOSFET needs a real load to turn on
+  (operator, 2026-11-02), so no voltage across Load+ and Load- with `load_on` true is not a fault.
+- **`fluvy-scene-card` ignores `tap_action`.** A confirmation on one does nothing. Use
+  `fluvy-scenes-card`, which honours it (plan §8.3).
 - **After a Fluvy install or update, restart the Puppet app** (`0f1cc410_puppet`). Its
   browser keeps the old frontend, and every Fluvy card renders as an error placeholder.
 - **A Fluvy heading needs `grid_options: {columns: full}`**, or it takes one grid cell and
@@ -331,6 +317,13 @@ those two targets changed, which plan §7.3 names.
 
 ## Open, and not closable from here
 
+- **Why `load_on` went false at 06:53 on 2026-11-02 with no panel connected is not known.**
+- **`boot_count` reads null on `lran/gatelink/node/state`**, and the Events view charts boots per
+  day from it. Not chased (2026-11-02).
+- **A requested readback whose first message is lost can still mirror a partial table.** Only an
+  answer that arrives unrequested is checked for its first row (`ConfigPath::on_config_ack`).
+- **A comment in `lran/config/table.h` counts GateLink's block as 20 rows**, and GateLink reports
+  25 of its own beside node-common's 10. Fix it when that file is next edited.
 - **A Fluvy update can change a card under a YAML dashboard nobody re-checks**, so each
   update needs a render of every view on the sandbox before production takes it.
 - **HA's own pages are unverified under Fluvy.** They need a browser, because Puppet renders

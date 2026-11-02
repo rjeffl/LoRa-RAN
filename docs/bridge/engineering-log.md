@@ -2047,3 +2047,18 @@ The bridge was flashed over OTA with `addfd6b`. Once GateLink was heard again, H
 Restore defaults drew `config/ack` with `persist` `persisted` in 6.7 s, and its results
 read `deployed` 1. `config/state` then listed `deployed` and the six PHY rows as the only
 overrides, and `switch.gatelink_deployed` stayed on.
+
+## 2026-11-02 — Why GateLink's config rows stayed null: three bridge defects
+
+**HA's H12 check found them**, and the HA engineering log has the bench run. The 2026-10-28
+question is answered: `REQUEST_CONFIG`'s readback arrives, and the bridge discarded it.
+
+- **`ConfigPath` was idle when the answer arrived**, because the command path sends
+  `REQUEST_CONFIG`. It counted both frames as `ack_ignored`, and no topic published that counter.
+- **A bridge restart blanked the node's rows, and nothing asked again.** `RebootWatch` reports
+  nothing on its first reading, so a readback waited for the node's next reboot.
+- **`kMirrorRows` was 32, and GateLink reports 35 node rows.** The comment said an overflow was
+  counted, and the code skipped the row without counting it.
+
+The fixes are in Impl Plan §6.7.7. `diag/cmd/state` now carries six `cfg_` counters.
+

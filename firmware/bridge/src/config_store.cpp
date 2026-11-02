@@ -400,7 +400,10 @@ void ConfigStore::note_set_results(lran::NodeId node,
       }
       if (slot == nullptr && !mirror_[index][k].set) slot = &mirror_[index][k];
     }
-    if (slot == nullptr) continue;  // more rows than this bridge mirrors
+    if (slot == nullptr) {  // more rows than this bridge mirrors
+      ++mirror_overflow_;
+      continue;
+    }
     slot->id          = e.param_id;
     slot->value       = v;
     slot->is_override = e.is_override;
