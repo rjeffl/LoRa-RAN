@@ -87,11 +87,6 @@ bridge change was needed.
 
 ### 1. Bridge defects the bench can reach
 
-- **`heltec_ota` puts `LRAN_OTA_PASSWORD` in `espota`'s argv for the upload**, against
-  [`traps.md`](./traps.md)'s rule. `espota` has no other way in. Not fixed.
-- **Retained `lran/bridge/version` reads `pending_verify` after a good OTA until the next connect**,
-  because the bridge publishes it only on connect.
-
 **Done.** These came from B4b's bench runs. The three air-timing defects and the state
 mirror's readback were fixed on 2026-09-25. The lost `BOOT` event, the OTA gap and the
 three restart edges were fixed on 2026-09-26. The first restart edge ran on the bench the
@@ -99,6 +94,10 @@ same day. The other two stay host-tested, because one needs a reset timed inside
 trial's restore and the other a flag set while NVS refuses the write.
 
 - **An answer lost before the reset was not reproduced.** Group 7 carries it.
+- **`heltec_ota` puts `LRAN_OTA_PASSWORD` in `espota`'s argv for the upload**, against
+  [`traps.md`](./traps.md)'s rule. `espota` has no other way in. Not fixed.
+- **Retained `lran/bridge/version` reads `pending_verify` after a good OTA until the next connect**,
+  because the bridge publishes it only on connect.
 
 ### 2. BF-27's simulators, and the watchdog's reach
 
