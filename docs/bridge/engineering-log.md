@@ -2116,3 +2116,10 @@ production master, and a bridge publishes discovery on every boot and reconnect,
 the bench registers the entities in production HA. The plan had said B6. Production's MQTT integration is
 already connected, by operator report. At the flash, read `config/state` against the defaults and clear
 only what differs, with `deployed` kept at 1 (operator, same date).
+
+## 2026-11-02 — The production broker accepts the login
+
+**The refusal in the entry above is resolved.** The operator found the earlier user entry had not
+been saved on the broker, fixed it and restarted the broker. `bench.py run --mqtt`, reading the root
+`secrets.h`, then logged `<connected, subscribed lran/#>`. It published nothing, and no `lran/`
+message arrived, which fits no production image having run.

@@ -57,8 +57,8 @@ went on under heavy overcast and could not start the charger, so B1 waits for su
 checks run first (`docs/ha/HANDOFF.md`).
 
 **Updated 2026-11-02 by the production-readiness session.** The operator cleared the items before
-B3 (engineering log, 2026-11-02, *What stands before B3*). B3 no longer waits for sun. The
-production broker's login refusal is the one blocker, in the bridge handoff's *Start here*.
+B3 (engineering log, 2026-11-02, *What stands before B3*). B3 no longer waits for sun, and
+the production broker accepts the login.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -74,8 +74,7 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The firmware list is finished, and B3 is next, once the production broker accepts the login**
-(the bridge handoff's *Start here*). B3's GateLink flash is its last on the bench, and
+**The firmware list is finished, and B3 is next.** B3's GateLink flash is its last on the bench, and
 [`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders the
 rest. `gatelink` builds the production image from the root `secrets.h`. `gatelink-sandbox`
 builds the bench image from `secrets.sandbox.h`, and only that one talks to the sandbox bridge.

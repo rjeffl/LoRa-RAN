@@ -29,16 +29,9 @@ no session of their own. Neither remaining group needs GateLink at the gate.
 |---|---|---|
 | **5. Documents and tools** | Nothing | Host only |
 
-**The next firmware step is the deployment brief's B3, and one thing blocks it: the production
-broker refused the root `secrets.h`'s login** on 2026-11-02, with `CONNACK` code 5, not authorized.
-Check that user on the broker, or correct `MQTT_USER` and `MQTT_PASSWORD`. Then rerun the test,
-which publishes nothing:
-
-```text
-~/.platformio/penv/bin/python tools/bench/bench.py --dir <scratch dir> run --mqtt
-```
-
-Look for `<connected, subscribed lran/#>` in the log. B3 is one session of its own.
+**The next firmware step is the deployment brief's B3, in a session of its own.** The production
+broker accepts the root `secrets.h`'s login since the operator fixed the broker user on 2026-11-02
+(engineering log, same date).
 
 **Spec v0.19's bridge side is done** (deployment brief's R1; engineering log, 2026-11-02, the two
 R1 entries). D85 passed on the air. D84 stays host-tested, because the real pack reports all four
@@ -74,7 +67,7 @@ from a new `ctx_id`, because a roll makes one (spec §10.1).
 **B6 and B7 need GateLink at the gate**, and GateLink's GL6 gates B6. GateLink's handoff
 orders the node's side: a bench window with the MPPT and the WattCycle pack, then GL2, then
 the install visit. Group 8's bridge items are done. Before that visit the operator still
-has to get the production `secrets.h`'s login accepted (group 8, item 6). The brief's B3 moves the
+flashes the production images (group 8, item 6). The brief's B3 moves the
 bridge to the production broker on the bench, before B6 (Impl Plan §11.3).
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
@@ -201,8 +194,7 @@ first. Left:
 6. **The production `secrets.h` exists from 2026-10-31**, and the bench file is now
    `secrets.sandbox.h`, both gitignored. The bridge and GateLink are both built from the
    root `secrets.h`, and GateLink's production flash is its last before it leaves the
-   bench. Neither release image is built yet, and the broker refused this file's login on
-   2026-11-02 (*Start here*). The bridge's first OTA upload of a production image
+   bench. Neither release image is built yet. The bridge's first OTA upload of a production image
    authenticates with the sandbox `OTA_PASSWORD`, because the running image checks the
    password it was built with. A password must not reach argv, a log or a committed file
    from then on ([`traps.md`](./traps.md)).
