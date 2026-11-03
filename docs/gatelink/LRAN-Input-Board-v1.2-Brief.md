@@ -11,7 +11,7 @@
 GateLink on the repaired v1.1 board. D91 tracks v1.2's content and the date it is built. The
 recommendations come from the input-board session of 2026-11-03, after the operator found Q1 and Q2
 faulty. That session said rev 1.2 could be reworked on the existing perfboard. The operator rejected that:
-the changes are more extensive than a hand-built perf board will survive.
+the changes are more extensive than a hand-built perf board will survive, so v1.2 starts from scratch.
 
 The cause of the Q1 and Q2 failures is not established, so these changes do not rest on a known cause.
 M27 tracks the tests that could narrow it.
@@ -54,6 +54,10 @@ been reconciled.
 | 6 | Use machine-pin TO-92 sockets, or at least carry spare FETs | Makes a repair at the gate quick, though sockets can corrode outdoors |
 | 7 | Clean the flux and conformal coat the board | Prevents leakage at the new high-impedance gates |
 
+**Change 3 can also reach v1.1**, because the operator can replace the series resistors without a full
+rebuild. The engineering log, 2026-11-03, *IN5 and IN6 have no inhibit today*, has the estimates. D89 records
+the choice.
+
 **Buy the FETs from an authorized distributor.** Poor-quality parts are one of the candidate causes.
 
 **Change the bench method.** Use a toggle switch for each input instead of a moving lead, and drive IN3 to
@@ -87,8 +91,8 @@ The session did not cover these:
 
 - The PCB's outline, mounting and connectors in the enclosure.
 - Whether the sockets in change 6 stay, given the outdoor corrosion risk.
-- Whether v1.2 needs a way to disconnect a failed stage, given D90's firmware mask and that a mask cannot
-  protect the 1050.
+- Whether v1.2 needs a way to disconnect a failed stage, given D90's firmware inhibit and that an inhibit
+  cannot protect the 1050.
 - The date v1.2 is built and swapped in, which the operator picks later.
 
 **Falsified by:** a v1.2 stage that reads wrongly at the 1050's 4.6 V, or an M27 result that points away from

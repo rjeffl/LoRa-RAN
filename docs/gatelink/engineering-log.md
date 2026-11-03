@@ -1579,3 +1579,33 @@ ever been observed on IN5. The drives differ like this (operator):
 **The rev 1.2 recommendations are now in
 [`LRAN-Input-Board-v1.2-Brief`](./LRAN-Input-Board-v1.2-Brief.md)**, taken from the session of 2026-11-03.
 **D89 to D91 and M27 are in the Decision Register.**
+
+## 2026-11-03 — IN5 and IN6 have no inhibit today, so D90 covers all four board inputs
+
+**The operator recalled being told that IN5 and IN6 already have an inhibit, and the firmware does not have
+one.** Three related things exist, from reading the code:
+
+- `node_flags` bit 7 is in the spec, and the bridge marks the FIRE and hard-shutdown entities unavailable
+  while it is set. GateLink never sets it (D83, R-3.5l).
+- `kInputsWired` in `gate_io.h` is a compile-time constant, so changing it takes a reflash.
+- The console's `inject` command needs USB, and a reset clears it.
+
+The earlier session described the bridge's side as ready and still recommended the mask. **By the operator's
+standing instruction for this case, D90 now covers IN3, IN4, IN5 and IN6**, every input that runs through the
+input board. This replaces the previous entry's open question.
+
+**The operator can replace the series gate resistors without a full rebuild**, and does not want to damage
+the 1050. These estimates assume the 1.6 kΩ source measured on 2026-10-13 and about 3.1 kΩ into the StamPLC
+input, from the 4.1 mA at 13.4 V in Impl Plan §3.2. No one has measured either failure:
+
+| Failure on Q1 to Q3, at 12 V | 1K, as built | 10 kΩ |
+|---|---|---|
+| Gate failed to source: the 1050 line falls to | about 1.8 V | about 4.1 V |
+| Drain failed to gate: the 1050 line rises to | about 6.8 V | about 5.5 V |
+| Drain failed to gate: current into the line | about 1.3 mA | about 0.5 mA |
+
+The 1050's threshold and its input ratings are not known, so neither column is shown to be safe. A
+drain-to-gate leak is also the hypothesis for Q2 in *The input board's netlist*, and it is unproven.
+
+**A v1.2 board starts from scratch, with no rework of the existing board** (operator). A hand-built perfboard
+is acceptable at first build, and it is very fragile under rework.
