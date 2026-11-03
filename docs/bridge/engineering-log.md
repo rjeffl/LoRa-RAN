@@ -2156,3 +2156,13 @@ reading the topic after a good OTA sees this until the next connect.
 **`heltec_ota` passes the password as `--auth=`, so it reaches `espota`'s argv during the upload.**
 `traps.md` says it must not. `espota` showed no other way to take it, and the exposure here was one
 user's Mac for the length of an upload. Left open in the handoff.
+
+## 2026-11-02 — The move confirms the OTA image
+
+**After the operator moved the bridge to its production position, `lran/bridge/version` read `674a8fe`
+in `app1` with `ota_state` `verified_or_usb`.** This settles what the entry above inferred: the image
+was marked valid, because a reset before marking would have rolled it back to `app0`.
+
+**The link read −85 dBm and SNR 11 dB, against −49 dBm and SNR 11 dB before the move**, with no missed
+polls and `rx_rejected_mac` 0, about 122 s after boot. GateLink is still on the bench, so this says
+nothing about the link from the gate. GateLink did not reset across the move.
