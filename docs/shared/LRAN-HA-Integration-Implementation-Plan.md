@@ -1,7 +1,7 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.23
+**Version:** 0.24
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
@@ -153,12 +153,14 @@ ha/
     messages.yml        the text of every push, email and logbook entry (§7.5)
     reminders.yaml      tier 3 (§9.3)
     reports.yaml        tier 4 (§9.4)
-    site.yaml.example   the per-install values: push and email scripts, SMTP, recorder
+    site.yaml.example   the per-install values: push and email scripts, recorder
   dashboards/
     gate.yaml           the Gate dashboard (§8.1)
     vehicles.yaml       the Vehicles dashboard (§8.4)
     lran.yaml           LRAN Status: Power, Temperature, Network, Events, admin only (§8.2)
     lran-maintenance.yaml  LRAN Configuration, admin only (§8.2)
+  www/
+    press-flash.js      the Gate tiles' press feedback (§8.3)
 tools/ha/
   check_entities.py     every entity ID the YAML names exists in a live HA (H9)
 ```
@@ -329,15 +331,25 @@ nine alerts and reminders in tier 1 and tier 3 has a switch,
 the switches and the lists on LRAN Configuration's Notification view. There is one pair of
 lists, so a switch sends to everyone on them. The table above governs them as it does the
 admin: level, mute, the email switch, `follow_up` and `push_only` all apply. A device is its
-notify action, `mobile_app_sams_phone`, with or without the `notify.` prefix. A message with no
-switch reaches the admin only. `tools/checks/ha_messages.py` fails on a switch whose alert has
+notify action, `mobile_app_sams_phone`, with or without the `notify.` prefix. An email is an SMTP
+recipient entity, `lran_email_sam`, also with or without the prefix, not an address, and each gets
+its own email. The Notification view names any entry that matches no notify entity. A message with
+no switch reaches the admin only. `tools/checks/ha_messages.py` fails on a switch whose alert has
 no selector.
 
 **Each additional send runs apart from the script**, through `script.turn_on`, on
 `script.lran_additional_push` or `lran_site_email_to`. A notify action HA cannot find ends the
 script that called it, and `continue_on_error` does not catch that, so a mistyped device would
 otherwise cost the admin the email. It fails its own run instead, and HA's log names the
-action. Nothing on the dashboard reports it.
+action. Nothing on the dashboard reports a mistyped device.
+
+**Email goes through the SMTP integration's recipient entities, not typed addresses**
+(operator, 2026-11-02). Since HA 2026.7 SMTP is set up in the UI, and each address is a recipient
+with its own notify entity, which `notify.send_message` targets. The older `notify.<name>` action
+accepts a typed address, but HA 2026.10.4's source raises a repair on each send and marks it as
+breaking in 2027.3. With no target it mails every recipient, so `lran_site_email` must name the
+admin's entity, or health alerts and reports reach everyone on the integration. Adding a person
+takes two steps: **Add recipient** on the integration, then the new entity in the list.
 
 **At H1 the sandbox's `site.yaml` pushes to the Mac only** (`notify.mobile_app_jbook16_m5`),
 and its email script writes a persistent notification, because the sandbox has no SMTP
@@ -566,6 +578,12 @@ statistics.
   which shows `addfd6b`.
 - **An alert shows its name, not a sentence.** The explanation each banner carried, such
   as *A power cycle loses them*, is gone, and the alert's sheet lists the entity instead.
+- **Fluvy gives a scenes tile no visible press** (operator, 2026-11-02). Its one feedback is
+  a 2.5 % shrink while pressed, and a tile lights only from a timestamp, which a cover or switch
+  does not have. `ha/www/press-flash.js`, a dashboard resource at `/local/lran/press-flash.js`,
+  fills a pressed tile with the accent colour for 1.5 s. It acts on the Gate dashboard only, because
+  *Restore defaults* is also a scenes tile and opens a confirmation first. It relies on Fluvy's
+  class names, so a Fluvy update's render check has to press a tile.
 - **Fluvy's cover card labels open and close with arrows only.** Its buttons are fixed
   up and down glyphs, the words only a tooltip (`actions()` in `packages/ui/src/parts.ts`),
   which a phone never shows. By operator choice, 2026-10-30, the Gate dashboard uses a
@@ -806,7 +824,9 @@ press nothing since v0.11, so they needed no change.
 2. Copy `ha/packages/lran/` to `packages/lran/` and `ha/dashboards/` to `dashboards/lran/`
    in the production config directory, matching the paths in §6. Write
    `site.yaml` from `site.yaml.example` with the production notify targets. Production's
-   email scripts call its existing `notify.mc_ha_email`, so its `site.yaml` has no SMTP block.
+   email scripts target recipient entities on its existing SMTP integration (§7.3). Copy
+   `ha/www/press-flash.js` to `www/lran/`, and register it as a dashboard resource. HA serves
+   `/local/` only if `www/` existed when it started, so a new `www/` needs a restart.
 3. Install HACS, then Fluvy v1.11.3 through HACS (§2), and add the Fluvy integration.
    Fluvy registers its own dashboard resource while resources are in storage mode, as on
    the sandbox. `configuration.yaml` needs `frontend: themes: !include_dir_merge_named
@@ -831,6 +851,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.24 | 2026-11-02 | §7.3: email targets the SMTP integration's recipient entities, and the additional list holds entities rather than addresses, because the action that takes a typed address is deprecated and, with no target, mails every recipient. §6, §8.3, §12: `press-flash.js` lights a pressed Gate tile, by operator choice |
 | 0.23 | 2026-11-02 | H10's steps 2 to 5 ran on production. §6: production's existing packages include covers `packages/lran/`, so it takes only the `lovelace:` block. §10: production keeps HA's default `purge_keep_days`, by operator choice. §12: production's email uses its existing notifier, and an open client needs its frontend reloaded after Fluvy's install |
 | 0.22 | 2026-11-02 | By operator choice, H10 follows B3, not B6, because B3 put the entities on the production broker. §12's step 6 still waits for GL8 at the gate |
 | 0.21 | 2026-11-02 | By operator choice, §9.5 parks tier 5 as nice-to-haves that production does not need: the approach prompt, because connectivity is poor until close to the house, and voice control, which nobody asked for. That answers §13's question. §3, §6, §11 and the file list change to match. |

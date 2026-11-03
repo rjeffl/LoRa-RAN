@@ -1125,3 +1125,75 @@ additional-recipient lists. The other helpers were not traced.
 
 **The operator confirmed the test push and accepted the port.** The entry above left delivery
 unconfirmed. Step 6 and step 7 are still to come.
+
+## 2026-11-02 — Email moves to SMTP recipient entities, and Gate tiles flash when pressed
+
+**`notify.mc_ha_email` would have mailed every recipient.** Production's SMTP integration is the UI
+one, with two recipients. Its `notify.mc_ha_email` action still exists, and HA 2026.10.4's
+`smtp/__init__.py` loads it with every recipient on the entry. `lran_site_email` called it with no
+target, so step 7 would have sent the admin's health alerts and reports to both people. Email was
+off, so nothing went out.
+
+**A typed address has a deadline.** Only that action takes one. `smtp/notify.py` calls
+`deprecated_notify_action_call` on each send, and `smtp/issue.py` marks it as breaking in 2027.3.0.
+`notify.send_message` and `smtp.send_message` target recipient entities only. The operator chose
+entities, so `input_text.lran_additional_emails` now holds them, with or without `notify.`, and the
+Notification view names any entry that matches no notify entity. The 2026-11-01 entry's reading of
+`target` on `notify.lran_email` no longer applies to this design.
+
+**The sandbox's routing, through `script.lran_notify` with email on and its stand-in:**
+
+| Call | Result |
+|---|---|
+| `vehicle_while_held`, switch on, list `lran_email_test_a, notify.lran_email_test_b` | Admin's stand-in, and `lran_site_email_to` with `notify.lran_email_test_a, notify.lran_email_test_b` |
+| The same with `follow_up` | Push only |
+| `severity: high`, no alert | Admin's stand-in only |
+| `severity: normal`, no alert | Push only |
+
+The run added four alerts to the sandbox's report note and count, and pushed to the operator's
+sandbox devices. The email switch, the alert's switch and the list went back. **It does not show**
+`notify.send_message` to a real recipient, or what HA does with a missing recipient entity, because
+the sandbox has no SMTP.
+
+**Fluvy's press feedback is a 2.5 % shrink** (`.fv-tile--tap:active{scale:0.975}`), and a tile lights
+only when its entity has a timestamp, which a cover or switch does not. `ha/www/press-flash.js` runs
+a Web Animation on the pressed tile from a `click` listener. The operator pressed the tiles on the
+sandbox and confirmed the flash in the light and dark themes. The app's browser pane was refused the
+sandbox's address again, so that press was the only check.
+
+**The production port was refused here.** Auto mode's classifier blocked the file copy and the
+resource registration as a production deploy, so neither reached production, and the operator
+decides how they do.
+
+## 2026-11-02 — The email change on production, and its first real sends
+
+**The operator allowed the port, which corrects the entry above.** `site.yaml`, `core.yaml`,
+`lran-maintenance.yaml` and `press-flash.js` reached production, and `cmp` matched the three
+repository copies. `cp` failed on `core.yaml` with "could not copy extended attributes", so the copies
+used `cp -X`. The resource is registered, and a script reload took the email change. Auto mode refused
+`ha_restart`, so `/local/` is not served there until the operator restarts, and the flash has not run
+on production.
+
+**The two email scripts, called directly with labelled messages and `lran_email_enabled` off:**
+
+| Call | Result |
+|---|---|
+| `lran_site_email` | `notify.mc_ha_email_jeff`'s state advanced. Its neighbour's did not change in this call's result |
+| `lran_site_email_to`, the second recipient's entity | That entity's state advanced |
+| `lran_site_email_to`, `notify.mc_ha_email_nosuch` | Finished without error, sent nothing, and logged one warning: "Referenced entities notify.mc_ha_email_nosuch are missing or not currently available" |
+
+Repairs read empty afterwards, so `notify.send_message` raises no deprecation issue. An entity's state
+shows HA finished the send, not that the mail arrived. **This run does not show** delivery, which the
+operator has to confirm, or `lran_notify` driving these scripts on production.
+
+
+## 2026-11-02 — The test emails arrived
+
+**The operator confirmed that both test emails arrived, each at its own recipient.** The entry above
+left delivery unconfirmed. Real SMTP through recipient entities now works from the two scripts. The
+press flash on production still waits for the operator's restart.
+
+## 2026-11-02 — Production serves the press flash
+
+**After the operator's restart, `/local/lran/press-flash.js?v=1` returned 200 on production.** That
+shows the file is served. It does not show a press on production, which this session did not make.

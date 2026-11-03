@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5.**
+read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5, and on 2026-11-02 after the email and press-flash cleanup.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -28,7 +28,7 @@ Continue from docs/ha/HANDOFF.md: task H10, step 6.
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10's
 steps 2 to 5 ran on production on 2026-11-02. Step 6 waits for GL8 at the gate, and step 7 for the
-operator, so no HA task can start until one of those is ready.
+operator. Production has the email and press-flash change.
 
 | Task | Read |
 |---|---|
@@ -41,9 +41,14 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H10's last two steps, on production** (plan §12). Step 6 verifies tier 1 with relay dry-run on, at
-the gate. Step 7 turns on `input_boolean.lran_email_enabled`, whose scripts call the existing
-`notify.mc_ha_email`. That path has not run, and neither has a real SMTP send.
+**The press flash has not been checked on production by this repository's records.** Production
+serves the module since the operator's restart. Do not press a Gate tile to check it unless dry-run is
+on.
+
+**H10's last two steps, on production** (plan §12). Step 6 verifies tier 1 with relay dry-run on,
+at the gate. Step 7 turns on `input_boolean.lran_email_enabled`, whose scripts target recipient
+entities. The scripts have sent real email, but `lran_notify` has not driven them there. The second
+recipient's phone has no Companion app yet, so `lran_additional_devices` waits for it.
 
 **Check the target before every write.** `/Volumes/config` and `ha-sandbox` are the sandbox.
 `/Volumes/config-1` and `ha-prod` are production (*The dev flow*).
@@ -86,8 +91,8 @@ run it (*The dev flow*).
   at 14:35:07 on 2026-11-02 and changed no value. It is on a scenes card now (plan §8.3).
 - **LRAN Configuration has GateLink, WellLink, Bridge and Notification views**, and each alert
   and reminder has a switch that also sends it to two lists of devices and emails (plan v0.19, §7.3,
-  §8.2; engineering log, 2026-11-01, Configuration views). **A production `site.yaml` needs
-  the new `lran_site_email_to`**, as in `site.yaml.example`. The sandbox's writes a persistent
+  §8.2; engineering log, 2026-11-01, Configuration views). **A `site.yaml` needs
+  `lran_site_email_to`**, as in `site.yaml.example`. The sandbox's writes a persistent
   notification.
 - **The derived sensors keep their `LRAN GateLink` names**, because a rename would change
   their entity IDs on a fresh install (plan §8.2).
@@ -230,6 +235,7 @@ token. The REST flow before then needed `~/.lran_ha_token`, which only one machi
 ```bash
 cd ha/packages/lran && cp core.yaml templates.yaml alerts.yaml reminders.yaml reports.yaml messages.yml /Volumes/config/packages/lran/ && cd -
 cp ha/dashboards/*.yaml /Volumes/config/dashboards/lran/      # a YAML dashboard reloads with the page
+cp ha/www/press-flash.js /Volumes/config/www/lran/            # raise ?v= on its resource, or browsers keep the old one
 ```
 
 Then, through ha-mcp:
@@ -359,13 +365,13 @@ those two targets changed, which plan §7.3 names.
 - **A comment in `lran/config/table.h` counts GateLink's block as 20 rows**, and GateLink reports
   25 of its own beside node-common's 10. Fix it when that file is next edited.
 - **A Fluvy update can change a card under a YAML dashboard nobody re-checks**, so each
-  update needs a render of every view on the sandbox before production takes it.
+  update needs a render of every view on the sandbox before production takes it, and a press of a
+  Gate tile, because `press-flash.js` relies on Fluvy's class names.
 - **HA's own pages are unverified under Fluvy.** They need a browser, because Puppet renders
   dashboards only, and the app's browser pane was refused the sandbox's address.
 - **The 08:00:08 2026-10-28 `lran_notify` run has no logbook entry in ha-mcp's read**,
   though its trace reached `logbook.log`. Not chased.
-- **Real SMTP.** Needs an account in the sandbox's `site.yaml` and `secrets.yaml`, or waits
-  for production (plan §12, step 7).
+- **The sandbox has no SMTP integration**, so real email is tested on production only.
 - **Forcing a state has no ha-mcp route.** An event alert needs none: `mqtt.publish`
   injects the event (H4). An alert on a sensor's state needs none either: H5 moved its
   threshold instead. A banner check still needs one. The operator chose a test-only

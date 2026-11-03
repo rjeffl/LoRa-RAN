@@ -361,11 +361,20 @@ views:
               - entity: input_text.lran_additional_emails
                 name: Additional emails
           - type: markdown
-            content: >-
+            content: |-
               Comma-separated. A message switched on below goes to these as well as to the
               admin, at the same level and under the same mute and email settings. A device
-              is its notify action, such as `mobile_app_sams_phone`. Health and reports go
+              is its notify action, such as `mobile_app_sams_phone`. An email is its SMTP
+              recipient entity, such as `lran_email_sam`, not an address: add the address under
+              Settings > Devices & services > SMTP > Add recipient first. Health and reports go
               to the admin only.
+              {% set entered = states('input_text.lran_additional_emails').split(',') | map('trim')
+                 | map('replace', 'notify.', '') | reject('in', ['', 'unknown', 'unavailable']) | list %}
+              {% set unmatched = entered | reject('in', states.notify | map(attribute='object_id') | list) | list %}
+              {% if unmatched %}
+
+              **No such email recipient, so nothing goes to:** {{ unmatched | join(', ') }}
+              {% endif %}
           - type: custom:fluvy-helpers-card
             title: Send to additional recipients
             rows:
