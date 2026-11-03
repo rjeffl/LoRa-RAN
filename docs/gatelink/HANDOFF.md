@@ -68,6 +68,10 @@ production HA correct, and the card is cleared (engineering log, 2026-11-02, *B3
 a reset, but the charger never started, so charging has not run on this image (engineering log,
 2026-11-03, *The B3 soak*). `bench.py` no longer hangs on a silent broker.
 
+**Updated 2026-11-03 by the input-mask planning session.** The operator decided that a way to disable
+IN3 to IN6 goes in before deployment, after a review of what else the next images need (engineering
+log, 2026-11-03, *An input mask goes in*). It changed no firmware.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -82,8 +86,11 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**B3 is done, and the at-gate sequence is next.**
-[`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders it. The
+**B3 is done, and two firmware tasks now come before the at-gate sequence.** Run them in the table's
+order, because the review decides what the new bridge and GateLink images carry. The operator decides
+which items go in. The review also updates the brief's *Firmware freeze*, which does not list the mask.
+[`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders the at-gate
+sequence. The
 sandbox has no bridge now, so a `gatelink-sandbox` image would hear nothing. A GateLink reflash
 from here on is the `gatelink` env, built from a committed, clean tree. **Its image at `cb1be00`,
 with the `firmware.elf` a core dump read at the gate needs, is in `~/lran-release/cb1be00/gatelink/`
@@ -98,7 +105,13 @@ on the build Mac.** It holds the node key, so it stays out of the repository.
 
 | Tier | Task | Read |
 |---|---|---|
+| 3 | **Firmware revision review**: list what else the next images should carry, for the operator to decide. No firmware | `docs/ha/engineering-log.md`, the 2026-11-02 entries from *H10: steps 2 to 5 on production* on; `docs/ha/HANDOFF.md`, *The next job*; brief, *Firmware freeze* and its list of later items; *Open* here; `docs/bridge/HANDOFF.md`, *The next job* and *Work before GateLink*; `doc-findings.md` |
+| 3 | **Input mask**, with the review's other items: decide and build, then build both images | engineering log, 2026-11-03, *An input mask goes in*; PRD R-3.5l; spec §7.2.1, §7.2.8 |
 | 4 | **The at-gate sequence** | brief, *At-gate sequence* |
+
+**The new images replace `cb1be00`.** Flashing GateLink on the bench avoids a reflash at the gate. The
+bridge reads the same config table for its discovery, so a new parameter reaches its image and
+`ha/discovery/` too. Which B3 and soak checks to repeat on the new images is for the review to propose.
 
 **Relay dry-run is RAM only, and a reset clears it.** At GL7, read `switch.gatelink_relay_dry_run` after
 every power cycle before pressing anything (engineering log, 2026-11-03).

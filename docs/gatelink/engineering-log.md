@@ -1394,3 +1394,61 @@ become live after any reset of GateLink.
 **Not read or not known:** the card's `/bms.log` and `/log/fault.txt`, because this review had no
 console. Whether USB stayed attached overnight is not recorded here. If it did, this soak did not test
 the power chain, because USB carries all but 3.1 mA of the board's load.
+
+## 2026-11-03 — An input mask goes in before deployment, after a review of what else the next images need
+
+**The operator decided to add a way to disable IN3 to IN6 before deployment**, so that a repeat of the
+input board's failures, such as IN4's bad 2N7000 (2026-11-02), costs those features and not GateLink.
+This session changed no firmware. A later session builds the mask, and the decision still needs a
+Decision Register entry.
+
+**Before building new bridge and GateLink images, a session reviews H10's findings and the other
+documents** for firmware changes that should go in the same images (operator). One revision then
+carries everything, which avoids a second reflash at the gate.
+
+**What a failed input does today**, from reading the code. None of this was run:
+
+| Input | Failure | Effect |
+|---|---|---|
+| IN3, IN4 | Stage or wire open | Reads asserted, because the stage inverts (`kInputsActiveLow`). After one detection, `Settling` waits for both sensors to clear, so detection stops |
+| IN5 | Stage or wire open | Reads asserted: `FIRE_ASSERTED` on the edge, and again at every boot |
+| IN5 | Intermittent | `FIRE_ASSERTED` on every rising edge, with no rate limit. HA sends each as a critical push |
+| IN6 | Stage or wire open | Reads clear, so a hard shutdown goes unreported |
+| IN6 | Stuck on | `observe()` returns `Fault` ahead of IN1 and IN2, so the bridge's cover mapping has no open or closed state |
+
+**Commands do not read the inputs.** `GateLinkApp::execute()` does not check them, so the relays work
+through all of these failures. Pulling the input board without another change makes IN3, IN4 and IN5
+read asserted.
+
+**What exists without new firmware, and what each leaves open:**
+
+- **HA automations off** (`lran_1_fire`, `lran_1_hard_shutdown`). They can be turned off remotely, but
+  that stops the pushes only. A stuck IN6 still forces `Fault`, and a chattering input still uses airtime.
+- **`inject -S,-E,-F,-A` on the console.** It needs USB at the gate, and a reset clears it. HA shows
+  the inputs as clear, not as unsensed. It has not been tried for this purpose.
+- **A jumper bypass.** Disconnect the failed stages, tie `EXCOM_IN3` to `EXCOM_IN5` to 0 V, and leave
+  `EXCOM_IN6` open. The bypass survives a reset, and HA again shows clear. Nobody has fitted it, and whether
+  `EXCOM_COM`'s 12 V reaches the StamPLC through the input board was not traced. That terminal serves
+  all eight inputs, so the bypass must keep it fed.
+
+**The proposal, which the building session may change:** an `lran-config` parameter in GateLink's
+block, holding a bit mask over IN3 to IN6 that cannot name IN1 or IN2. `io_task` applies it where it
+applies injection, below the debounce. Masking IN6 would then clear a false `Fault`, and masking IN5 would stop repeated
+FIRE pushes. Persistence follows the card, so without a working card a reset clears the mask.
+
+**Questions the proposal leaves open:**
+
+- `node_flags` bit 7 covers IN5 and IN6 together (spec §7.2.8, D80), so masking either one makes both
+  unavailable through the bridge. Per-input masking would need a change to that meaning.
+- IN3 and IN4 have no "not sensed" indication on the wire, so a masked sensor reads clear unless the
+  spec gains one.
+- Unmasking an input that is still asserted is a rising edge, so it would send a new alert.
+- R-3.5l says bit 7 is not set under D83, and it needs revising.
+
+**A mask cannot protect the 1050.** Each stage reaches the 1050's SAFETY, EXIT or FIRE line through
+10 kΩ. A 2N7000 failed gate-to-source would pull a line from 4.75 V to about 4.1 V, against the 1.6 kΩ
+source measured on 2026-10-13. That is an estimate, and the 1050's threshold is not known. If the gate
+itself misbehaves, those field wires come off.
+
+**Falsified by:** a bench run that masks each input while it is forced asserted and chattering, and
+then sees an alert, `Fault`, or a detection from it. The mask's tests should include that run.
