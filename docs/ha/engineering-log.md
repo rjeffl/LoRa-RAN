@@ -1186,3 +1186,9 @@ Repairs read empty afterwards, so `notify.send_message` raises no deprecation is
 shows HA finished the send, not that the mail arrived. **This run does not show** delivery, which the
 operator has to confirm, or `lran_notify` driving these scripts on production.
 
+
+## 2026-11-02 — The test emails arrived
+
+**The operator confirmed that both test emails arrived, each at its own recipient.** The entry above
+left delivery unconfirmed. Real SMTP through recipient entities now works from the two scripts. The
+press flash on production still waits for the operator's restart.
