@@ -64,6 +64,10 @@ the production broker accepts the login.
 `cb1be00`, flashed over USB, on the production broker. Their link authenticates, the operator found
 production HA correct, and the card is cleared (engineering log, 2026-11-02, *B3*).
 
+**Updated 2026-11-03 by the B3-soak review.** GateLink ran the production image for about 16 h without
+a reset, but the charger never started, so charging has not run on this image (engineering log,
+2026-11-03, *The B3 soak*). `bench.py` no longer hangs on a silent broker.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -85,9 +89,19 @@ from here on is the `gatelink` env, built from a committed, clean tree. **Its im
 with the `firmware.elf` a core dump read at the gate needs, is in `~/lran-release/cb1be00/gatelink/`
 on the build Mac.** It holds the node key, so it stays out of the repository.
 
+**Before GateLink leaves the bench, the operator:**
+
+1. Reads `/bms.log` and `/log/fault.txt` with `bench.py attach`.
+2. Meters the panel in good light at the MPPT's terminals, connected and disconnected.
+3. Confirms that the drives holding the production master are encrypted (the brief's *The production
+   `secrets.h`*).
+
 | Tier | Task | Read |
 |---|---|---|
 | 4 | **The at-gate sequence** | brief, *At-gate sequence* |
+
+**Relay dry-run is RAM only, and a reset clears it.** At GL7, read `switch.gatelink_relay_dry_run` after
+every power cycle before pressing anything (engineering log, 2026-11-03).
 
 **The first real `ah_drawn` is at the gate** (operator, 2026-11-02). A BMS read while charging is
 active sets its reference, and the field then reads 0 on `battery/state`. After charging, it
@@ -308,6 +322,11 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **The MPPT's terminals sit near the pack's voltage in daylight, and the charger stays off**, with PV at
+  13.17 to 13.28 V on 2026-11-03. The cause is not established (engineering log, 2026-11-03). The 50 W
+  panel charged the pack for ten days under M14, on the gate.
+- **Why `bench.py`'s keepalive stopped reaching the broker at 08:04 on 2026-11-03 is not established.**
+  The new read timeout recovers from it. It has run against a fake broker only.
 - **R-6.4b has not seen a BMS that refuses charge.** A full pack stood in for one. A BMS
   that opens its charge FET may let the terminal voltage rise, which restarts the clock
   until it settles. The first cold sunny morning at the gate is the test.
