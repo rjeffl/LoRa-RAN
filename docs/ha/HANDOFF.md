@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5, and on 2026-11-02 after the email and press-flash cleanup.**
+read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5, on 2026-11-02 after the email and press-flash cleanup, and on 2026-11-02 for the dry-run switch.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -28,11 +28,12 @@ Continue from docs/ha/HANDOFF.md: task H10, step 6.
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10's
 steps 2 to 5 ran on production on 2026-11-02. Step 6 waits for GL8 at the gate, and step 7 for the
-operator. Production has the email and press-flash change.
+operator. Production has the email and press-flash change. The dry-run switch waits for a bridge OTA.
 
 | Task | Read |
 |---|---|
 | **H10, step 6** Verify tier 1 on production, as part of GL8 | *The next job* here; plan §12 and §9.1; the deployment brief's GL8 row |
+| **Dry-run switch on production**, after the bridge OTA | *The next job* here |
 | **H10, step 7** Turn on email, when the operator is ready | *The next job* here; plan §7.3 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -41,9 +42,20 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**The press flash has not been checked on production by this repository's records.** Production
-serves the module since the operator's restart. Do not press a Gate tile to check it unless dry-run is
-on.
+**Relay dry-run becomes a switch once the bridge has this firmware.** `switch.gatelink_relay_dry_run`
+comes from the bridge's discovery, so production needs, in this order:
+
+1. The operator's OTA upload of the bridge from `heltec_ota`, built from the merged commit.
+2. An empty retained publish to `homeassistant/binary_sensor/lran_gatelink_dry_run/config` on
+   production's broker, which removes the old sensor.
+3. A copy of `lran-maintenance.yaml`, then `check_entities.py --server ha-prod`.
+4. A press of the switch: `cmd/ack` and the switch's state are the check, because the sandbox has no
+   bridge to answer. It reads off after a GateLink reboot, by design.
+
+Until then, `lran/gatelink/cmd/set_relay_dry_run/set` with payload `1` or `0`, not retained, sets it.
+
+**The press flash has no recorded press on production.** Production serves the module since the
+operator's restart. Do not press a Gate tile to check it unless dry-run is on.
 
 **H10's last two steps, on production** (plan §12). Step 6 verifies tier 1 with relay dry-run on,
 at the gate. Step 7 turns on `input_boolean.lran_email_enabled`, whose scripts target recipient
@@ -372,6 +384,8 @@ those two targets changed, which plan §7.3 names.
 - **The 08:00:08 2026-10-28 `lran_notify` run has no logbook entry in ha-mcp's read**,
   though its trace reached `logbook.log`. Not chased.
 - **The sandbox has no SMTP integration**, so real email is tested on production only.
+- **The Gate dashboard does not show dry-run**, so a tile pressed with it on flashes and the gate does
+  not move. Whether Gate Status should say why is the operator's call.
 - **Forcing a state has no ha-mcp route.** An event alert needs none: `mqtt.publish`
   injects the event (H4). An alert on a sensor's state needs none either: H5 moved its
   threshold instead. A banner check still needs one. The operator chose a test-only

@@ -1197,3 +1197,19 @@ press flash on production still waits for the operator's restart.
 
 **After the operator's restart, `/local/lran/press-flash.js?v=1` returned 200 on production.** That
 shows the file is served. It does not show a press on production, which this session did not make.
+
+## 2026-11-02 — Relay dry-run becomes a switch
+
+**The handoff said to turn dry-run on, and nothing on a dashboard could.** The operator found only the
+status line. `SET_RELAY_DRY_RUN` was reachable by an MQTT publish alone. The operator chose a switch, so
+the bridge's discovery row now follows `bms_polling`'s: same `node/state` key, `cmd_t`
+`~/cmd/set_relay_dry_run/set`, and `ent_cat` `config` where it was `diagnostic`. `parse_cmd_payload`
+already reads HA's default `ON` and `OFF` as arg 1 and 0. GateLink needs no change.
+
+**On the sandbox,** which has no bridge, the discovery config was published by hand, and the old
+config cleared with an empty retained publish. `binary_sensor.gatelink_relay_dry_run` went away and
+`switch.gatelink_relay_dry_run` appeared. An injected `node/state` read `on` for `true` and `off` for
+`false`. The injected availability was left at `offline`. **This does not show** a command reaching
+GateLink or its `cmd/ack`. `test_dry_run_is_a_switch_on_the_command` covers the topic's parse, and
+production's check waits for the OTA.
+

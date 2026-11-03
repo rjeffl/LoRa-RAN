@@ -44,7 +44,7 @@ views:
             rows:
               - entity: binary_sensor.gatelink_configuration_persisted
                 name: Configuration persisted
-              - entity: binary_sensor.gatelink_relay_dry_run
+              - entity: switch.gatelink_relay_dry_run
                 name: Relay dry run
               - entity: switch.gatelink_deployed
                 name: Deployed

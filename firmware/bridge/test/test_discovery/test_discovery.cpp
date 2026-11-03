@@ -643,6 +643,29 @@ void test_bms_polling_is_a_switch_on_the_command() {
   TEST_ASSERT_EQUAL_UINT8(0, arg);
 }
 
+// The dry-run switch is SET_RELAY_DRY_RUN, and its state is node_flags bit 2.
+void test_dry_run_is_a_switch_on_the_command() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  const char* doc = gatelink_config(w, "dry_run");
+  char        base[80], cmd_t[80], full[160], v[96];
+  TEST_ASSERT_NOT_NULL(value_of(doc, "val_tpl", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("{{ value_json.dry_run }}", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "stat_on", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("True", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "ent_cat", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("config", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "~", base, sizeof(base)));
+  TEST_ASSERT_NOT_NULL(value_of(doc, "cmd_t", cmd_t, sizeof(cmd_t)));
+  std::snprintf(full, sizeof(full), "%s%s", base, cmd_t + 1);
+  CmdTopic t;
+  TEST_ASSERT_TRUE_MESSAGE(parse_cmd_topic(full, &t), full);
+  TEST_ASSERT_EQUAL_HEX8(static_cast<uint8_t>(Cmd::SetRelayDryRun), t.cmd);
+  // HA's default switch payloads, which parse_cmd_payload reads as the command's arg.
+  TEST_ASSERT_FALSE(has_key(doc, "pl_on"));
+}
+
 // F1 - the four buttons went with the cover, and nothing else lost its button.
 void test_the_gate_buttons_are_gone() {
   Fleet f;
@@ -1142,6 +1165,7 @@ int main() {
   RUN_TEST(test_hold_gate_open_is_a_switch_on_the_observed_hold);
   RUN_TEST(test_the_gate_buttons_are_gone);
   RUN_TEST(test_bms_polling_is_a_switch_on_the_command);
+  RUN_TEST(test_dry_run_is_a_switch_on_the_command);
   RUN_TEST(test_a_comparison_sensor_keeps_null_unknown);
   RUN_TEST(test_restore_defaults_publishes_the_spec_op);
   RUN_TEST(test_an_event_entity_lists_its_topic_s_event_type);

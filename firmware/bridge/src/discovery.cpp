@@ -289,8 +289,13 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      nullptr, "timestamp", nullptr, nullptr, nullptr, 0, true},
     {"config_persisted", "Configuration persisted", "binary_sensor", "node/state",
      "config_persisted", nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
-    {"dry_run", "Relay dry run", "binary_sensor", "node/state", "dry_run",
-     nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
+    // Spec 8.1's SET_RELAY_DRY_RUN, `ON` arg 1 and `OFF` arg 0, with spec 7.2.8 bit 2 as its
+    // state, built as BMS polling is below. A command, not a configuration row: GateLink starts
+    // with it off after a reboot, so a dry run left on cannot outlive one. Decided with the
+    // operator on 2026-11-02.
+    {"dry_run", "Relay dry run", "switch", "node/state", "dry_run",
+     nullptr, nullptr, nullptr, "cmd/set_relay_dry_run/set", nullptr,
+     static_cast<uint8_t>(lran::Cmd::SetRelayDryRun), false, false, nullptr, true},
     // GateLink PRD 7.2 and R-3.4e - spec 8.1's SET_BMS_POLLING, `ON` arg 1 and `OFF` arg 0
     // (net_policy.h, parse_cmd_payload), with spec 7.2.8 bit 3 as its state. The command,
     // not a configuration row: GateLink polls again after a reboot (PRD R-3.4a), so a
