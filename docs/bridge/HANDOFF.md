@@ -28,6 +28,10 @@ file:
 |---|---|---|
 | **5. Documents and tools** | Nothing | Host only |
 
+**A new bridge image comes before the at-gate sequence** (operator, 2026-11-03). GateLink's input mask
+adds a config parameter that this firmware's discovery reads, and a review first decides what else goes
+in. [`docs/gatelink/HANDOFF.md`](../gatelink/HANDOFF.md), *Start here*, holds both tasks.
+
 **The deployment brief's B3 is done** (engineering log, 2026-11-02, *B3*). The bridge is on the production broker. **OTA with the production `OTA_PASSWORD` passed**, and by
 the operator's report the sandbox password failed (engineering log, 2026-11-02, *OTA with the
 production password* and *The move confirms the OTA image*).
