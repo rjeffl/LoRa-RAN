@@ -213,6 +213,8 @@ ran on the air after the OTA of `57997fa` the same day.
 
 ## Waits on GateLink or the operator
 
+**The operator's OTA upload takes the relay dry-run switch to production** (HA handoff, *The next job*). Discovery's `dry_run` row is a `switch` from that image on.
+
 - **B6 and B7**, and **BF-30**'s readback against the real MPPT, which confirms the
   register scales and whether `0xEDEA` carries the system voltage setting.
 - **Gate 1 on air.** No bench tool sends a write-class `HEX_REQ` with a bad MAC, so the

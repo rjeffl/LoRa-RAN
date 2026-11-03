@@ -1,7 +1,7 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.24
+**Version:** 0.25
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
@@ -97,7 +97,7 @@ targets that release's automation syntax (`triggers`, `conditions`, `actions`). 
 | Solar | `pv_power`, `pv_voltage`, `solar_yield_today`, `solar_yield_total`, `mppt_charge_state`, `mppt_error`, `battery_voltage_mppt`, `battery_current_mppt`, `load_current`, `binary_sensor.gatelink_load_output` (§5, F5), and the MPPT configuration readback sensors |
 | Environment | `enclosure_temperature`, `mppt_temperature`, `node_supply_voltage` |
 | Link | `rssi`, `snr`, `missed_polls`, `last_seen`, `protocol_version`, the PHY settings; bridge `frames_received`, `frames_transmitted`, `frames_discarded`, firmware version, commit and OTA slot |
-| Configuration | 55 `number` entities across the bridge, GateLink and WellLink; `switch.gatelink_deployed`, `buzzer_enable`, `mppt_write_enable`, `switch.lora_bridge_simnode_diag_enable`; `binary_sensor.gatelink_relay_dry_run`, `configuration_persisted` |
+| Configuration | 55 `number` entities across the bridge, GateLink and WellLink; `switch.gatelink_deployed`, `buzzer_enable`, `mppt_write_enable`, `relay_dry_run`, `switch.lora_bridge_simnode_diag_enable`; `binary_sensor.gatelink_configuration_persisted` |
 
 Three things in the sandbox need attention before a dashboard is built on it:
 
@@ -851,6 +851,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.25 | 2026-11-02 | §4: relay dry-run is a discovery switch, not a read-only sensor, by operator choice. It was settable only by an MQTT publish |
 | 0.24 | 2026-11-02 | §7.3: email targets the SMTP integration's recipient entities, and the additional list holds entities rather than addresses, because the action that takes a typed address is deprecated and, with no target, mails every recipient. §6, §8.3, §12: `press-flash.js` lights a pressed Gate tile, by operator choice |
 | 0.23 | 2026-11-02 | H10's steps 2 to 5 ran on production. §6: production's existing packages include covers `packages/lran/`, so it takes only the `lovelace:` block. §10: production keeps HA's default `purge_keep_days`, by operator choice. §12: production's email uses its existing notifier, and an open client needs its frontend reloaded after Fluvy's install |
 | 0.22 | 2026-11-02 | By operator choice, H10 follows B3, not B6, because B3 put the entities on the production broker. §12's step 6 still waits for GL8 at the gate |
