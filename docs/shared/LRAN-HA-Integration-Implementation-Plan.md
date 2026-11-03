@@ -1,7 +1,7 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.21
+**Version:** 0.22
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
@@ -787,7 +787,7 @@ from the YAML.
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal. **Met 2026-10-28**: both reports rendered, with statistics from the sandbox, and reached the phone. SOC and yesterday's yield read `not reported`, because the bench's BMS and MPPT readings were unavailable. A bench traversal counted once, and its follow-up did not |
 | **H8** | Tier 5. **Parked** (§9.5), and not needed for production | — | None while parked |
 | **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Met 2026-10-28** against the sandbox, once its bridge ran 760e9a3 |
-| **H10** | Port to production | H1–H9, H11, H12; bridge **B6** | §12's procedure, then GL8 |
+| **H10** | Port to production | H1–H9, H11, H12; the deployment brief's **B3** | §12's procedure, then GL8 |
 | **H11** | Fluvy: install it on the sandbox, and move the three dashboards to its cards (§2) | H2, H3; F1 | Fluvy v1.11.3 is installed through HACS, and its theme applies everywhere. Each card in the three dashboards is a Fluvy card where Fluvy has one, with the entity IDs unchanged, and `check_entities.py` passes. Each view renders in a screenshot. The plan names each LRAN template, banner or automation that Fluvy makes redundant, and each porting issue found |
 | **H12** | The dashboard rework of 2026-11-01: Gate for operation only, Vehicles, Temperature view, Gate Pier Lights, both LRAN dashboards renamed and admin only; bridge task F5 | H11 | Each gate action draws `DRY_RUN` with relay dry-run on. Each crossing case in §8.4 reads as the table says, with injected events, and survives a restart. Each gate status renders its words. **Met 2026-11-02**: all of those pass, including real tile taps, F5 on a flashed bridge, and each §8.4 crossing case on real inputs |
 
@@ -797,8 +797,9 @@ press nothing since v0.11, so they needed no change.
 
 ## 12. Porting to production
 
-1. Run B6 first. Production entities exist only once the bridge has published discovery
-   to the production broker.
+1. Run the deployment brief's B3 first. Production entities exist only once the bridge has
+   published discovery to the production broker, and B3 did that on 2026-11-02. B6 is not
+   needed, so steps 2 to 5 and 7 can run with GateLink on the bench.
 2. Copy `ha/packages/lran/` to `packages/lran/` and `ha/dashboards/` to `dashboards/lran/`
    in the production config directory, matching the paths in §6. Write
    `site.yaml` from `site.yaml.example` with the production notify targets.
@@ -812,7 +813,8 @@ press nothing since v0.11, so they needed no change.
    production registry named something differently, or the bridge runs firmware older
    than the repository's discovery.** Rename a production entity to match the repository,
    rather than editing the YAML for one install. Reflash a bridge that is behind.
-6. Verify tier 1 on production with relay dry-run on, as part of GL8.
+6. Verify tier 1 on production with relay dry-run on, as part of GL8. This step waits for
+   the gate.
 7. Turn on `input_boolean.lran_email_enabled` when the operator is ready for email.
 
 ## 13. Open questions
@@ -823,6 +825,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.22 | 2026-11-02 | By operator choice, H10 follows B3, not B6, because B3 put the entities on the production broker. §12's step 6 still waits for GL8 at the gate |
 | 0.21 | 2026-11-02 | By operator choice, §9.5 parks tier 5 as nice-to-haves that production does not need: the approach prompt, because connectivity is poor until close to the house, and voice control, which nobody asked for. That answers §13's question. §3, §6, §11 and the file list change to match. |
 | 0.20 | 2026-11-02 | §8.1 and §8.3: the SOC gauge is Fluvy's `battery` gauge, by operator choice. §8.3: *Restore defaults* moved to a scenes card, because the scene card sent it with no dialog. |
 | 0.19 | 2026-11-01 | By operator choice: §8.2's LRAN Configuration has GateLink, WellLink, Bridge and Notification views, and only a system-wide name carries LRAN. §7.3 sends an alert or reminder to two additional-recipient lists when its own switch is on (§7.1), through a new site script (§6). §8.1 centres the status, prefixes it *Gate Status:*, and moves the link below the actions. §8.4 titles the log |
