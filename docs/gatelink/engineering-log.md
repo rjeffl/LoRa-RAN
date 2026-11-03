@@ -1619,3 +1619,132 @@ stage gets a recheck at about 5 V after the change, because the bench has only d
 12 V lead.
 
 **Falsified by:** a stage that does not switch cleanly from about 4.6 V through its 10 kΩ.
+
+## 2026-11-03 — M27's in-circuit test: Q1's gate is damaged, and Q3's leaks too
+
+**The operator measured all four stages in circuit, driving each input to about 13.2 V and then 0 V.** Q1
+fails with gate leakage in both states. Q3, which no reading had questioned, leaks through its gate about
+24,000 times the brief's 10 nA limit. Q2, the replacement fitted on 2026-11-02, is the control.
+
+| FET | Condition | Input | Gate to source | Drain to source |
+|---|---|---|---|---|
+| Q1 | Original | 13.2 V | 9.51 V | 8 mV |
+| | | 0 V | 403 mV | 11.43 V |
+| Q2 | Replaced | 13.2 V | 13.21 V | 5 mV |
+| | | 0 V | 0 | 13.12 V |
+| Q3 | Original | 13.2 V | 12.96 V | 6 mV |
+| | | 0 V | 0 | 13.13 V |
+| Q4 | Original | 13.2 V | 12.02 V | 5 mV |
+| | | 0 V | 0 | 13.12 V |
+
+**These figures are calculations from that table.** No one measured across the series resistors as M27's
+test 1 asks. They assume R1 and R3 are still the as-built 1K, and that each input was at 13.2 V when its gate
+was read. A meter across R3 at 13.2 V should read about 0.24 V, which would check Q3's figure directly.
+
+| FET | Reading | Implied |
+|---|---|---|
+| Q1, input high | 3.69 V lost across R1 | About 3.7 mA into the gate, or about 2.6 kΩ from gate to source and drain |
+| Q1, input low | 403 mV across R1, with the drain at 11.43 V | About 0.4 mA from drain to gate, or roughly 20 to 27 kΩ. The drain's extra 1.7 V drop is consistent with that current |
+| Q2 | No drop at the gate | No leakage this reading can resolve |
+| Q3, input high | About 0.24 V lost across R3 | About 0.24 mA into the gate, or about 52 kΩ |
+| Q3, input low | Gate at 0, drain at 13.13 V | No drain-to-gate leak this reading can resolve |
+| Q4 | 12.02 V against 12.0 V from R4 and R9 as a divider | No leak near Q3's size. R9 hides anything much smaller |
+
+**Every drain switched in both states**, with 5 to 8 mV on and more than 11 V off. The channels look sound, and
+the faults are at the gate. The 1.4 V drain reading in *The input board's netlist* did not repeat. Its gate
+state was not recorded, so this does not explain it.
+
+**This answers that entry's falsifier and the v1.2 brief's.** Q1's gate pin is leaking, so the gate-damage
+hypothesis stands for Q1, though leakage on the board itself is not excluded. An M27 result pointing away from
+the gate would have lowered the value of the brief's changes 1 and 2, and this one does not. The removed parts
+can separate the two: a part that stops leaking out of circuit puts the leak on the board.
+
+**Q4 is the only original part without a measurable leak, and it is the only stage with a gate pulldown.** Q1
+and Q2 carried H12's hand-driven runs, and Q3 was driven less, which matches how badly each part reads. Both
+patterns fit a gate with no discharge path, damaged during handling. They come from four parts on one board,
+and Q4's drive also differs, so they are not proof. M27's batch tests are still the check for a bad batch.
+
+**Q3 still switches, and it is unlikely to stop on this alone.** Through R3's new 10 kΩ, a 52 kΩ leak would
+leave its gate at about 3.9 V from the 1050's 4.6 V, above a 2N7000's 3 V maximum threshold. The worry is
+what comes next: if the leak grows as Q2's and Q1's may have, the part fails at the gate, on a line that
+reaches the 1050.
+
+**M27 still owes** a drain-to-gate and gate-to-source reading on the removed Q2, and the leakage and threshold
+tests on the removed parts and unused parts from the batch.
+
+**Falsified by:** a meter across R3 that reads millivolts at 13.2 V, which would mean the Q3 reading came from
+something other than gate current.
+
+## 2026-11-03 — The firmware revision review: what the next images could carry
+
+**The review proposes few additions to D90's mask, because every added change widens the soak that D89 calls
+brief.** The list below is for the operator to decide. No firmware changed. Status comes from reading the
+documents and the source, and `git diff cb1be00 HEAD` shows only the dry-run switch's discovery change in
+`firmware/`, `lib/` and `ha/discovery/`.
+
+**GateLink's image, which costs a walk to the gate if an item misses it:**
+
+| # | Item | Recommend | Why |
+|---|---|---|---|
+| G1 | **D90's mask**, as an `lran-config` row over IN3 to IN6, applied below the debounce | Build (decided) | The questions below settle its shape |
+| G2 | **Record `0x8D`'s raw reply on the card when it changes.** No firmware path requests `0x8D` today, so `bms_alarms` stays `UINT16_MAX`, and R-3.4a and R-3.4c wait on a capture during a protection event | Build, if the extra request fits the BMS window on the bench | The cold mornings that could produce the capture start now, and otherwise someone must be at the gate with a tool when one happens. It only records. Decoding it takes a later reflash, and it adds traffic to a path that has soaked clean |
+| G3 | **`antenna_gain_dbi` and the envelope rows** (PRD R-4.3i) | Defer | Fleet-wide and with no function at the gate. Kept out by the operator on 2026-10-01 |
+| G4 | **The freeze's later list**: `boot_count`, `BOOT`'s `input_bits`, `sd` with no card, `bms_task`'s clock, the RTC | Defer | None affects deployment. `boot_count` stays out by the operator's decision of 2026-11-02 |
+| G5 | **A rate limit on repeated `FIRE_ASSERTED`** | Defer | The mask stops a chattering IN5 once someone sets it. Until then, HA sends each edge as a critical push |
+| G6 | **`BMS_ALARM`** (F3's open half) | Defer | With `bms_alarms` unavailable there is nothing to pass through. G2 is the step before it |
+| G7 | **Relay dry-run surviving a reset** | Leave as is | A reset that clears dry-run is a trap at GL7, and the handoff's check covers it. A persisted dry-run could leave the gate silently dead |
+
+**The bridge's image, which can still update by OTA once it is deployed:**
+
+| # | Item | Recommend | Why |
+|---|---|---|---|
+| B1 | **The mask's discovery row and `config/state`**, which come from the shared table | Build (follows G1) | The name is permanent on production, so the operator approves it first |
+| B2 | **A poll right after `SET_RELAY_DRY_RUN` and `SET_BMS_POLLING` are acknowledged** | Build | The bridge handoff says to take it with the next bridge change, and this is that change |
+| B3 | **The Request configuration button left GateLink's node rows null** (bridge log, 2026-10-28; freeze R3) | Investigate on the bench before GateLink's image is frozen | If the fault is on the node's side, the fix needs GateLink's image. `cmd/ack` and the frame log were never captured |
+| B4 | The publish queue's share with rxlog, and retained `lran/bridge/version` | Defer | OTA can reach both later |
+
+**For G1, this review proposes leaving `node_flags` bit 7 unset and letting HA read the mask.** The row is already in `config/state`, so HA can show "not sensed" per input with no change to any
+frame. Masking IN5 then does not take IN6 down with it, as bit 7 would (spec §7.2.8, D80). R-3.5l's statement that
+bit 7 is not set still holds. A spec reading under which a masked input may not read clear in
+`input_bits` would falsify this and need a revision. If one is needed, §7.2.10's two wording fixes from the handoff's *Open*
+go with it.
+
+**The other D90 questions, with what the review would accept:**
+
+- **Persistence follows the card.** A dead card plus a reset clears the mask, so a failed stage returns until
+  someone sets it again. Accept this, and put it in the operator's notes for the gate.
+- **Unmasking an asserted input is a rising edge**, and it sends a new alert. Accept this, because an input still
+  asserted at unmask is worth an alert.
+- **The default is 0**, every input live, so a new image with an empty `config.json` behaves as `cb1be00` does.
+
+**Which checks to repeat on the new images:**
+
+| Check | Repeat | Why |
+|---|---|---|
+| Clean build from a committed tree, image contents compared, banners, first-boot link | Yes | Each is B3's check of a new production image |
+| VE.Direct and BMS read, `config/state` overrides, card contents after a power cycle | Yes | The new row changes the table both images read |
+| The mask's run: each input masked while forced asserted and chattering | New | The entry *An input mask goes in* names it as the falsifier |
+| Each stage from about 5 V, with toggle switches | New | D89, and the falsifier in *R1 to R3 change to 10 kΩ* |
+| OPEN and CLOSE in dry-run, and one relay pulse | Yes | The mask changes `io_task`, which drives the relays |
+| F1 to F9's bench runs | Only those whose code changes | Otherwise they would only repeat the 2026-11-01 runs on the same code |
+| B3's production HA walk | Only the new entities | H10 covers the rest, and the bridge's image changes little |
+| A 12 h soak with the real MPPT and pack, or a stand-in | Yes | D89 calls for a brief one, and 12 h matches 2026-10-27's. Read `/bms.log` and `/log/fault.txt` after it |
+| Charging on the new image | Yes, if there is sun | The B3 soak never saw charging, and the charger's silence is unexplained |
+
+**The review found two stale lines, both for the handoffs' *Open*.** The HA handoff says GateLink sends no
+`MPPT_ERROR`, and `mppt_error_watch.cpp` sends it. GateLink's handoff still calls its ranges proposals, and the
+bridge handoff records approval on 2026-10-15. The operator should confirm those ranges now, because changing one
+later takes both images.
+
+## 2026-11-03 — The operator accepts the review, and Q3 comes out with Q1
+
+**The operator accepted every recommendation in the review** and the Q3 swap in *M27's in-circuit test*. So the
+next images carry G1 and B1, the mask and its discovery row, along with B2, the poll after the two commands. G2 goes
+in if the extra request fits the BMS window on the bench, and B3 gets its bench investigation before GateLink's
+image is frozen. The other items are deferred or left as they are.
+
+**D90's mask takes the review's shape:** a config row with bit 7 left unset, HA reading the row from `config/state`,
+persistence on the card, and a default of 0.
+
+**Two things are still the operator's.** This acceptance did not name the mask row, and that name is permanent on
+production. It also did not confirm GateLink's parameter ranges, so that question stays open.

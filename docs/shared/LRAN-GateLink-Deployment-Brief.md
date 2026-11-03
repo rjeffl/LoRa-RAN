@@ -106,6 +106,18 @@ These lower-value items can wait for any later reflash:
 - `bms_task` should read its clock after the blocking write.
 - The RTC reads `2049-12-01`. Nothing on the wire reads it yet.
 
+**Added 2026-11-03: what the images after `cb1be00` carry.** The operator accepted these from the firmware
+revision review (GateLink engineering log, same date), after F1 to F9 were built or decided:
+
+| # | Item | Decision |
+|---|---|---|
+| G1 | **D90's input mask** over IN3 to IN6, with its discovery row on the bridge | Build |
+| G2 | **The raw `0x8D` reply on the card when it changes** | Build, if the extra request fits the BMS window on the bench |
+| B2 | **A bridge poll right after `SET_RELAY_DRY_RUN` and `SET_BMS_POLLING` are acknowledged** | Build |
+| B3 | **Request configuration leaving GateLink's node rows null** (R3 below) | Investigate on the bench before GateLink's image is frozen |
+
+The later items above stay deferred, and so do R-4.3i's rows, a `FIRE_ASSERTED` rate limit and `BMS_ALARM`.
+
 ## At-gate sequence
 
 Dependencies follow GateLink plan §8.2 and §7.4. Rows with no LRAN hardware can run any
