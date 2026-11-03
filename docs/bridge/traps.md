@@ -261,6 +261,8 @@ export LRAN_MQTT_PASSWORD=$(sed -n 's/^#define MQTT_PASSWORD[[:space:]]*"\(.*\)"
 ```
 
 **The OTA password is read from `LRAN_OTA_PASSWORD`** in the shell that runs the upload.
+`heltec_ota` then passes it to `espota` as `--auth=`, so it is in argv while the upload runs. Don't
+add `-v`, which could print it.
 
 ## Git, branches and merging
 
