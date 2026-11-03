@@ -138,6 +138,11 @@ class Mqtt:
         self.sock = None
         self.lock = threading.Lock()
         self.ping_s = 30  # half the 60 s keepalive in connect_packet
+        # Each ping draws a PINGRESP, so 90 s without a packet means the link is gone. With no
+        # read timeout, the B3 soak's logger waited in recv() for hours after the broker
+        # dropped it (engineering log, 2026-11-03).
+        self.read_timeout_s = 90
+        self.retry_s = 5
 
     def _recv(self, n):
         buf = b""
@@ -156,7 +161,7 @@ class Mqtt:
         if head != 0x20 or body[1] != 0:
             raise ConnectionError(f"CONNACK refused, code {body[1] if body else '?'}")
         self.sock.sendall(subscribe_packet(1, "lran/#"))
-        self.sock.settimeout(None)
+        self.sock.settimeout(self.read_timeout_s)
         self.log("MQTT", "<connected, subscribed lran/#>")
 
     def publish(self, topic, payload, retain=False):
@@ -197,11 +202,11 @@ class Mqtt:
                     retained = "<retained> " if head & 0x01 else ""
                     self.log("MQTT", f"{retained}{topic} {payload.decode('utf-8', 'replace')}")
             except (OSError, ConnectionError, IndexError) as e:
-                self.log("MQTT", f"<{e}; reconnecting in 5 s>")
+                self.log("MQTT", f"<{e}; reconnecting in {self.retry_s} s>")
                 if self.sock is not None:
                     self.sock.close()
                 self.sock = None
-                time.sleep(5)
+                time.sleep(self.retry_s)
 
 
 # --- run -------------------------------------------------------------------------------

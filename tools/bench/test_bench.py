@@ -115,6 +115,36 @@ class FakeBrokerTest(unittest.TestCase):
         self.assertIn(("MQTT", "lran/simnode1/state {}"), lines)
         self.assertIn(("MQTT", "<retained> lran/gatelink/node/state {}"), lines)
 
+    def test_silent_broker_forces_a_reconnect(self):
+        # The B3 soak's logger stayed in recv() for hours after the broker dropped it
+        # (engineering log, 2026-11-03).
+        srv = socket.socket()
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(2)
+        srv.settimeout(5)
+        conns = []
+
+        def broker():
+            for _ in range(2):
+                c, _addr = srv.accept()
+                conns.append(c)  # held open and never written after CONNACK
+                c.sendall(b"\x20\x02\x00\x00")
+
+        t = threading.Thread(target=broker, daemon=True)
+        t.start()
+        lines = []
+        m = bench.Mqtt("127.0.0.1", srv.getsockname()[1], "u", "p",
+                       lambda tag, text: lines.append((tag, text)))
+        m.read_timeout_s = 0.1
+        m.retry_s = 0.01
+        threading.Thread(target=m.loop, daemon=True).start()
+        t.join(5)
+        for c in conns:
+            c.close()
+        srv.close()
+        self.assertEqual(len(conns), 2)
+        self.assertTrue(any("reconnecting" in text for _, text in lines))
+
     def test_keepalive_survives_a_missing_socket(self):
         # The first soak's keepalive died here while the broker was down (2026-10-25).
         lines = []
