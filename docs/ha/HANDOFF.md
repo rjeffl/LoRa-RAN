@@ -388,7 +388,6 @@ those two targets changed, which plan §7.3 names.
 - **The sandbox's home location looks wrong for the site.** `sun.sun` put the next sunset
   at 16:18 UTC on 2026-10-28, 12:18 in New York, so `lran_3_open_at_night` would fire at
   the wrong hour there. Production's reads right.
-- **The test push's delivery on production was not confirmed** when H10's log entry was written.
 - **R5, R7 and R8 stay open on production** (deployment brief), by default rather than by a fresh
   decision.
 - **Why GateLink booted at 23:26Z on 2026-11-02 was not looked into.** The overnight evidence the

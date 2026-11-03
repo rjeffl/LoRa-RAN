@@ -1120,3 +1120,8 @@ checked.
 `sensor.lran_gatelink_autonomy_days` reads `unavailable`.** The autonomy sensor's availability needs
 a day of draw history and a non-zero draw. `lran_notify` already rejects `unknown` from the two
 additional-recipient lists. The other helpers were not traced.
+
+## 2026-11-02 — H10's test push arrived
+
+**The operator confirmed the test push and accepted the port.** The entry above left delivery
+unconfirmed. Step 6 and step 7 are still to come.
