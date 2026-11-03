@@ -35,13 +35,15 @@ script:
       title: { selector: { text: } }
       message: { selector: { text: } }
     sequence:
-      - action: notify.lran_email
+      - action: notify.send_message
+        target:
+          entity_id: notify.lran_email_YOU
         data:
           title: "{{ title }}"
           message: "{{ message }}"
 
-  # The same, to input_text.lran_additional_emails rather than the admin (plan 7.3). A
-  # target replaces the notifier's recipient list for this send.
+  # The same, to input_text.lran_additional_emails rather than the admin (plan 7.3).
+  # `recipients` is a list of SMTP recipient entities, and each gets its own email.
   lran_site_email_to:
     alias: LRAN site email to additional recipients
     mode: parallel
@@ -50,26 +52,17 @@ script:
       title: { selector: { text: } }
       message: { selector: { text: } }
     sequence:
-      - action: notify.lran_email
+      - action: notify.send_message
+        target:
+          entity_id: "{{ recipients }}"
         data:
-          target: "{{ recipients }}"
           title: "{{ title }}"
           message: "{{ message }}"
 
-# SMTP is configured in YAML only. The password goes in secrets.yaml, never here.
-notify:
-  - name: lran_email
-    platform: smtp
-    server: smtp.example.com
-    port: 587
-    encryption: starttls
-    timeout: 15
-    sender: lran@example.com
-    sender_name: LRAN
-    username: lran@example.com
-    password: !secret lran_smtp_password
-    recipient:
-      - you@example.com
+# SMTP is set up in the UI, under Settings > Devices & services, not here. Each address is a
+# recipient on that integration, and each recipient is a notify entity. HA 2026.10's source
+# marks the older `notify.<name>` action as breaking in 2027.3: with no target it mails every
+# recipient, which would send the admin's health alerts to everyone (plan 7.3).
 
 # Install-wide, so it lives here rather than in core.yaml (plan 10). Every install needs
 # this exclusion: the raw mV sensors already hold the history of the V copies.

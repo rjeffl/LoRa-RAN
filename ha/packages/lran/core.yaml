@@ -415,7 +415,8 @@ script:
       additional_emails: >-
         {% if to_additional %}
           {{ states('input_text.lran_additional_emails').split(',') | map('trim')
-             | reject('in', ['', 'unknown', 'unavailable']) | list }}
+             | map('replace', 'notify.', '') | reject('in', ['', 'unknown', 'unavailable'])
+             | map('regex_replace', '^', 'notify.') | list }}
         {% else %}[]{% endif %}
       # Critical sounds through Do Not Disturb: iOS critical: 1, Android alarm_stream.
       # Keys for the other platform are ignored, so one data block serves both.
