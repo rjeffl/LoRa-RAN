@@ -1213,3 +1213,29 @@ config cleared with an empty retained publish. `binary_sensor.gatelink_relay_dry
 GateLink or its `cmd/ack`. `test_dry_run_is_a_switch_on_the_command` covers the topic's parse, and
 production's check waits for the OTA.
 
+## 2026-11-02 — The dry-run switch on production, and why its toggle springs back
+
+**The operator's OTA upload put `69fe850` on the bridge**, and `switch.gatelink_relay_dry_run` appeared.
+`check_entities.py --server ha-prod` found every ID, after a copy of `lran-maintenance.yaml`.
+
+**The operator reported that the switch turned itself off within about 5 s. It had worked.** The
+logbook has no `off` from that press, and `on` arrived at 21:08:20 local on the switch and the old
+sensor together. Both read `node/state`, which moves only at the bridge's poll, 60 s by default
+(`poll_interval_s`). HA does not assume a non-optimistic switch changed, so its toggle reverts while
+no state has arrived. The switch later read `off` after the operator turned it off. `cmd/ack` was not
+read, so that state change is the evidence the command reached GateLink.
+
+**It reaches two controls.** Of the controls in `ha/discovery/`, only these two switches take their
+state from `node/state`. BMS polling should behave the same, but its toggle was not pressed in this
+run. The 61 rows on `config/set` read `config/state`, which spec §16.7.4 republishes after a
+`config/ack` that changed a value. The soak log has `restore_defaults` at 2.7 s from `config/set` to
+`config/state` on 2026-11-02, and no single-row set to time. MPPT write enable's state comes from the
+bridge itself. The cover and hold switch read `gate/state`, which GateLink pushes on a change, and no
+logged press shows that delay: the logged presses either ran in dry-run or left the state unchanged.
+
+**The operator called this minor because of that scope, and left the behaviour as it is.** A poll
+right after those two commands would fix it. That needs an OTA upload, so it waits for the next bridge
+change, and the bridge handoff carries it.
+
+**Auto mode refused the empty retained publish that clears the old sensor's config**, so that is the
+operator's, and the sensor remains until then.
