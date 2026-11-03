@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5.**
+read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5, and on 2026-11-02 after the email and press-flash cleanup.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -28,7 +28,7 @@ Continue from docs/ha/HANDOFF.md: task H10, step 6.
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10's
 steps 2 to 5 ran on production on 2026-11-02. Step 6 waits for GL8 at the gate, and step 7 for the
-operator. Production has the email change. Its press flash waits for a restart by the operator.
+operator. Production has the email and press-flash change.
 
 | Task | Read |
 |---|---|
@@ -41,11 +41,11 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**Production needs one restart for the press flash.** The files and the resource are in place, but
-HA serves `/local/` only if `www/` existed when it started, and `www/` is new there. Auto mode refused
-the restart, so it is the operator's. Do not press a Gate tile to check the flash unless dry-run is on.
+**The press flash has not been checked on production by this repository's records.** Production
+serves the module since the operator's restart. Do not press a Gate tile to check it unless dry-run is
+on.
 
-**Then H10's last two steps, on production** (plan §12). Step 6 verifies tier 1 with relay dry-run on,
+**H10's last two steps, on production** (plan §12). Step 6 verifies tier 1 with relay dry-run on,
 at the gate. Step 7 turns on `input_boolean.lran_email_enabled`, whose scripts target recipient
 entities. The scripts have sent real email, but `lran_notify` has not driven them there. The second
 recipient's phone has no Companion app yet, so `lran_additional_devices` waits for it.

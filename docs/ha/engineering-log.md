@@ -1192,3 +1192,8 @@ operator has to confirm, or `lran_notify` driving these scripts on production.
 **The operator confirmed that both test emails arrived, each at its own recipient.** The entry above
 left delivery unconfirmed. Real SMTP through recipient entities now works from the two scripts. The
 press flash on production still waits for the operator's restart.
+
+## 2026-11-02 — Production serves the press flash
+
+**After the operator's restart, `/local/lran/press-flash.js?v=1` returned 200 on production.** That
+shows the file is served. It does not show a press on production, which this session did not make.
