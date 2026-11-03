@@ -1213,3 +1213,22 @@ config cleared with an empty retained publish. `binary_sensor.gatelink_relay_dry
 GateLink or its `cmd/ack`. `test_dry_run_is_a_switch_on_the_command` covers the topic's parse, and
 production's check waits for the OTA.
 
+## 2026-11-02 — The dry-run switch on production, and why its toggle springs back
+
+**The operator's OTA upload put `69fe850` on the bridge**, and `switch.gatelink_relay_dry_run` appeared.
+`check_entities.py --server ha-prod` found every ID, after a copy of `lran-maintenance.yaml`.
+
+**The operator reported that the switch turned itself off within about 5 s. It had worked.** The
+logbook has no `off` from that press, and `on` arrived at 21:08:20 local on the switch and the old
+sensor together. Both read `node/state`, which moves only at the bridge's poll, 60 s by default
+(`poll_interval_s`). HA does not assume a non-optimistic switch changed, so its toggle reverts while
+no state has arrived. The switch later read `off` after the operator turned it off. `cmd/ack` was not
+read, so that state change is the evidence the command reached GateLink.
+
+**The operator chose a note over a poll on command**, because the poll needs another OTA upload. The
+GateLink view says so under the switches. BMS polling reads the same document, so the note names it,
+but its toggle was not pressed in this run.
+
+**Auto mode refused the empty retained publish that clears the old sensor's config, and the copy of
+the note to production**, so those are the operator's.
+

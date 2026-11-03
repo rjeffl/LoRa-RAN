@@ -53,6 +53,14 @@ views:
               # SET_BMS_POLLING (R-3.4e). GateLink polls again after a reboot (R-3.4a).
               - entity: switch.gatelink_bms_polling
                 name: BMS polling
+          # Both switches read node/state, which moves only at a poll, so HA's toggle springs
+          # back first. By operator choice, 2026-11-02, a note rather than a poll on command.
+          - type: markdown
+            content: >-
+              **Relay dry run** and **BMS polling** change at GateLink's next poll, up to a minute
+              at the default interval. The toggle springs back until then, which does not mean
+              the command failed. With dry run on, a Gate tile flashes and the gate does not move.
+              A GateLink reboot turns dry run off.
           - type: custom:fluvy-actions-card
             title: Requests
             rows:
