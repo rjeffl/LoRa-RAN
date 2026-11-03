@@ -1074,3 +1074,54 @@ required B6 because production entities exist only after discovery reaches the p
 and B3 did that today. B6 itself needs GL6 at the gate. Plan v0.22 moves H10's dependency to B3, and
 §12's step 6 still waits for GL8. The deployment brief's at-gate table lists H10 with B6, and it stays
 as written, because it is a dated record.
+
+## 2026-11-02 — H10: steps 2 to 5 on production
+
+**Production runs the LRAN packages, the four dashboards and Fluvy v1.11.3.** A full backup,
+`02cb9704`, came first. `check_entities.py --server ha-prod` then found all 238 entity IDs and 2
+prefixes. The config check read valid, all 22 LRAN automations are on, and only the two seed
+automations have fired. Email is off, and no gate tile was pressed. §12's step 6 waits for GL8.
+
+**The dashboards showed configuration errors on almost every page until the client reloaded its
+frontend.** The operator saw them in the Mac Companion app, which had stayed open across the
+install. Switching to another server and back cleared them, and all the pages then appeared to load
+correctly. The renders were not checked from this session, because production has neither the
+screenshot flag nor Puppet.
+
+**Production's existing include already covers the package directory.** Its `configuration.yaml`
+has `packages: !include_dir_named packages`, which also loaded `packages/lran/`, and the entities
+and automations appeared after the restart. Plan §6's `homeassistant:` block would have been a
+duplicate key, so production took only the `lovelace:` block.
+
+**Production was exposing 10 LRAN entities to Assist**, including `cover.gatelink_gate`,
+`switch.gatelink_hold_gate_open` and `switch.gatelink_mppt_write_enable`. The operator chose none,
+so all 10 are off.
+
+**The operator's other choices:** pushes go to `notify.mobile_app_jbook16_m5` and
+`notify.mobile_app_jliphone16`. Email goes through the existing `notify.mc_ha_email`, held off by
+`input_boolean.lran_email_enabled`. `purge_keep_days` stays at HA's default, because it would apply
+to every device on the install. R5, R7 and R8 stay open.
+
+**Production's home location looks right**: `sun.sun` read the next sunset as 17:40 EST.
+
+**`script.lran_site_push` ran once without error, with a test message.** Delivery to the two
+devices was not confirmed when this entry was written. The real email path has not run.
+
+**GateLink's uptime was about 50 minutes, not overnight.** `lran/gatelink/node/state` read
+`uptime_s` 2992 and `boot_time` 2026-11-02T23:26:00Z, so this read gave no overnight evidence. Why
+it booted then was not looked into.
+
+**`ha-prod` registered mid-session does not load its tools into that session.** `claude mcp add`
+reported it connected, and the session's list still omitted it. This session called it through a
+small throwaway JSON-RPC client instead. A new session should load it normally, which was not
+checked.
+
+**On a fresh install, six `input_text` helpers and two derived sensors read `unknown`, and
+`sensor.lran_gatelink_autonomy_days` reads `unavailable`.** The autonomy sensor's availability needs
+a day of draw history and a non-zero draw. `lran_notify` already rejects `unknown` from the two
+additional-recipient lists. The other helpers were not traced.
+
+## 2026-11-02 — H10's test push arrived
+
+**The operator confirmed the test push and accepted the port.** The entry above left delivery
+unconfirmed. Step 6 and step 7 are still to come.

@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.22
+**Version:** 0.23
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02; H10 steps 2 to 5 done on production 2026-11-02
 **Last updated:** 2026-11-02
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -163,8 +163,10 @@ tools/ha/
   check_entities.py     every entity ID the YAML names exists in a live HA (H9)
 ```
 
-**Packages, so production gets the whole set in one include.** Production's
-`configuration.yaml` gains two blocks:
+**Packages, so production gets the whole set in one include.** An install's
+`configuration.yaml` gains two blocks. **Production already had `packages: !include_dir_named
+packages`**, which also reads `packages/lran/`, so production took only the `lovelace:` block. A
+second `homeassistant:` key there would be a duplicate:
 
 ```yaml
 homeassistant:
@@ -767,7 +769,8 @@ is install-wide:
 - **Exclude `sensor.lran_gatelink_crossing_log`** (§8.4). Each crossing rewrites its whole
   list, and it holds only today.
 - **Raise `purge_keep_days` to 30**, if the production database has room, so the Events
-  logbook reaches back a month.
+  logbook reaches back a month. **Not taken on production** (operator, 2026-11-02), because the
+  setting applies to every device on that install. Production keeps HA's default.
 
 ## 11. Tasks
 
@@ -787,7 +790,7 @@ from the YAML.
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal. **Met 2026-10-28**: both reports rendered, with statistics from the sandbox, and reached the phone. SOC and yesterday's yield read `not reported`, because the bench's BMS and MPPT readings were unavailable. A bench traversal counted once, and its follow-up did not |
 | **H8** | Tier 5. **Parked** (§9.5), and not needed for production | — | None while parked |
 | **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Met 2026-10-28** against the sandbox, once its bridge ran 760e9a3 |
-| **H10** | Port to production | H1–H9, H11, H12; the deployment brief's **B3** | §12's procedure, then GL8 |
+| **H10** | Port to production | H1–H9, H11, H12; the deployment brief's **B3** | §12's procedure, then GL8. **Partly met 2026-11-02**: steps 2 to 5 pass, and the operator saw the dashboards load. Step 6 waits for GL8, and step 7 for the operator |
 | **H11** | Fluvy: install it on the sandbox, and move the three dashboards to its cards (§2) | H2, H3; F1 | Fluvy v1.11.3 is installed through HACS, and its theme applies everywhere. Each card in the three dashboards is a Fluvy card where Fluvy has one, with the entity IDs unchanged, and `check_entities.py` passes. Each view renders in a screenshot. The plan names each LRAN template, banner or automation that Fluvy makes redundant, and each porting issue found |
 | **H12** | The dashboard rework of 2026-11-01: Gate for operation only, Vehicles, Temperature view, Gate Pier Lights, both LRAN dashboards renamed and admin only; bridge task F5 | H11 | Each gate action draws `DRY_RUN` with relay dry-run on. Each crossing case in §8.4 reads as the table says, with injected events, and survives a restart. Each gate status renders its words. **Met 2026-11-02**: all of those pass, including real tile taps, F5 on a flashed bridge, and each §8.4 crossing case on real inputs |
 
@@ -802,12 +805,15 @@ press nothing since v0.11, so they needed no change.
    needed, so steps 2 to 5 and 7 can run with GateLink on the bench.
 2. Copy `ha/packages/lran/` to `packages/lran/` and `ha/dashboards/` to `dashboards/lran/`
    in the production config directory, matching the paths in §6. Write
-   `site.yaml` from `site.yaml.example` with the production notify targets.
+   `site.yaml` from `site.yaml.example` with the production notify targets. Production's
+   email scripts call its existing `notify.mc_ha_email`, so its `site.yaml` has no SMTP block.
 3. Install HACS, then Fluvy v1.11.3 through HACS (§2), and add the Fluvy integration.
    Fluvy registers its own dashboard resource while resources are in storage mode, as on
    the sandbox. `configuration.yaml` needs `frontend: themes: !include_dir_merge_named
    themes`. Set the default theme to Fluvy, for light and dark, and Fluvy's house *Scope*
-   to `everywhere` in its settings panel, or the LRAN dashboards stay unstyled (§8.3).
+   to `everywhere` in its settings panel, or the LRAN dashboards stay unstyled (§8.3). A
+   client open across the install shows configuration errors until its frontend reloads. The
+   Mac Companion app needed a switch to another server and back.
 4. Add the §6 blocks to `configuration.yaml`, check the configuration, and restart.
 5. Run `tools/ha/check_entities.py --server ha-prod`. **A missing entity ID means the
    production registry named something differently, or the bridge runs firmware older
@@ -825,6 +831,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.23 | 2026-11-02 | H10's steps 2 to 5 ran on production. §6: production's existing packages include covers `packages/lran/`, so it takes only the `lovelace:` block. §10: production keeps HA's default `purge_keep_days`, by operator choice. §12: production's email uses its existing notifier, and an open client needs its frontend reloaded after Fluvy's install |
 | 0.22 | 2026-11-02 | By operator choice, H10 follows B3, not B6, because B3 put the entities on the production broker. §12's step 6 still waits for GL8 at the gate |
 | 0.21 | 2026-11-02 | By operator choice, §9.5 parks tier 5 as nice-to-haves that production does not need: the approach prompt, because connectivity is poor until close to the house, and voice control, which nobody asked for. That answers §13's question. §3, §6, §11 and the file list change to match. |
 | 0.20 | 2026-11-02 | §8.1 and §8.3: the SOC gauge is Fluvy's `battery` gauge, by operator choice. §8.3: *Restore defaults* moved to a scenes card, because the scene card sent it with no dialog. |
