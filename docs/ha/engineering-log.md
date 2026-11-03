@@ -1164,3 +1164,25 @@ sandbox's address again, so that press was the only check.
 **The production port was refused here.** Auto mode's classifier blocked the file copy and the
 resource registration as a production deploy, so neither reached production, and the operator
 decides how they do.
+
+## 2026-11-02 — The email change on production, and its first real sends
+
+**The operator allowed the port, which corrects the entry above.** `site.yaml`, `core.yaml`,
+`lran-maintenance.yaml` and `press-flash.js` reached production, and `cmp` matched the three
+repository copies. `cp` failed on `core.yaml` with "could not copy extended attributes", so the copies
+used `cp -X`. The resource is registered, and a script reload took the email change. Auto mode refused
+`ha_restart`, so `/local/` is not served there until the operator restarts, and the flash has not run
+on production.
+
+**The two email scripts, called directly with labelled messages and `lran_email_enabled` off:**
+
+| Call | Result |
+|---|---|
+| `lran_site_email` | `notify.mc_ha_email_jeff`'s state advanced. Its neighbour's did not change in this call's result |
+| `lran_site_email_to`, the second recipient's entity | That entity's state advanced |
+| `lran_site_email_to`, `notify.mc_ha_email_nosuch` | Finished without error, sent nothing, and logged one warning: "Referenced entities notify.mc_ha_email_nosuch are missing or not currently available" |
+
+Repairs read empty afterwards, so `notify.send_message` raises no deprecation issue. An entity's state
+shows HA finished the send, not that the mail arrived. **This run does not show** delivery, which the
+operator has to confirm, or `lran_notify` driving these scripts on production.
+

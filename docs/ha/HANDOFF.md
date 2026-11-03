@@ -28,13 +28,12 @@ Continue from docs/ha/HANDOFF.md: task H10, step 6.
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10's
 steps 2 to 5 ran on production on 2026-11-02. Step 6 waits for GL8 at the gate, and step 7 for the
-operator. The email and press-flash change ran on the sandbox and has not reached production.
+operator. Production has the email change. Its press flash waits for a restart by the operator.
 
 | Task | Read |
 |---|---|
 | **H10, step 6** Verify tier 1 on production, as part of GL8 | *The next job* here; plan §12 and §9.1; the deployment brief's GL8 row |
-| **Port the email and press-flash change** to production, then test real SMTP | *The next job* here; plan §7.3, §12 step 2 |
-| **H10, step 7** Turn on email, when the operator is ready, after that port | *The next job* here; plan §7.3 |
+| **H10, step 7** Turn on email, when the operator is ready | *The next job* here; plan §7.3 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -42,25 +41,14 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**Port the email and press-flash change first.** Production's `site.yaml` still calls
-`notify.mc_ha_email`, which with no target mails every SMTP recipient (plan §7.3), so **do not turn
-email on until this is done**. Check that `/Volumes/config-1`'s files differ from the repository
-only by this change, then:
-
-1. In production's `site.yaml`, make `lran_site_email` call `notify.send_message` with
-   `target: entity_id: notify.mc_ha_email_jeff`, and `lran_site_email_to` with
-   `target: entity_id: "{{ recipients }}"`, as `site.yaml.example` shows.
-2. Copy `core.yaml`, `lran-maintenance.yaml`, and `press-flash.js` to `www/lran/`.
-3. Register `/local/lran/press-flash.js?v=1` as a module resource, and restart, because `www/` is new
-   on production.
-4. Test real SMTP by calling `script.lran_site_email`, and `script.lran_site_email_to` with
-   `recipients` naming the second recipient's entity, with labelled test messages. Then call it with a
-   missing entity, and read the log and Repairs. Do not press a Gate tile to check the flash unless
-   dry-run is on.
+**Production needs one restart for the press flash.** The files and the resource are in place, but
+HA serves `/local/` only if `www/` existed when it started, and `www/` is new there. Auto mode refused
+the restart, so it is the operator's. Do not press a Gate tile to check the flash unless dry-run is on.
 
 **Then H10's last two steps, on production** (plan §12). Step 6 verifies tier 1 with relay dry-run on,
-at the gate. Step 7 turns on `input_boolean.lran_email_enabled`. A real SMTP send has not run. The
-second recipient's phone has no Companion app yet, so `lran_additional_devices` waits for it.
+at the gate. Step 7 turns on `input_boolean.lran_email_enabled`, whose scripts target recipient
+entities. The scripts have sent real email, but `lran_notify` has not driven them there. The second
+recipient's phone has no Companion app yet, so `lran_additional_devices` waits for it.
 
 **Check the target before every write.** `/Volumes/config` and `ha-sandbox` are the sandbox.
 `/Volumes/config-1` and `ha-prod` are production (*The dev flow*).
@@ -383,8 +371,7 @@ those two targets changed, which plan §7.3 names.
   dashboards only, and the app's browser pane was refused the sandbox's address.
 - **The 08:00:08 2026-10-28 `lran_notify` run has no logbook entry in ha-mcp's read**,
   though its trace reached `logbook.log`. Not chased.
-- **Real SMTP** waits for production, because the sandbox has no SMTP integration (*The next
-  job*). Whether a missing recipient entity fails quietly is unproven until then.
+- **The sandbox has no SMTP integration**, so real email is tested on production only.
 - **Forcing a state has no ha-mcp route.** An event alert needs none: `mqtt.publish`
   injects the event (H4). An alert on a sensor's state needs none either: H5 moved its
   threshold instead. A banner check still needs one. The operator chose a test-only
