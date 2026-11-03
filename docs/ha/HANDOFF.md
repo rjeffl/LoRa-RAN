@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, and on 2026-11-02 for the boots chart.**
+read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -22,17 +22,18 @@ read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H10.
+Continue from docs/ha/HANDOFF.md: task H10, step 6.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10, the port to
-production, is next, and follows the deployment brief's B3, not B6 (plan v0.22, §12). §12's step 6
-waits for GL8 at the gate, so this session runs steps 2 to 5 and 7.
+cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10's
+steps 2 to 5 ran on production on 2026-11-02. Step 6 waits for GL8 at the gate, and step 7 for the
+operator, so no HA task can start until one of those is ready.
 
 | Task | Read |
 |---|---|
-| **H10** Port to production | *The next job* here; plan §12; §8.3's porting issues; §11's H10 row |
+| **H10, step 6** Verify tier 1 on production, as part of GL8 | *The next job* here; plan §12 and §9.1; the deployment brief's GL8 row |
+| **H10, step 7** Turn on email, when the operator is ready | *The next job* here; plan §7.3 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -40,32 +41,22 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H10, the port to production** (plan §12). B3 is done: production HA registered the entities on
-2026-11-02, and the operator found them correct (bridge engineering log, same date, *B3*). GateLink
-stays on the bench through this session.
+**H10's last two steps, on production** (plan §12). Step 6 verifies tier 1 with relay dry-run on, at
+the gate. Step 7 turns on `input_boolean.lran_email_enabled`, whose scripts call the existing
+`notify.mc_ha_email`. That path has not run, and neither has a real SMTP send.
 
-**Before anything else, read `uptime_s` from `lran/gatelink/node/state`.** The overnight run after
-B3 is the first evidence longer than a minute on these images. Opening either board's serial port
-resets it, which would erase that evidence, so use `bench.py run --mqtt` with no `--port`.
+**Check the target before every write.** `/Volumes/config` and `ha-sandbox` are the sandbox.
+`/Volumes/config-1` and `ha-prod` are production (*The dev flow*).
 
-**Check the target before every write.** `/Volumes/config` and `ha-sandbox` are still the sandbox,
-and *The dev flow*'s copy commands name that mount. Production needs its own mount, and `ha-prod`
-is not registered yet (*The dev flow*).
+**Gate commands are live on production.** GateLink's `dry_run` read false on 2026-11-02, and the Gate
+dashboard's tiles have no confirmation. Turn dry-run on before pressing one, and check what the
+relays are wired to.
 
-**Gate commands are live.** GateLink's `dry_run` reads false, and the Gate dashboard's tiles have no
-confirmation. Turn dry-run on before pressing one, and check what the bench's relays are wired to.
+**Alerts reach real devices now**: `notify.mobile_app_jbook16_m5` and
+`notify.mobile_app_jliphone16`. This has not been checked alert by alert.
 
-**Alerts reach their real targets once the packages load**, while the node is still on the bench.
-This has not been checked alert by alert. Leave `input_boolean.lran_email_enabled` off (plan §12,
-step 7), and ask the operator who should get pushes during the port.
-
-**Production's settings, from the deployment brief's *B6 and H10*:** a production `site.yaml` with
-real notify targets, and the home location, because a wrong `sun.sun` fires `lran_3_open_at_night`
-at the wrong hour.
-
-**The operator's decisions to have before starting**, none checked for later closure: the brief's R5
-(the Fluvy review's open questions), R7 (state alerts past their threshold at start) and R8 (the
-test-only override package), and which entities production exposes to Assist.
+**A change to a package or dashboard now reaches production only by a copy**, after the sandbox has
+run it (*The dev flow*).
 
 ## What the last session established
 
@@ -221,8 +212,8 @@ Its source answers what the docs leave out, such as the alert matcher in
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11, H12 |
-| Queue | H10 at the port. H8 is parked. Bridge tasks F1 to F5 are built (plan §5) |
+| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9, H11, H12; H10's steps 2 to 5 |
+| Queue | H10's steps 6 and 7. H8 is parked. Bridge tasks F1 to F5 are built (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
@@ -230,8 +221,8 @@ python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads
 
 ### The dev flow: files over Samba, everything else through ha-mcp
 
-**From 2026-10-26 the sandbox is worked through two channels, and production will be worked
-the same way.** Files go over the Samba mount, because the repository is their source and
+**From 2026-10-26 the sandbox is worked through two channels, and production is worked the same
+way.** The commands below name the sandbox's mount; production's is `/Volumes/config-1`. Files go over the Samba mount, because the repository is their source and
 the port to production is a file copy (plan §12). Everything that asks HA something or tells
 it to act goes through the ha-mcp server (app 8.7.0 on the sandbox), not the REST API with a
 token. The REST flow before then needed `~/.lran_ha_token`, which only one machine had.
@@ -259,8 +250,8 @@ would not be in the repository or reach production.
 **Each machine registers ha-mcp itself, at user scope, never in the repository.** The
 server's address carries its secret path. On the Mac it is `ha-sandbox` in
 `~/.claude.json`'s `mcpServers`, `{"type": "http", "url": "http://192.168.2.52:9584/private_…"}`.
-Production gets its own entry, `ha-prod`, when H10 reaches it. Check which one a session
-has loaded before it acts on anything.
+Production's entry is `ha-prod`, at 192.168.2.24. An entry added mid-session did not load its tools
+into that session. Check which one a session has loaded before it acts on anything.
 
 ## Git state — ask git, do not read it here
 
@@ -281,11 +272,14 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | The sandbox's `/config`, shared over Samba | the mount | mounted at `/Volumes/config` as `ha-samba-user` | — | — | mounted on the macOS machine |
 | The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | beta flags on: beta features and dashboard screenshots, set in its web UI's *Server Settings* | running; its config check read `valid` on 2026-10-26 |
 | The Puppet app on the sandbox | Puppet | app slug `0f1cc410_puppet`, port 10000 | Puppet 2.6.0 | a long-lived token in its `access_token` option | running; renders for ha-mcp's screenshots. **Port 10000 takes no authentication** |
+| Home Assistant at 192.168.2.24, with Mosquitto | production | its address | HA 2026.10.4, Fluvy v1.11.3 | `/config/packages/lran/site.yaml` is the only copy of production's. Backup `02cb9704` predates the port | running, with other devices on it |
+| Production's `/config`, shared over Samba | the production mount | mounted at `/Volumes/config-1` as `ha-samba-user` | — | — | mounted on the macOS machine |
+| The ha-mcp app on production | ha-mcp | port 9584 and a secret path, registered as `ha-prod` | — | screenshot flag off, no Puppet | running |
 | GateLink on the operator's bench | the StamPLC | `firmware/gatelink -e gatelink-sandbox` | see the GateLink handoff | — | **Inputs wired to their inactive state for live testing** (operator, 2026-11-02), on the pack and the MPPT, with USB attached at `/dev/cu.usbmodem1101`. PV connected and a 4+ A load on the MPPT's load output when last reported. **Its gate relays pulse on a command unless dry-run is on** |
 | The bridge | the bridge board | `firmware/bridge -e heltec-sandbox` | see the bridge handoff | — | **On USB** at `/dev/cu.usbserial-0001` (2026-11-02). `lran/bridge/version` gives its commit |
 | Soak logger | `bench.log` | `~/lran-soak-r64c`, `bench.py run --mqtt` against `secrets.sandbox.h` | — | — | Still running from 2026-11-01, started by the operator. It logs `lran/#`, so it can read these checks too |
 
-**The sandbox `site.yaml` exists only on the sandbox.** It pushes to the Mac only and sends
+**The sandbox `site.yaml` exists only on the sandbox.** It pushes to the Mac and the iPhone and sends
 email to a persistent notification. Rebuilding it is a copy of `site.yaml.example` with
 those two targets changed, which plan §7.3 names.
 
@@ -306,6 +300,8 @@ those two targets changed, which plan §7.3 names.
 
 - **The MPPT's load output reads dead on a meter alone.** Its MOSFET needs a real load to turn on
   (operator, 2026-11-02), so no voltage across Load+ and Load- with `load_on` true is not a fault.
+- **After a Fluvy install, an open client shows configuration errors on almost every page** until
+  its frontend reloads. In the Mac Companion app, switch to another server and back (2026-11-02).
 - **`fluvy-scene-card` ignores `tap_action`.** A confirmation on one does nothing. Use
   `fluvy-scenes-card`, which honours it (plan §8.3).
 - **After a Fluvy install or update, restart the Puppet app** (`0f1cc410_puppet`). Its
@@ -391,7 +387,12 @@ those two targets changed, which plan §7.3 names.
   GateLink sends neither event yet, and `bms_alarms`' bits wait on `0x8D`'s decode.
 - **The sandbox's home location looks wrong for the site.** `sun.sun` put the next sunset
   at 16:18 UTC on 2026-10-28, 12:18 in New York, so `lran_3_open_at_night` would fire at
-  the wrong hour there. Check production's location before H10.
+  the wrong hour there. Production's reads right.
+- **The test push's delivery on production was not confirmed** when H10's log entry was written.
+- **R5, R7 and R8 stay open on production** (deployment brief), by default rather than by a fresh
+  decision.
+- **Why GateLink booted at 23:26Z on 2026-11-02 was not looked into.** The overnight evidence the
+  last handoff wanted did not exist at that read.
 - **CI cannot run H9's live half.** The checks job runs `check_entities.py --offline`,
   which parses every package and dashboard. Whether the IDs exist needs ha-mcp, so that
   half runs by hand, on each install.
@@ -399,8 +400,9 @@ those two targets changed, which plan §7.3 names.
   home page, which is what a non-admin user gets for an admin-only dashboard. H11 and H12
   rendered copies on a temporary non-admin storage dashboard instead. Making Puppet's user an admin would
   fix it; whether to is the operator's call.
-- **Puppet on production** is a decision for H10: its port takes no authentication, and
-  production's network may be less trusted than the sandbox's.
+- **Puppet on production is not installed**, so a session cannot see production's dashboards.
+  Its port takes no authentication. Whether to install it is the operator's call. The errors that
+  raised it on 2026-11-02 cleared with a client reload.
 
 - **An iOS notification action's unlock is untested** with the phone facing away. It
   matters only if actions come back (plan §9.3).
