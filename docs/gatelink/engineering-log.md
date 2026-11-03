@@ -1557,3 +1557,25 @@ the firmware updates and testing** (operator).
   firmware covers is for the review to put to the operator.
 - The rev 1.2 recommendations the operator reviewed are not in this repository.
 - Neither the plan of record nor the mask has a Decision Register entry yet.
+
+## 2026-11-03 — The operator's answers: the failures came after installation, and the board never met the 1050
+
+**The stages have never been connected to the 1050, and all of them tested good when the board was
+built** (operator). So whatever damaged Q1 and Q2 happened after installation. The bench's hand-moved 12 V
+lead is the only drive this log records on those stages. That does not establish a cause.
+
+**The operator named IN3 and IN4 because they are Q1 and Q2, the parts showing failures.** No problem has
+ever been observed on IN5. The drives differ like this (operator):
+
+- **IN3, IN4 and IN5** share one type of drive. Each is a 1050 input pulled high internally to 5 V, reaching
+  4.6 to 4.7 V, and driven low by an external device. The 2026-10-13 measurement read 4.75 V.
+- **IN6** is different: a FET drives the output to 12 V, with no apparent pulldown when off.
+
+**Which inputs the firmware must be able to disable stays open**, as D90. It must cover IN3 and IN4.
+
+**The MPPT and the pack leave the bench for the gate**, because the gate does not run without them
+(operator). The next bench soak needs them back, or a stand-in.
+
+**The rev 1.2 recommendations are now in
+[`LRAN-Input-Board-v1.2-Brief`](./LRAN-Input-Board-v1.2-Brief.md)**, taken from the session of 2026-11-03.
+**D89 to D91 and M27 are in the Decision Register.**

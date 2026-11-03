@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.36
+**Version:** 0.37
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-11-02
+**Last updated:** 2026-11-03
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,8 +39,8 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D88** for
-decisions and **M26** for measurement-backlog items.
+**Adding a decision.** New numbers continue from the highest issued, currently **D91** for
+decisions and **M27** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
 
@@ -53,6 +53,8 @@ than one section, or when it is blocking work.
 | **D19** | **WellLink power source** | WellLink PRD | Mains vs. battery/solar. Determines whether the reserved RX duty-cycling design (Protocol Spec §17.1) is needed, and whether battery telemetry is required in the WellLink schema | Before WellLink design |
 | **D28** | **BLE link margin from the StamPLC mounting position** | GateLink Impl Plan | The Stamp-S3A's 2.4 GHz antenna is internal to the DIN case with no external option, and the pack's own transmitter is weak (~−80 dBm from inches away, confirmed independently with a phone — this is the battery, not the test hardware). Measure RSSI from the intended mounting position. Fallbacks: SmartShunt, or the D30 co-processor. **Amended 2026-09-06 — see §2.2. Still open, but the margin looks considerably better than this row's premise** | Phase 5 |
 | **D29** | **Enclosure thermal envelope** | GateLink Impl Plan | **Narrowed to the high end.** Cold exposure affects no functional dependency; summer solar gain in a closed box is cumulative and does. Instrument LM75 + MPPT + BMS, verify the existing screened vents, add shade, and fit a thermostatic fan **only if logged maxima justify it** | Phase 9 / ongoing |
+| **D90** | **How GateLink disables a failed input** | GateLink Impl Plan | Operator, 2026-11-03: firmware bypasses or disables the function of a failed input. It must cover IN3 and IN4. **Open:** whether it extends to IN5 and IN6, what HA shows for a disabled input, persistence, and the spec change that follows. §3.19 | Before the new bridge and GateLink images |
+| **D91** | **Input board v1.2's content and build date** | [`LRAN-Input-Board-v1.2-Brief`](../gatelink/LRAN-Input-Board-v1.2-Brief.md) | Operator, 2026-11-03: v1.2 is a PCB, which ends the hand-built perf board. **Open:** which of the brief's changes go in, and the date it is built and swapped in. M27 informs it. §3.19 | Before the PCB order. Does not block deployment (D89) |
 
 ### 2.1 D1 — what bounds it (2026-08-30)
 
@@ -439,6 +441,7 @@ Frames from a node that is not deployed are processed as they are now.
 | **D86** | What `BMS_ALARM`'s and `MPPT_ERROR`'s `detail` carry | **`BMS_ALARM`: `bms_alarms` at the event. `MPPT_ERROR`: `mppt_err` in the low byte**, and `0` when a node reports the error clearing. Operator, 2026-10-28, §3.18 | Protocol Spec §7.3, §8.9 |
 | **D87** | Whether §10.1's true-entropy rule binds a roll's `ctx_id` | **Yes, and the firmware changes.** GateLink's `ROLL_CONTEXT` and `lran ctx new` draws move to a true source, such as a word drawn during a BLE window and held for the roll. Operator, 2026-10-28, §3.18 | Protocol Spec §10.1; GateLink Impl Plan |
 | **D88** | Amends D49: what `APPLIED_NOT_PERSISTED` names | **The store that holds the parameter is absent or a write to it failed.** The spec names no device; a node's plan says which store holds which group. Operator, 2026-10-28, §3.18 | Protocol Spec §8.11; GateLink Impl Plan §6.4 |
+| **D89** | Which input board GateLink deploys on | **The repaired v1.1 board**, after a Q1 swap, new firmware per D90, and a brief bench test and soak. v1.2 follows per D91. Operator, 2026-11-03, §3.19 | GateLink handoff; GateLink Impl Plan §3.2 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1284,6 +1287,27 @@ bump (§13.2).
   (operator, 2026-10-13; GateLink Impl Plan §6.4). **Rejected:** listing both stores in the
   spec, which would make §8.11 track a node plan's storage layout.
 
+### 3.19 D89–D91 — the input board after Q1 and Q2, 2026-11-03
+
+**The rev 1.2 changes are more extensive than a hand-built perf board will survive** (operator). Q2 was
+replaced on 2026-11-02 and Q1 is suspect, and the cause is not established (GateLink engineering log,
+2026-11-03, *The input board's netlist*). All stages tested good when built, the failures came after
+installation, and the stages have never been connected to the 1050.
+
+- **D89.** The sequence is the Q1 swap, the firmware of D90, a brief bench test and soak, then deployment.
+  The gate returns to service with the MPPT and the pack in the meantime, and the bridge and GateLink stay
+  offline until the firmware is ready.
+- **What D89 accepts.** The deployed stages keep v1.1's 1K series resistors and have no gate clamp. A
+  failed gate could pull a 1050 line to about 1.8 V, an estimate against a threshold that is not known, and
+  a mask does not protect against that. If the gate misbehaves, those field wires come off.
+- **D90.** IN3, IN4 and IN5 share one type of drive: a 1050 input pulled high and driven low externally.
+  No problem has been observed on IN5. IN6's drive differs: a FET drives 12 V, with no apparent pulldown
+  when off. The proposal and its open questions, including `node_flags` bit 7 and R-3.5l, are in the
+  GateLink engineering log, 2026-11-03, *An input mask goes in*.
+- **D91.** The PCB is decided. Its content is not, and the brief lists what the review decides.
+
+**Rejected:** reworking v1.2 on the existing perfboard, which the session's recommendations allowed.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1362,6 +1386,7 @@ Plan's B1a row, the repository README and root `CLAUDE.md` — all corrected in 
 | M14 | ~~One week of MPPT yield (H19/H20/H21) and battery Vmin baseline before install~~ | **Done (2026-10-26).** The MPPT's own daily history holds ten consecutive days on the gate's 50 W panel. The charger reached absorption and float on each of them, yield was 0.08–0.10 kWh against 0.04–0.05 kWh of load, and battery Vmin stayed at 12.48 V or above, with no error recorded (GateLink engineering log) | GateLink Impl Plan |
 | M15 | ~~DIN-rail carrier selection, then cut the perfboard to it~~ | **Withdrawn (2026-10-02)** with D27's sub-item. The carrier is supported by its header and a standoff, not a DIN carrier (§3.14) | GateLink Impl Plan |
 | M16 | StamPLC IO schematic, netlist-level 3.3 V check | Confirms **D26**; cannot change it | GateLink Impl Plan |
+| M27 | **Why Q1 and Q2 failed:** Q1 in circuit with its gate state recorded, the removed Q2, and gate leakage and threshold on unused parts from the batch | **D91**, and the bench method | [`LRAN-Input-Board-v1.2-Brief`](../gatelink/LRAN-Input-Board-v1.2-Brief.md) |
 
 ### 5.3 Administrative
 
@@ -1442,6 +1467,10 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.37** — **D89 resolved on 2026-11-03:** GateLink deploys on the repaired v1.1 input board. **D90 and
+  D91 opened:** how firmware disables a failed input, and input board v1.2's content and build date. **M27
+  added** for the Q1 and Q2 failures. §3.19 has the reasoning.
 
 - **v0.36** — **M3's polarity measured at the gate**, by operator report of 2026-11-02, and it
   matches the firmware. IN6's off-state check stays open for GL2.
