@@ -30,7 +30,7 @@ file:
 
 **The deployment brief's B3 is done** (engineering log, 2026-11-02, *B3*). The bridge is on the production broker. **OTA with the production `OTA_PASSWORD` passed**, and by
 the operator's report the sandbox password failed (engineering log, 2026-11-02, *OTA with the
-production password*).
+production password* and *The move confirms the OTA image*).
 
 **Spec v0.19's bridge side is done** (deployment brief's R1; engineering log, 2026-11-02, the two
 R1 entries). D85 passed on the air. D84 stays host-tested, because the real pack reports all four
@@ -350,7 +350,7 @@ range-test handoff owns them in its own roles.
 
 | Device | Called here | Told apart by | Firmware | Current state |
 |---|---|---|---|---|
-| Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **On its own power supply since 2026-11-02, with no USB, and the operator is moving it to its production position in the office, NW wall, desk height.** NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
+| Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **At its production position in the office, NW wall, desk height, on its own power supply with no USB, since 2026-11-02.** NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
 | Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-4` on 2026-10-05. Holds `f0` in `ROLE_RANGE` and `f2` in `ROLE_HEALTH`. Its image carries L7's BMS emulator, off at boot; `bms on 49A1` starts it. Its port name moves across replug |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem1101`** on 2026-09-27. The number moves across replugs, and it is the only `usbmodem` port. Held `f1` in `ROLE_GATELINK` alone on 2026-09-25; `f3` in `ROLE_FAULT` was not present. Add it with `id add f3 ROLE_FAULT` for a fault run |
 
