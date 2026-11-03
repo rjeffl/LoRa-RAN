@@ -49,6 +49,10 @@ for example `2026-10-25T18:30:13-0400    112.04 MQTT lran/gatelink/node/state {.
 MQTT line starting `<retained>` is one the broker replayed from its store, on a subscribe
 or a reconnect, not one a node just sent.
 
+With `--mqtt`, 90 s without a packet from the broker counts as a lost link. `run` logs
+`<timed out; reconnecting in 5 s>` and connects again, so a silent stretch in the log means
+the broker sent nothing during it.
+
 `bench.log` and `ctl.txt` live in `--dir`. The default is `$LRAN_BENCH_DIR`, or
 `/tmp/lran-bench` when that's unset. Give each session its own directory, or the next
 session's `wait` finds this session's lines.

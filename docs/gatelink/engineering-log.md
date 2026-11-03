@@ -1345,3 +1345,52 @@ The bridge's files hold the production master and passwords, so they need the ca
 
 **Not tested:** an OTA upload with the production password, because nothing has needed one. A core
 dump read against the kept ELF, because nothing has produced one.
+
+
+## 2026-11-03 — The B3 soak: no reset in about 16 h, and the charger never started
+
+**GateLink ran the production image of `cb1be00` overnight and did not reset.** Its `boot_time` stayed
+`2026-11-02T23:26:00Z` in every `node/state` from 19:09 to 08:04, and `uptime_s` never fell. Production
+HA's `sensor.gatelink_last_boot` still read the same value at 10:26, about 16 h after that boot. The
+bridge ran two OTA uploads during the night, `6d47e6f` at 21:03 and `69fe850` at 21:05. Its counters
+below start from the second.
+
+| Item | Result, 19:09 to 08:04 unless stated |
+|---|---|
+| Link | RSSI −88 to −82 dBm, SNR 9 to 12 dB, `rx_rejected_mac` 0 |
+| `missed_polls` | 1 at 05:34, in 777 `diag/state` reports. HA shows one more at 08:13. Each cleared on the next report |
+| `rx_crc_err` | 2, at about 00:36 and 05:33 |
+| Commands | 6 sent, 6 acked, 0 retries. The gate and hold commands returned `result` 16 under dry-run |
+| Battery | `available` in all 777 reports, `age_s` at most 300, SOC 99 %, `pack_mv` 13300 to 13310 |
+| VE.Direct | `available` in all 137 `solar/state` reports |
+| Bridge radio | `rx_no_interrupt`, `rx_wake_empty` and every queue's dropped count at 0 |
+| `enclosure_temp_c` | 29.0 to 31.8 |
+| Events | `event_frames` 0. The gate stayed closed, with the inputs tied inactive |
+
+**The charger did not start, so this soak does not exercise charging.** `charge_state` read `off` and
+`pv_w` read 0 throughout. PV read 10 mV until 05:54, 290 mV at 06:37 and 13.15 V at 07:52. It then stayed between
+13.17 and 13.28 V until at least 10:26, against a pack at about 13.30 V. The morning read of 2026-11-02
+saw the same thing: 13.23 V at the MPPT, and 15.27 V from the disconnected panel. Why the terminals sit
+near the pack's voltage is not established, and light may be enough to explain why the charger stays
+off. So `pack_ma` under charge, `ah_drawn` and the MPPT's charge states have not run on this image.
+`ah_drawn` was `null` in all 777 reports.
+
+**The logger stopped hearing the broker at 08:04:21 and did not notice.** Mosquitto logged `Client
+lran-bench-49398c6b [192.168.2.109:49572] disconnected: exceeded timeout` at 08:06:08. At 10:18 the Mac
+still listed that socket as `ESTABLISHED`, with the process alive and `recv()` blocked. `bench.py` read
+with no timeout, so it could wait there indefinitely. Why the broker stopped hearing the keepalive, and
+why later pings did not surface an error, is not established. The ping thread was alive at 10:18.
+`bench.py` now treats 90 s without a packet as a lost link and reconnects. `test_bench.py` covers that
+against a fake broker only.
+
+**`load_on` went false at 07:35**, with PV at 11.96 V. It had read true since the log began. On
+2026-11-02 it went false at 06:53 with no panel connected, so the two mornings do not share a simple
+PV threshold.
+
+**Dry-run does not survive a reset.** `dry_run_` initializes to `false` in `gatelink_app.h`, and the
+command handler only sets it in RAM. This bears on GL7 and R-9.2b, because relays wired with dry-run on
+become live after any reset of GateLink.
+
+**Not read or not known:** the card's `/bms.log` and `/log/fault.txt`, because this review had no
+console. Whether USB stayed attached overnight is not recorded here. If it did, this soak did not test
+the power chain, because USB carries all but 3.1 mA of the board's load.
