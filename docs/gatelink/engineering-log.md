@@ -1452,3 +1452,56 @@ itself misbehaves, those field wires come off.
 
 **Falsified by:** a bench run that masks each input while it is forced asserted and chattering, and
 then sees an alert, `Fault`, or a detection from it. The mask's tests should include that run.
+
+## 2026-11-03 — The input board's netlist differs from the plan, and two 2N7000s are suspect
+
+**[`Gatelink-Input-Board.net`](./Gatelink-Input-Board.net), rev 1.1, is now in the repository**, as the
+operator's reference copy of the KiCad export.
+
+**The board does not match Impl Plan §3.2**, and the operator confirms the 1K series resistors and the
+drain-source shunts as built:
+
+| Item | Plan §3.2 | Netlist |
+|---|---|---|
+| Gate series resistor | 10 kΩ | 1K (R1 to R4) |
+| 1 MΩ | Gate to source, holding the gate off if the wire breaks | Drain to ground (R5 to R8) |
+| Gate pulldown | On every stage | Q4 only (R9, 10K) |
+| Gate zener | Optional margin | None |
+
+**That changes three statements in this log and the plan:**
+
+- A broken SAFETY, EXIT or FIRE field wire leaves the gate floating, so the input does not reliably
+  read asserted. The plan's claim and the first table in today's *An input mask goes in* entry hold
+  for an open drain wire, not for an open field wire.
+- Today's estimate of 4.1 V on a 1050 line used the plan's 10 kΩ. Through the fitted 1K, a gate failed
+  to source would pull the line to about 1.8 V. That is also an estimate, against the same 1.6 kΩ source,
+  and the 1050's threshold is still unknown.
+- `EXCOM_COM` has no net on this board, which answers the question that entry left open. The bypass
+  does not touch it, and IN1 and IN2 do not pass through the board.
+
+**The operator's measurements.** The replaced IN4 part, Q2, read 200 kΩ drain to source on a meter. With
+0 V on the gate through its 1K, its drain sat at about 4.6 V. Q1 still measures 1 MΩ, the value of R5, and
+"only pulls the drain down to about 1.4 V". The bench drives each input by moving a lead between +12 V
+and ground by hand.
+
+**What the numbers say.** These are calculations from R14 and R22 on the StamPLC, not measurements:
+
+- A good stage rests at about 12 V with its gate low and near 0 V with its gate high: about 20 mV at the
+  4.1 mA the plan gives.
+- Q2's 4.6 V means about 2.2 mA, or about 2.1 kΩ. The meter's 200 kΩ is about a hundred times that, so
+  the leak was not a plain resistance, and contamination alone is a poor fit.
+- 2.2 mA through a drain-to-gate leak would put about 2.2 V on the gate across its 1K, near a 2N7000's
+  typical threshold. The part would then turn itself on. That is a hypothesis about gate oxide damage,
+  and no one has measured the removed part.
+- If Q1's gate was high, 1.4 V at about 3.2 mA means about 440 Ω. That is far above the 5.3 Ω maximum
+  the plan cites at 4.5 V, unless the gate pin was not actually high. If its gate was low, the part is nearly
+  shorted. Which state the reading was taken in is not recorded.
+
+**The cause is not established.** The stage's dissipation is at most about 50 mW, so heat from normal
+operation is not a candidate. The leading candidate is electrostatic discharge or another gate overvoltage,
+because Q1 to Q3 have no gate clamp and no discharge path. Q1 and Q2 carried the hand-driven crossing runs
+of H12, while Q3 and Q4 were driven less. That is a correlation, and it is not proof.
+
+**Falsified by:** a removed Q2 with no drain-to-gate leak, or a Q1 whose gate pin is low or leaking
+when the reading repeats. Any untouched parts from the same batch that show low-voltage leakage would point
+to the parts instead.
