@@ -335,6 +335,7 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **The input board differs from Impl Plan §3.2, and Q1 is suspect.** A board revision is the operator's call, and the plan needs reconciling with what is built (engineering log, 2026-11-03, *The input board's netlist*).
 - **The MPPT's terminals sit near the pack's voltage in daylight, and the charger stays off**, with PV at
   13.17 to 13.28 V on 2026-11-03. The cause is not established (engineering log, 2026-11-03). The 50 W
   panel charged the pack for ten days under M14, on the gate.
