@@ -441,7 +441,7 @@ Frames from a node that is not deployed are processed as they are now.
 | **D86** | What `BMS_ALARM`'s and `MPPT_ERROR`'s `detail` carry | **`BMS_ALARM`: `bms_alarms` at the event. `MPPT_ERROR`: `mppt_err` in the low byte**, and `0` when a node reports the error clearing. Operator, 2026-10-28, §3.18 | Protocol Spec §7.3, §8.9 |
 | **D87** | Whether §10.1's true-entropy rule binds a roll's `ctx_id` | **Yes, and the firmware changes.** GateLink's `ROLL_CONTEXT` and `lran ctx new` draws move to a true source, such as a word drawn during a BLE window and held for the roll. Operator, 2026-10-28, §3.18 | Protocol Spec §10.1; GateLink Impl Plan |
 | **D88** | Amends D49: what `APPLIED_NOT_PERSISTED` names | **The store that holds the parameter is absent or a write to it failed.** The spec names no device; a node's plan says which store holds which group. Operator, 2026-10-28, §3.18 | Protocol Spec §8.11; GateLink Impl Plan §6.4 |
-| **D89** | Which input board GateLink deploys on | **The repaired v1.1 board**, after a Q1 swap, new firmware per D90, and a brief bench test and soak. Whether R1 to R3 also change to 10 kΩ is the operator's call (§3.19). v1.2 follows per D91. Operator, 2026-11-03, §3.19 | GateLink handoff; GateLink Impl Plan §3.2 |
+| **D89** | Which input board GateLink deploys on | **The repaired v1.1 board**, after a Q1 swap, R1 to R3 changed to 10 kΩ, new firmware per D90, and a brief bench test and soak. v1.2 follows per D91. Operator, 2026-11-03, §3.19 | GateLink handoff; GateLink Impl Plan §3.2 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1294,14 +1294,15 @@ replaced on 2026-11-02 and Q1 is suspect, and the cause is not established (Gate
 2026-11-03, *The input board's netlist*). All stages tested good when built, the failures came after
 installation, and the stages have never been connected to the 1050.
 
-- **D89.** The sequence is the Q1 swap, the firmware of D90, a brief bench test and soak, then deployment.
+- **D89.** The sequence is the Q1 swap with R1 to R3 changed to 10 kΩ, the firmware of D90, a brief bench test and soak, then deployment.
   The gate returns to service with the MPPT and the pack in the meantime, and the bridge and GateLink stay
   offline until the firmware is ready.
-- **What D89 leaves on the 1050.** The deployed stages have no gate clamp, and a mask does not protect
-  the 1050. Through v1.1's 1K, a failed FET could pull a 1050 line to about 1.8 V or push it to about 6.8 V.
-  Through 10 kΩ, those estimates become about 4.1 V and 5.5 V. The 1050's threshold and ratings are not known.
-  The operator can replace the series resistors without a full rebuild, and that session's recommendation
-  is to change R1 to R3 at the Q1 swap. If the gate misbehaves, those field wires come off.
+- **Why R1 to R3 change on v1.1.** The operator does not want to damage the 1050, and can replace these
+  resistors without a full rebuild. Through the as-built 1K, a failed FET could pull a 1050 line to about
+  1.8 V or push it to about 6.8 V. Through 10 kΩ, those estimates become about 4.1 V and 5.5 V. R4 stays 1K.
+- **What D89 still leaves on the 1050.** The deployed stages have no gate clamp, and an inhibit does not
+  protect the 1050. Its threshold and ratings are not known, so neither estimate is shown to be safe. If the
+  gate misbehaves, those field wires come off.
 - **D90.** IN3, IN4 and IN5 share one type of drive: a 1050 input pulled high and driven low externally.
   No problem has been observed on IN5. IN6's drive differs: a FET drives 12 V, with no apparent pulldown
   when off. GateLink has no inhibit for any of them today. `node_flags` bit 7 is on the wire and the

@@ -1609,3 +1609,13 @@ drain-to-gate leak is also the hypothesis for Q2 in *The input board's netlist*,
 
 **A v1.2 board starts from scratch, with no rework of the existing board** (operator). A hand-built perfboard
 is acceptable at first build, and it is very fragile under rework.
+
+## 2026-11-03 — R1 to R3 change to 10 kΩ on the v1.1 board
+
+**The operator chose to change R1 to R3 from 1K to 10 kΩ at the Q1 swap**, on the estimates in *IN5 and IN6
+have no inhibit today*. R4 stays 1K, because IN6's drive is a 12 V FET and not a 5 V line. **The board then
+differs from `Gatelink-Input-Board.net`, rev 1.1**, which stays the record of the board as first built. Each
+stage gets a recheck at about 5 V after the change, because the bench has only driven these stages from a
+12 V lead.
+
+**Falsified by:** a stage that does not switch cleanly from about 4.6 V through its 10 kΩ.

@@ -37,7 +37,7 @@ been reconciled.
 
 | Item | v1.1 |
 |---|---|
-| Gate series resistor | 1K (R1 to R4) |
+| Gate series resistor | 1K (R1 to R4). D89 changes R1 to R3 to 10 kΩ at the Q1 swap |
 | 1 MΩ | Drain to ground (R5 to R8) |
 | Gate pulldown | Q4 only (R9, 10K) |
 | Gate zener | None |
@@ -54,9 +54,8 @@ been reconciled.
 | 6 | Use machine-pin TO-92 sockets, or at least carry spare FETs | Makes a repair at the gate quick, though sockets can corrode outdoors |
 | 7 | Clean the flux and conformal coat the board | Prevents leakage at the new high-impedance gates |
 
-**Change 3 can also reach v1.1**, because the operator can replace the series resistors without a full
-rebuild. The engineering log, 2026-11-03, *IN5 and IN6 have no inhibit today*, has the estimates. D89 records
-the choice.
+**Change 3 also goes on v1.1 under D89**, so the deployed board has 10 kΩ on R1 to R3. The rest of this table
+is for v1.2.
 
 **Buy the FETs from an authorized distributor.** Poor-quality parts are one of the candidate causes.
 

@@ -121,7 +121,7 @@ flashing, because the B3 soak's card has not been read.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Q1 swap on the v1.1 board**, with M27's in-circuit test first, and R1 to R3 to 10 kΩ if the operator chooses (D89): operator, no session | v1.2 brief, *Tests that could narrow the cause* |
+| 3 | **Q1 swap on the v1.1 board**, with M27's in-circuit test first, and **R1 to R3 changed to 10 kΩ** (D89). Then recheck each stage at about 5 V, with its reading in the engineering log: operator, no session | v1.2 brief, *Tests that could narrow the cause* |
 | 3 | **Firmware revision review**: list what else the next images should carry, for the operator to decide. No firmware | `docs/ha/engineering-log.md`, the 2026-11-02 entries from *H10: steps 2 to 5 on production* on; `docs/ha/HANDOFF.md`, *The next job*; brief, *Firmware freeze* and its list of later items; *Open* here; `docs/bridge/HANDOFF.md`, *The next job* and *Work before GateLink*; `doc-findings.md` |
 | 3 | **Input inhibit for IN3 to IN6 (D90)**, with the review's other items: decide and build, then build both images | Decision Register §3.19; engineering log, 2026-11-03, *An input mask goes in*; PRD R-3.5l; spec §7.2.1, §7.2.8 |
 | 3 | **Bench test and soak** on the new images and the repaired board. The review proposes which B3 and soak checks to repeat | *The soak's setup* here |
