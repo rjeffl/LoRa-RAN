@@ -287,7 +287,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | The ha-mcp app on production | ha-mcp | port 9584 and a secret path, registered as `ha-prod` | — | screenshot flag off, no Puppet | running |
 | GateLink on the operator's bench | the StamPLC | `firmware/gatelink -e gatelink-sandbox` | see the GateLink handoff | — | **Inputs wired to their inactive state for live testing** (operator, 2026-11-02), on the pack and the MPPT, with USB attached at `/dev/cu.usbmodem1101`. PV connected and a 4+ A load on the MPPT's load output when last reported. **Its gate relays pulse on a command unless dry-run is on** |
 | The bridge | the bridge board | `firmware/bridge -e heltec-sandbox` | see the bridge handoff | — | **On USB** at `/dev/cu.usbserial-0001` (2026-11-02). `lran/bridge/version` gives its commit |
-| Soak logger | `bench.log` | `~/lran-soak-r64c`, `bench.py run --mqtt` against `secrets.sandbox.h` | — | — | Still running from 2026-11-01, started by the operator. It logs `lran/#`, so it can read these checks too |
+| Soak logger | `bench.log` | `~/lran-soak-b3`, `bench.py run --mqtt` against the production broker | — | — | Stopped on 2026-11-03 at the B3 soak's close. The bridge and GateLink then go offline, so production HA's offline alerts fire until they return |
 
 **The sandbox `site.yaml` exists only on the sandbox.** It pushes to the Mac and the iPhone and sends
 email to a persistent notification. Rebuilding it is a copy of `site.yaml.example` with

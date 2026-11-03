@@ -1505,3 +1505,55 @@ of H12, while Q3 and Q4 were driven less. That is a correlation, and it is not p
 **Falsified by:** a removed Q2 with no drain-to-gate leak, or a Q1 whose gate pin is low or leaking
 when the reading repeats. Any untouched parts from the same batch that show low-voltage leakage would point
 to the parts instead.
+
+## 2026-11-03 — The B3 soak closes at 19.5 h with no reset, and GateLink deploys on the repaired v1.1 input board
+
+**GateLink did not reset from its boot at 18:26 on 2026-11-02 until the soak closed at about 14:00 on
+2026-11-03.** `uptime_s` read 70287 at 13:57, about 19.5 h, and `boot_time` stayed `2026-11-02T23:26:00Z`
+in all 608 logged `node/state` reports. The logger lost 08:04 to 10:35, as this morning's entry records.
+The figures from the restarted logger add to that entry, and they do not replace it:
+
+| Item | Result, 10:35 to 13:59 |
+|---|---|
+| Link | RSSI −91 to −82 dBm, SNR 10 to 12 dB. `rx_rejected_mac` 0 |
+| `missed_polls` | 0 in 203 `diag/state` reports |
+| `rx_crc_err` | 3, one more than this morning's 2, in 1035 `rx_frames` |
+| Commands | Still 6 sent and 6 acked, with 0 retries |
+| Battery | `available` in all 203 reports, `age_s` at most 301, SOC 99 %, `pack_mv` 13300. `pack_ma` read −100 in the 5 reports from 10:56 to 11:00 and 0 otherwise |
+| VE.Direct | `available` in all 82 `solar/state` reports |
+| Bridge radio | `rx_no_interrupt`, `rx_wake_empty` and every queue's dropped count at 0 |
+| `enclosure_temp_c` | 28.8 to 29.4 |
+| Events | `event_frames` 0. The gate stayed closed |
+
+**The charger stayed off through midday, so this soak still does not exercise charging.** PV read 13.23 to
+13.30 V with `pv_w` 0, `charge_state` `off` and `yield_today_kwh` 0.00. `ah_drawn` was `null` in all 980
+`battery/state` reports. `load_on` stayed false from 07:35. Why the terminals sit near the pack's voltage is
+still not established.
+
+**The new `bench.py` read timeout did not run against the real broker.** The restarted logger connected
+once at 10:35 and never needed to reconnect.
+
+**Not read:** the card's `/bms.log` and `/log/fault.txt`, and the RAM counters, because no console was
+attached. The Mac listed no USB serial device at the close. That says nothing about whether USB stayed
+attached overnight, so that question from this morning's entry stays open. The log is in `~/lran-soak-b3`
+on the Mac.
+
+**The operator set a new plan of record**, because the rev 1.2 input board's recommended changes are more
+extensive than a hand-built perf board will survive:
+
+1. Swap Q1 on the existing v1.1 board, and put the board back in service.
+2. Make the GateLink and bridge firmware changes that bypass or disable IN3 and IN4.
+3. Run a brief bench test and a soak with the new firmware and the repaired board.
+4. Deploy with the repaired v1.1 board.
+5. In parallel, design v1.2, review it and send it out for PCBs, which ends the hand-built perf board.
+6. Pick a later date to build v1.2 and swap the input board as required.
+
+**The gate goes back into service now, and the bridge and GateLink go offline until they are ready for
+the firmware updates and testing** (operator).
+
+**What this leaves open:**
+
+- This morning's mask decision covered IN3 to IN6, and the plan names IN3 and IN4. Which inputs the
+  firmware covers is for the review to put to the operator.
+- The rev 1.2 recommendations the operator reviewed are not in this repository.
+- Neither the plan of record nor the mask has a Decision Register entry yet.
