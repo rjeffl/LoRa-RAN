@@ -1225,10 +1225,10 @@ sensor together. Both read `node/state`, which moves only at the bridge's poll, 
 no state has arrived. The switch later read `off` after the operator turned it off. `cmd/ack` was not
 read, so that state change is the evidence the command reached GateLink.
 
-**The operator chose a note over a poll on command**, because the poll needs another OTA upload. The
-GateLink view says so under the switches. BMS polling reads the same document, so the note names it,
-but its toggle was not pressed in this run.
+**The operator called this minor and left the behaviour as it is.** A poll right after a settings
+command would fix it. That needs an OTA upload, so it waits for the next bridge change, and the bridge
+handoff carries it. BMS polling reads the same document, so it should behave the same, but its toggle
+was not pressed in this run.
 
-**Auto mode refused the empty retained publish that clears the old sensor's config, and the copy of
-the note to production**, so those are the operator's.
-
+**Auto mode refused the empty retained publish that clears the old sensor's config**, so that is the
+operator's, and the sensor remains until then.

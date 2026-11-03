@@ -213,6 +213,11 @@ ran on the air after the OTA of `57997fa` the same day.
 
 ## Waits on GateLink or the operator
 
+**Take this with the next bridge change: poll a node right after it acknowledges a settings command.**
+`switch.gatelink_relay_dry_run` and `switch.gatelink_bms_polling` read `node/state`, which moves only
+at a poll, so HA's toggle springs back for up to a minute at the default `poll_interval_s`. The operator
+called it minor on 2026-11-02, and it does not justify an OTA upload alone (HA engineering log, same date).
+
 - **B6 and B7**, and **BF-30**'s readback against the real MPPT, which confirms the
   register scales and whether `0xEDEA` carries the system voltage setting.
 - **Gate 1 on air.** No bench tool sends a write-class `HEX_REQ` with a bad MAC, so the

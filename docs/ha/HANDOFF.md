@@ -41,10 +41,9 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**Two leftovers from the dry-run switch.** Production's `lran-maintenance.yaml` needs a copy to carry
-the note under the switches. `binary_sensor.gatelink_relay_dry_run` stays until an empty retained
-publish to `homeassistant/binary_sensor/lran_gatelink_dry_run/config` clears it, and nothing reads
-that sensor. Auto mode refused both, so they are the operator's.
+**One leftover from the dry-run switch.** `binary_sensor.gatelink_relay_dry_run` stays on production
+until an empty retained publish to `homeassistant/binary_sensor/lran_gatelink_dry_run/config` clears
+it. Auto mode refused that publish, so it is the operator's. Nothing reads the sensor.
 
 **The press flash has no recorded press on production.** Production serves the module since the
 operator's restart. Turn on `switch.gatelink_relay_dry_run` before pressing a Gate tile to check it. It takes up to a
