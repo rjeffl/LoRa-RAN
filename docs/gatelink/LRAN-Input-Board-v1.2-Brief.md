@@ -20,7 +20,7 @@ M27 tracks the tests that could narrow it.
 
 Q1 to Q4 serve IN3 to IN6. The 2N7000s buffer the 1050's signals to the StamPLC's opto inputs.
 
-| Input | FET | Source at the 1050 | Off state | Fault seen |
+| Input | FET | Source at the 1050 | Undriven | Fault seen |
 |---|---|---|---|---|
 | IN3 | Q1 | 1050 input, pulled high internally to 5 V, reaching 4.6 to 4.7 V, and driven low by an external device | Pulled high by the 1050 | Suspect (engineering log, 2026-11-03) |
 | IN4 | Q2 | The same type as IN3 | Pulled high by the 1050 | Replaced 2026-11-02 |
@@ -61,7 +61,7 @@ IN5's gates from about 5 V. That removes the hand contact and tests the margin t
 
 ## Candidate causes
 
-These are the session's ranking, most likely first, and none is proven:
+The session ranked these causes, most likely first, and none is proven:
 
 1. ESD into an unprotected gate, from a hand-held lead.
 2. Poor-quality parts. Two suspect parts out of four is consistent with this, but it needs a batch test.
