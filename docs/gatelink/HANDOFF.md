@@ -78,6 +78,11 @@ repaired v1.1 input board, and a PCB v1.2 follows in parallel (engineering log, 
 closes*). The gate goes back into service with the MPPT and the pack, and the bridge and GateLink go offline
 until the firmware is ready.
 
+**Updated 2026-11-03 by the firmware-revision session.** M27's in-circuit test found Q1's and Q3's gates leaking, so
+Q3 now comes out with Q1 (engineering log, 2026-11-03, *M27's in-circuit test*). The operator accepted the review's
+list of what the next images carry (engineering log, same date, *The firmware revision review* and *The operator
+accepts the review*). It changed no firmware.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -94,15 +99,14 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 **The at-gate sequence now waits for the repaired board to pass a new soak.** Run the
 table in order. The operator's plan of record is D89 to D91 (Decision Register §3.19).
-The review decides what the new bridge and GateLink images carry, and the operator decides which items go
-in. It also updates the brief's *Firmware freeze*, which does not list the mask.
+The brief's *Firmware freeze* lists what the new bridge and GateLink images carry, as the operator accepted it.
 [`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders the at-gate
 sequence. A GateLink reflash from here on is the `gatelink` env, built from a committed, clean tree,
 because the sandbox has no bridge to hear a `gatelink-sandbox` image. **Its image at `cb1be00`, with the
 `firmware.elf` a core dump read at the gate needs, is in `~/lran-release/cb1be00/gatelink/` on the build
 Mac.** It holds the node key, so it stays out of the repository.
 
-**Before the operator desolders Q1,** run M27's in-circuit test, and keep Q1 and Q2
+**Keep the removed Q1, Q2 and Q3 for M27's remaining tests**
 ([`LRAN-Input-Board-v1.2-Brief`](./LRAN-Input-Board-v1.2-Brief.md), *Tests that could narrow the cause*).
 
 **The MPPT and the pack are at the gate, so the bench soak needs them back or a stand-in.** The 50 W panel
@@ -121,16 +125,16 @@ flashing, because the B3 soak's card has not been read.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Q1 swap on the v1.1 board**, with M27's in-circuit test first, and **R1 to R3 changed to 10 kΩ** (D89). Then recheck each stage at about 5 V, with its reading in the engineering log: operator, no session | v1.2 brief, *Tests that could narrow the cause* |
+| 3 | **Q1 and Q3 swap on the v1.1 board**, with **R1 to R3 changed to 10 kΩ** (D89). Then recheck each stage at about 5 V, with its reading in the engineering log: operator, no session | v1.2 brief, *Tests that could narrow the cause* |
 | 3 | **Firmware revision review**: list what else the next images should carry, for the operator to decide. No firmware | `docs/ha/engineering-log.md`, the 2026-11-02 entries from *H10: steps 2 to 5 on production* on; `docs/ha/HANDOFF.md`, *The next job*; brief, *Firmware freeze* and its list of later items; *Open* here; `docs/bridge/HANDOFF.md`, *The next job* and *Work before GateLink*; `doc-findings.md` |
-| 3 | **Input inhibit for IN3 to IN6 (D90)**, with the review's other items: decide and build, then build both images | Decision Register §3.19; engineering log, 2026-11-03, *An input mask goes in*; PRD R-3.5l; spec §7.2.1, §7.2.8 |
-| 3 | **Bench test and soak** on the new images and the repaired board. The review proposes which B3 and soak checks to repeat | *The soak's setup* here |
+| 3 | **Input inhibit for IN3 to IN6 (D90)**, with the review's other items: G2, B2 and B3's investigation first. Ask the operator for the row's name and to confirm the ranges, then build both images | Decision Register §3.19; engineering log, 2026-11-03, *An input mask goes in* and *The firmware revision review*; brief, *Firmware freeze*; PRD R-3.5l; spec §7.2.1, §7.2.8 |
+| 3 | **Bench test and soak** on the new images and the repaired board, with the checks the review lists | Engineering log, 2026-11-03, *The firmware revision review*; *The soak's setup* here |
 | 4 | **The at-gate sequence**, on the repaired v1.1 board | brief, *At-gate sequence* |
 | Parallel | **Input board v1.2 (D91)**: design, review and send out for PCBs. The operator picks a later date to build it and swap it in | v1.2 brief; Impl Plan §3.2 |
 
 **The new images replace `cb1be00`.** Flashing GateLink on the bench avoids a reflash at the gate. The
 bridge reads the same config table for its discovery, so a new parameter reaches its image and
-`ha/discovery/` too. Which B3 and soak checks to repeat on the new images is for the review to propose.
+`ha/discovery/` too.
 
 **Relay dry-run is RAM only, and a reset clears it.** At GL7, read `switch.gatelink_relay_dry_run` after
 every power cycle before pressing anything (engineering log, 2026-11-03).
@@ -358,8 +362,9 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **The input board differs from Impl Plan §3.2, and Q1 is suspect.** The plan needs reconciling with what is built, and v1.2 is now planned (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*).
-- **D90 covers IN3 to IN6, and its mechanism is open.** GateLink has no inhibit for any of them today (engineering log, 2026-11-03, *IN5 and IN6 have no inhibit today*).
+- **The input board differs from Impl Plan §3.2, and Q1's and Q3's gates leak.** The plan needs reconciling with what is built, and v1.2 is now planned (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*).
+- **D90's mask is not built, and its row has no name.** GateLink has no inhibit for any of IN3 to IN6 today (engineering log, 2026-11-03, *The operator accepts the review*).
+- **The HA handoff's *Open* says GateLink sends no `MPPT_ERROR`**, and `mppt_error_watch.cpp` sends it. Fix it when that file is next edited.
 - **The MPPT's terminals sit near the pack's voltage in daylight, and the charger stays off**, with PV at
   13.17 to 13.28 V on 2026-11-03. The cause is not established (engineering log, 2026-11-03). The 50 W
   panel charged the pack for ten days under M14, on the gate.
@@ -481,8 +486,8 @@ board's are its D-pads (expansion board §6.1).
   fleet-wide, so they go in node-common and the bridge's block, not GateLink's. Kept out
   of L4 by operator decision, 2026-10-01. Until then `tx_power_dbm`'s maximum is the
   ceiling.
-- **GateLink's 20 ranges are proposals.** None is measured. The operator reviews them
-  before HA first publishes the names, which are permanent.
+- **GateLink's ranges are not reconfirmed.** None is measured. This file called them proposals, and the bridge handoff
+  records approval on 2026-10-15. Changing one later takes both images, so the operator confirms them before the new images.
 - **The bridge's 2048-byte payload has not run on a board.** The bridge handoff's §7 owns
   the reading.
 - **Reporting osh-labs deviations upstream is owed**, by operator decision 2026-10-01; the

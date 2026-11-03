@@ -22,9 +22,9 @@ Q1 to Q4 serve IN3 to IN6. The 2N7000s buffer the 1050's signals to the StamPLC'
 
 | Input | FET | Source at the 1050 | Undriven | Fault seen |
 |---|---|---|---|---|
-| IN3 | Q1 | 1050 input, pulled high internally to 5 V, reaching 4.6 to 4.7 V, and driven low by an external device | Pulled high by the 1050 | Suspect (engineering log, 2026-11-03) |
+| IN3 | Q1 | 1050 input, pulled high internally to 5 V, reaching 4.6 to 4.7 V, and driven low by an external device | Pulled high by the 1050 | Gate leaks in both states (M27) |
 | IN4 | Q2 | The same type as IN3 | Pulled high by the 1050 | Replaced 2026-11-02 |
-| IN5 | Q3 | The same type as IN3 | Pulled high by the 1050 | None ever observed |
+| IN5 | Q3 | The same type as IN3 | Pulled high by the 1050 | Gate leaks about 0.24 mA at 13.2 V (M27). It still switches |
 | IN6 | Q4 | A FET driving the output to 12 V | No apparent pulldown when off, so R9 holds the gate low | None recorded |
 
 The operator's history bounds the failures. All stages tested good when the board was built, so the failures
@@ -83,6 +83,11 @@ The session rated heat and contact bounce unlikely. A stage dissipates at most a
    across that resistor. It should read about 10 mV or less, which is 10 nA.
 4. **Threshold on the same parts:** a cheap transistor tester is enough. Faults in unused parts would point to
    the batch.
+
+**Test 1 ran on 2026-11-03, on all four stages.** Q1's gate leaks in both states, and Q3's leaks with its input
+high. Q4, the only stage with a gate pulldown, shows no leak near Q3's size. That result points at the gate, so it
+keeps the case for changes 1 and 2, though four parts on one board are not proof (engineering log, 2026-11-03,
+*M27's in-circuit test*). Q3 comes out with Q1 under D89. Tests 2 to 4 are still owed, and they now include the removed Q1 and Q3.
 
 ## What the review still has to decide
 
