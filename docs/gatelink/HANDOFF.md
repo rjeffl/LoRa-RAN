@@ -72,6 +72,12 @@ a reset, but the charger never started, so charging has not run on this image (e
 IN3 to IN6 goes in before deployment, after a review of what else the next images need (engineering
 log, 2026-11-03, *An input mask goes in*). It changed no firmware.
 
+**Updated 2026-11-03 by the soak-close session.** The B3 soak closed at about 19.5 h with no reset, and
+the charger never started. The operator set a new plan of record, D89 to D91: GateLink deploys on the
+repaired v1.1 input board, and a PCB v1.2 follows in parallel (engineering log, 2026-11-03, *The B3 soak
+closes*). The gate goes back into service with the MPPT and the pack, and the bridge and GateLink go offline
+until the firmware is ready.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -86,28 +92,41 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**B3 is done, and two firmware tasks now come before the at-gate sequence.** Run them in the table's
-order, because the review decides what the new bridge and GateLink images carry. The operator decides
-which items go in. The review also updates the brief's *Firmware freeze*, which does not list the mask.
+**The at-gate sequence now waits for the repaired board to pass a new soak.** Run the
+table in order. The operator's plan of record is D89 to D91 (Decision Register §3.19).
+The review decides what the new bridge and GateLink images carry, and the operator decides which items go
+in. It also updates the brief's *Firmware freeze*, which does not list the mask.
 [`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) orders the at-gate
-sequence. The
-sandbox has no bridge now, so a `gatelink-sandbox` image would hear nothing. A GateLink reflash
-from here on is the `gatelink` env, built from a committed, clean tree. **Its image at `cb1be00`,
-with the `firmware.elf` a core dump read at the gate needs, is in `~/lran-release/cb1be00/gatelink/`
-on the build Mac.** It holds the node key, so it stays out of the repository.
+sequence. A GateLink reflash from here on is the `gatelink` env, built from a committed, clean tree,
+because the sandbox has no bridge to hear a `gatelink-sandbox` image. **Its image at `cb1be00`, with the
+`firmware.elf` a core dump read at the gate needs, is in `~/lran-release/cb1be00/gatelink/` on the build
+Mac.** It holds the node key, so it stays out of the repository.
 
-**Before GateLink leaves the bench, the operator:**
+**Before the operator desolders Q1,** run M27's in-circuit test, and keep Q1 and Q2
+([`LRAN-Input-Board-v1.2-Brief`](./LRAN-Input-Board-v1.2-Brief.md), *Tests that could narrow the cause*).
 
-1. Reads `/bms.log` and `/log/fault.txt` with `bench.py attach`.
+**The MPPT and the pack are at the gate, so the bench soak needs them back or a stand-in.** The 50 W panel
+charged this pack on the gate for ten days under M14, so the MPPT's history after this return bears on why
+the charger stayed off on the bench.
+
+**When GateLink returns to the bench,** read `/bms.log` and `/log/fault.txt` with `bench.py attach` before
+flashing, because the B3 soak's card has not been read.
+
+**Before GateLink leaves the bench for the gate, the operator:**
+
+1. Reads `/bms.log` and `/log/fault.txt` from the new soak with `bench.py attach`.
 2. Meters the panel in good light at the MPPT's terminals, connected and disconnected.
 3. Confirms that the drives holding the production master are encrypted (the brief's *The production
    `secrets.h`*).
 
 | Tier | Task | Read |
 |---|---|---|
+| 3 | **Q1 swap on the v1.1 board**, with M27's in-circuit test first, and **R1 to R3 changed to 10 kΩ** (D89). Then recheck each stage at about 5 V, with its reading in the engineering log: operator, no session | v1.2 brief, *Tests that could narrow the cause* |
 | 3 | **Firmware revision review**: list what else the next images should carry, for the operator to decide. No firmware | `docs/ha/engineering-log.md`, the 2026-11-02 entries from *H10: steps 2 to 5 on production* on; `docs/ha/HANDOFF.md`, *The next job*; brief, *Firmware freeze* and its list of later items; *Open* here; `docs/bridge/HANDOFF.md`, *The next job* and *Work before GateLink*; `doc-findings.md` |
-| 3 | **Input mask**, with the review's other items: decide and build, then build both images | engineering log, 2026-11-03, *An input mask goes in*; PRD R-3.5l; spec §7.2.1, §7.2.8 |
-| 4 | **The at-gate sequence** | brief, *At-gate sequence* |
+| 3 | **Input inhibit for IN3 to IN6 (D90)**, with the review's other items: decide and build, then build both images | Decision Register §3.19; engineering log, 2026-11-03, *An input mask goes in*; PRD R-3.5l; spec §7.2.1, §7.2.8 |
+| 3 | **Bench test and soak** on the new images and the repaired board. The review proposes which B3 and soak checks to repeat | *The soak's setup* here |
+| 4 | **The at-gate sequence**, on the repaired v1.1 board | brief, *At-gate sequence* |
+| Parallel | **Input board v1.2 (D91)**: design, review and send out for PCBs. The operator picks a later date to build it and swap it in | v1.2 brief; Impl Plan §3.2 |
 
 **The new images replace `cb1be00`.** Flashing GateLink on the bench avoids a reflash at the gate. The
 bridge reads the same config table for its discovery, so a new parameter reaches its image and
@@ -270,6 +289,10 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 ## Hardware state
 
+**The bridge and GateLink go offline at the B3 soak's close, on 2026-11-03**, until the firmware is ready
+(operator). The MPPT and the pack go back to the gate, because the gate does not run without them. The
+table below describes the boards as they last ran.
+
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
 | M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `cb1be00`, flashed over USB from the Mac on 2026-11-02, B3's production image. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, cleared of bench files at B3, with `/config.json` holding `{}`, so no overrides (`file cat`, 2026-11-02). It also lists `log/` and the Mac's `.Spotlight-V100/`, `.Trashes/` and `.fseventsd/`, which the operator could not delete from macOS | On the operator's workbench with the carrier fitted, VIN on the pack through the production harness, and USB attached (operator, 2026-11-02). **Inputs tied to their inactive state for live testing.** IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem1101` on 2026-11-02. The expansion board's power fault was fixed that day |
@@ -335,7 +358,8 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **The input board differs from Impl Plan §3.2, and Q1 is suspect.** A board revision is the operator's call, and the plan needs reconciling with what is built (engineering log, 2026-11-03, *The input board's netlist*).
+- **The input board differs from Impl Plan §3.2, and Q1 is suspect.** The plan needs reconciling with what is built, and v1.2 is now planned (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*).
+- **D90 covers IN3 to IN6, and its mechanism is open.** GateLink has no inhibit for any of them today (engineering log, 2026-11-03, *IN5 and IN6 have no inhibit today*).
 - **The MPPT's terminals sit near the pack's voltage in daylight, and the charger stays off**, with PV at
   13.17 to 13.28 V on 2026-11-03. The cause is not established (engineering log, 2026-11-03). The 50 W
   panel charged the pack for ten days under M14, on the gate.

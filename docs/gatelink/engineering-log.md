@@ -1505,3 +1505,117 @@ of H12, while Q3 and Q4 were driven less. That is a correlation, and it is not p
 **Falsified by:** a removed Q2 with no drain-to-gate leak, or a Q1 whose gate pin is low or leaking
 when the reading repeats. Any untouched parts from the same batch that show low-voltage leakage would point
 to the parts instead.
+
+## 2026-11-03 — The B3 soak closes at 19.5 h with no reset, and GateLink deploys on the repaired v1.1 input board
+
+**GateLink did not reset from its boot at 18:26 on 2026-11-02 until the soak closed at about 14:00 on
+2026-11-03.** `uptime_s` read 70287 at 13:57, about 19.5 h, and `boot_time` stayed `2026-11-02T23:26:00Z`
+in all 608 logged `node/state` reports. The logger lost 08:04 to 10:35, as this morning's entry records.
+The figures from the restarted logger add to that entry, and they do not replace it:
+
+| Item | Result, 10:35 to 13:59 |
+|---|---|
+| Link | RSSI −91 to −82 dBm, SNR 10 to 12 dB. `rx_rejected_mac` 0 |
+| `missed_polls` | 0 in 203 `diag/state` reports |
+| `rx_crc_err` | 3, one more than this morning's 2, in 1035 `rx_frames` |
+| Commands | Still 6 sent and 6 acked, with 0 retries |
+| Battery | `available` in all 203 reports, `age_s` at most 301, SOC 99 %, `pack_mv` 13300. `pack_ma` read −100 in the 5 reports from 10:56 to 11:00 and 0 otherwise |
+| VE.Direct | `available` in all 82 `solar/state` reports |
+| Bridge radio | `rx_no_interrupt`, `rx_wake_empty` and every queue's dropped count at 0 |
+| `enclosure_temp_c` | 28.8 to 29.4 |
+| Events | `event_frames` 0. The gate stayed closed |
+
+**The charger stayed off through midday, so this soak still does not exercise charging.** PV read 13.23 to
+13.30 V with `pv_w` 0, `charge_state` `off` and `yield_today_kwh` 0.00. `ah_drawn` was `null` in all 980
+`battery/state` reports. `load_on` stayed false from 07:35. Why the terminals sit near the pack's voltage is
+still not established.
+
+**The new `bench.py` read timeout did not run against the real broker.** The restarted logger connected
+once at 10:35 and never needed to reconnect.
+
+**Not read:** the card's `/bms.log` and `/log/fault.txt`, and the RAM counters, because no console was
+attached. The Mac listed no USB serial device at the close. That says nothing about whether USB stayed
+attached overnight, so that question from this morning's entry stays open. The log is in `~/lran-soak-b3`
+on the Mac.
+
+**The operator set a new plan of record**, because the rev 1.2 input board's recommended changes are more
+extensive than a hand-built perf board will survive:
+
+1. Swap Q1 on the existing v1.1 board, and put the board back in service.
+2. Make the GateLink and bridge firmware changes that bypass or disable IN3 and IN4.
+3. Run a brief bench test and a soak with the new firmware and the repaired board.
+4. Deploy with the repaired v1.1 board.
+5. In parallel, design v1.2, review it and send it out for PCBs, which ends the hand-built perf board.
+6. Pick a later date to build v1.2 and swap the input board as required.
+
+**The gate goes back into service now, and the bridge and GateLink go offline until they are ready for
+the firmware updates and testing** (operator).
+
+**What this leaves open:**
+
+- This morning's mask decision covered IN3 to IN6, and the plan names IN3 and IN4. Which inputs the
+  firmware covers is for the review to put to the operator.
+- The rev 1.2 recommendations the operator reviewed are not in this repository.
+- Neither the plan of record nor the mask has a Decision Register entry yet.
+
+## 2026-11-03 — The operator's answers: the failures came after installation, and the board never met the 1050
+
+**The stages have never been connected to the 1050, and all of them tested good when the board was
+built** (operator). So whatever damaged Q1 and Q2 happened after installation. The bench's hand-moved 12 V
+lead is the only drive this log records on those stages. That does not establish a cause.
+
+**The operator named IN3 and IN4 because they are Q1 and Q2, the parts showing failures.** No problem has
+ever been observed on IN5. The drives differ like this (operator):
+
+- **IN3, IN4 and IN5** share one type of drive. Each is a 1050 input pulled high internally to 5 V, reaching
+  4.6 to 4.7 V, and driven low by an external device. The 2026-10-13 measurement read 4.75 V.
+- **IN6** is different: a FET drives the output to 12 V, with no apparent pulldown when off.
+
+**Which inputs the firmware must be able to disable stays open**, as D90. It must cover IN3 and IN4.
+
+**The MPPT and the pack leave the bench for the gate**, because the gate does not run without them
+(operator). The next bench soak needs them back, or a stand-in.
+
+**The rev 1.2 recommendations are now in
+[`LRAN-Input-Board-v1.2-Brief`](./LRAN-Input-Board-v1.2-Brief.md)**, taken from the session of 2026-11-03.
+**D89 to D91 and M27 are in the Decision Register.**
+
+## 2026-11-03 — IN5 and IN6 have no inhibit today, so D90 covers all four board inputs
+
+**The operator recalled being told that IN5 and IN6 already have an inhibit, and the firmware does not have
+one.** Three related things exist, from reading the code:
+
+- `node_flags` bit 7 is in the spec, and the bridge marks the FIRE and hard-shutdown entities unavailable
+  while it is set. GateLink never sets it (D83, R-3.5l).
+- `kInputsWired` in `gate_io.h` is a compile-time constant, so changing it takes a reflash.
+- The console's `inject` command needs USB, and a reset clears it.
+
+The earlier session described the bridge's side as ready and still recommended the mask. **By the operator's
+standing instruction for this case, D90 now covers IN3, IN4, IN5 and IN6**, every input that runs through the
+input board. This replaces the previous entry's open question.
+
+**The operator can replace the series gate resistors without a full rebuild**, and does not want to damage
+the 1050. These estimates assume the 1.6 kΩ source measured on 2026-10-13 and about 3.1 kΩ into the StamPLC
+input, from the 4.1 mA at 13.4 V in Impl Plan §3.2. No one has measured either failure:
+
+| Failure on Q1 to Q3, at 12 V | 1K, as built | 10 kΩ |
+|---|---|---|
+| Gate failed to source: the 1050 line falls to | about 1.8 V | about 4.1 V |
+| Drain failed to gate: the 1050 line rises to | about 6.8 V | about 5.5 V |
+| Drain failed to gate: current into the line | about 1.3 mA | about 0.5 mA |
+
+The 1050's threshold and its input ratings are not known, so neither column is shown to be safe. A
+drain-to-gate leak is also the hypothesis for Q2 in *The input board's netlist*, and it is unproven.
+
+**A v1.2 board starts from scratch, with no rework of the existing board** (operator). A hand-built perfboard
+is acceptable at first build, and it is very fragile under rework.
+
+## 2026-11-03 — R1 to R3 change to 10 kΩ on the v1.1 board
+
+**The operator chose to change R1 to R3 from 1K to 10 kΩ at the Q1 swap**, on the estimates in *IN5 and IN6
+have no inhibit today*. R4 stays 1K, because IN6's drive is a 12 V FET and not a 5 V line. **The board then
+differs from `Gatelink-Input-Board.net`, rev 1.1**, which stays the record of the board as first built. Each
+stage gets a recheck at about 5 V after the change, because the bench has only driven these stages from a
+12 V lead.
+
+**Falsified by:** a stage that does not switch cleanly from about 4.6 V through its 10 kΩ.
