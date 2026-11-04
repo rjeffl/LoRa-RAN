@@ -1748,3 +1748,33 @@ persistence on the card, and a default of 0.
 
 **Two things are still the operator's.** This acceptance did not name the mask row, and that name is permanent on
 production. It also did not confirm GateLink's parameter ranges, so that question stays open.
+
+## 2026-11-04 — Input board v2.0: the renamed PCB's schematic passes review
+
+**The operator renamed the PCB from v1.2 to v2.0, because it is a completely different board.** Earlier entries keep
+"v1.2", and their links to the old brief name now live at
+[`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md).
+
+**[`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net), dated 2026-11-04T17:05, passed review.** Its
+nets match the plan: Safety to Q1 to IN3, Exit to Q2 to IN4, Fire to Q3 to IN5, and Alarm to Q4 to IN6. J1 to J5 match
+v1.1 pin for pin. Nothing has been built, so these are calculations and readings of the netlist.
+
+**The first draft had 1M from Q4's gate to source, and the review changed it to 10K.** The alarm output does not pull
+down when off (2026-10-25), so 1M let about 0.8 µA put 0.8 V on the gate and could send a false `HARD_SHUTDOWN`. 10K
+restores the 80 µA margin. The operator wanted R4 to match the other stages, and 10K / 10K allows that, with 6.0 V
+on the gate at 12 V and 7.2 V at 14.4 V. The brief's 4.7K adds nothing the stage needs.
+
+**The draft's four drain 1 MΩ resistors came out.** The first draft kept them from v1.1, and they have no job there.
+R5 to R7 hold Q1 to Q3's gates off.
+
+**J1's two pins carry different returns** (operator). One takes the 1050's GND, which references the sources. The
+other goes to the common terminal of all the StamPLC's relays, which references the relays that pull the 1050's inputs
+low. The 1050's 12 V positive goes to `EXCON_COM`. The review had assumed the second pin was the local 12 V negative,
+and that was wrong. The operator's note named Q1 and Q2's sources, and the netlist ties all four to `Gnd`.
+
+**The operator's other answers:** no sockets, and mounting holes go on the PCB, which is not designed yet. C1 to C4 are
+50 V ceramics with 2.54 mm lead spacing, and the footprint in the netlist is a 2.50 mm pitch. That is to check during
+layout, not a fault found.
+
+**Falsified by:** Q4's gate reading 0.8 V or more with the 1050 powered and its alarm off, or a Q1 to Q3 stage that does
+not switch cleanly from about 4.6 V.
