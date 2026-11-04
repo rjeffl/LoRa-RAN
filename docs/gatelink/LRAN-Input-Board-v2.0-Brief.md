@@ -94,8 +94,8 @@ readings. An open drain wire reads de-energized without them, and in-circuit met
 - The other pin goes to the common terminal of all the StamPLC's relays. It gives the relays the ground reference
   to pull their 1050 inputs low to assert them.
 
-**So the relays' ground runs through this board.** With J1's 1050 pin off, the relays cannot assert a 1050 input, and
-IN3 to IN5 read asserted. Lifting J2 or J3 does neither, so lift those to take a stage out of service.
+**This is a wire routing choice, and it saves another wire run to the 1050.** Electrically, both pins are the 1050's
+common ground (operator).
 
 ## Candidate causes
 
@@ -133,8 +133,9 @@ keeps the case for changes 1 and 2, though four parts on one board are not proof
   during layout.
 - **The date v2.0 is built and swapped in**, which the operator picks later.
 
-**v2.0 draws no way to disconnect a failed stage.** Lifting its field wire at J2 or J3 does that, and D90's inhibit
-covers the reading.
+**v2.0 draws no way to disconnect a failed stage.** The operator accepts lifting its field wire at J2 or J3 for that.
+This does not replace D90's firmware mask, which stays decided. A lifted SAFETY, EXIT or FIRE wire reads asserted, so
+the mask is still what stops that reading from acting.
 
 ## First-board checks
 

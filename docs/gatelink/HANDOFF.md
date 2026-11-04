@@ -365,7 +365,7 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **The input board differs from Impl Plan §3.2, and Q1's and Q3's gates leak.** The plan needs reconciling with what is built, and with J1's relay return, which it does not mention (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*; 2026-11-04). v2.0 follows the plan's Q1 to Q3 stage.
+- **The input board differs from Impl Plan §3.2, and Q1's and Q3's gates leak.** The plan needs reconciling with what is built (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*). v2.0 follows the plan's Q1 to Q3 stage.
 - **D90's mask is not built, and its row has no name.** GateLink has no inhibit for any of IN3 to IN6 today (engineering log, 2026-11-03, *The operator accepts the review*).
 - **The HA handoff's *Open* says GateLink sends no `MPPT_ERROR`**, and `mppt_error_watch.cpp` sends it. Fix it when that file is next edited.
 - **The MPPT's terminals sit near the pack's voltage in daylight, and the charger stays off**, with PV at

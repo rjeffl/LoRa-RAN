@@ -1769,10 +1769,12 @@ R5 to R7 hold Q1 to Q3's gates off.
 
 **J1's two pins carry different returns** (operator). One takes the 1050's GND, which references the sources. The
 other goes to the common terminal of all the StamPLC's relays, which references the relays that pull the 1050's inputs
-low. The 1050's 12 V positive goes to `EXCON_COM`. The review had assumed the second pin was the local 12 V negative,
-and that was wrong. The operator's note named Q1 and Q2's sources, and the netlist ties all four to `Gnd`.
+low. The 1050's 12 V positive goes to `EXCON_COM`. The second pin is a wire routing choice that saves another run to the 1050, and electrically
+both are the 1050's common ground. The review had assumed the second pin was the local 12 V negative, and that was
+wrong. The operator's note named Q1 and Q2's sources, and the netlist ties all four to `Gnd`.
 
-**The operator's other answers:** no sockets, and mounting holes go on the PCB, which is not designed yet. C1 to C4 are
+**The operator's other answers:** lifting a field wire is acceptable for taking a failed stage out, and it does not
+replace D90's firmware mask. No sockets, and mounting holes go on the PCB, which is not designed yet. C1 to C4 are
 50 V ceramics with 2.54 mm lead spacing, and the footprint in the netlist is a 2.50 mm pitch. That is to check during
 layout, not a fault found.
 
