@@ -7,8 +7,9 @@ argument-hint: "<node> <task>, for example: gatelink L7"
 # Start an LRAN task
 
 The operator names a node and a task. The goal is to start work with only the sections
-that task needs in context. CLAUDE.md's *Workflow* sets the budget: aim to finish by 20 %
-of context. Reading is the biggest cost, so this procedure keeps the reading narrow.
+that task needs in context. CLAUDE.md's *Workflow* sets the budget: aim to finish by 15 %
+of context, with 40 % as a ceiling that an overrun does not grant. Reading is the
+biggest cost, so this procedure keeps the reading narrow.
 
 ## 1. Find where the handoff really is
 
@@ -42,8 +43,9 @@ the section from it. If the task needs a whole-document reconciliation, hand the
 to an Explore subagent and ask for a discrepancy list with section numbers. Make the edits
 here, from that list.
 
-Report the context in use once the reading is done (`get_usage`). If it's past 20 %, say
-so before writing code, as CLAUDE.md asks.
+Report the context in use once the reading is done (`get_usage`). If it's past 15 %, say
+so before writing code, as CLAUDE.md asks. Past 200k, carry the task to its close rather
+than handing off mid-way.
 
 ## 3. Branch and load the writing rules
 
