@@ -195,10 +195,19 @@ in its own commit, with the evidence in the message.
   and worktrees. Close by opening the PR, merging it once the operator accepts it, and
   rewriting *Start here*. The project skills `/lran-task` and `/lran-close`, in
   `.claude/skills/`, carry those steps. Something out of scope, a wrong document included, goes in one
-  line under the handoff's *Open*, not into the session. Context in use is the budget:
-  aim to wrap up by about 20 %, or 200k tokens. A task that must read large documents
-  before it can start may run to 40 %, or 400k tokens; say so when the intake pushes past
-  20 %.
+  line under the handoff's *Open*, not into the session. Context in use is the budget, read
+  with `get_usage` after the handoff read and before each new step. It is three rules, not
+  one number:
+  - **Aim to finish by 15 %, or 150k tokens.** Most tasks meet it: 87 of 181 measured
+    sessions peaked under 200k. Say so before writing code when the intake alone pushes
+    past 15 %.
+  - **Do not stop between 200k and 400k.** Measured over 181 sessions, one abandoned there
+    spends about 200 cache-read tokens per output token, against 160 below 200k — the
+    context was expensive to build and the session closed before the work amortized it.
+    Past 200k, carry the task to its close instead of handing off mid-way.
+  - **40 %, or 400k, is the ceiling, not an allowance.** Overrunning 150k does not grant
+    it. A task still going at 400k is too big for one session: say so, write what remains
+    under the handoff's *Open*, and close.
 - **Fix a stale reference when you touch its file, not with a commit of its own.** A
   comment or document line that cites a moved document, a renumbered section or a closed
   decision is fixed in the commit that edits its file for another reason. Until then it is
