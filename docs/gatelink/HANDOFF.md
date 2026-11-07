@@ -366,6 +366,7 @@ board's are its D-pads (expansion board §6.1).
 ## Open, and not closable from here
 
 - **Expansion board v2.0's PCB layout is not reviewed.** The operator plans the review for a coming session and reports DRC clean (2026-11-06). Review the layout in `KiCad/GateLink/LoRa-Expansion-Board-v2.0/` against [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), with `kicad-cli` layer exports, before the board goes to fab. Check its corrections first, then part placement, power trace widths, silkscreen and J12's pin 1.
+- **Input board v2.0's PCB layout is not reviewed either** (D91). The operator plans to review it in the same session as the expansion board's (2026-11-06). Review the layout in `KiCad/GateLink/Input-Board-v2.0/` against [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md) and [`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net), including the brief's open check of C1 to C4's footprint against the part.
 - **The input board differs from Impl Plan §3.2, and Q1's and Q3's gates leak.** The plan needs reconciling with what is built (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*). v2.0 follows the plan's Q1 to Q3 stage.
 - **D90's mask is not built, and its row has no name.** GateLink has no inhibit for any of IN3 to IN6 today (engineering log, 2026-11-03, *The operator accepts the review*).
 - **The HA handoff's *Open* says GateLink sends no `MPPT_ERROR`**, and `mppt_error_watch.cpp` sends it. Fix it when that file is next edited.
