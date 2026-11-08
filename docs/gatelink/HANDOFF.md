@@ -365,8 +365,8 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **Expansion board v2.0 needs silkscreen fixes and Gerbers before it is ordered** (re-review, 2026-11-08). The circuit is ready. The Wio's "D1" label sits beside its 5V pin, J1.1 needs a "+5V NC" label, and the module outlines use 0.1 mm lines. [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), *PCB re-review, 2026-11-08*, lists what remains.
-- **Input board v2.0 needs silkscreen fixes and fresh Gerbers before it is ordered** (D91; re-review, 2026-11-08). J2's top labels read IN1 to IN4 against nets IN3 to IN6, and every text item uses 0.1 mm lines. [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md), *PCB re-review, 2026-11-08*, lists I1 to I7.
+- **Expansion board v2.0 needs one label fix and its Gerbers before it is ordered** (rerun, 2026-11-08). The Wio label RS_SW should read RF_SW, and U2's pin order is still to be checked against the MCP1825S datasheet. [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), *Rerun at 16:42*.
+- **Input board v2.0 needs fresh Gerbers before it is ordered** (D91; rerun, 2026-11-08). Its only other item is a cosmetic silkscreen overlap at SFTY. [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md), *Rerun at 16:27*.
 - **The input board differs from Impl Plan §3.2, and Q1's and Q3's gates leak.** The plan needs reconciling with what is built (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*). v2.0 follows the plan's Q1 to Q3 stage.
 - **D90's mask is not built, and its row has no name.** GateLink has no inhibit for any of IN3 to IN6 today (engineering log, 2026-11-03, *The operator accepts the review*).
 - **The HA handoff's *Open* says GateLink sends no `MPPT_ERROR`**, and `mppt_error_watch.cpp` sends it. Fix it when that file is next edited.

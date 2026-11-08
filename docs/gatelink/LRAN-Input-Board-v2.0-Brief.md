@@ -2,8 +2,8 @@
 
 **Document:** `LRAN-Input-Board-v2.0-Brief`
 **Version:** 0.4
-**Status:** The schematic and the PCB layout are re-reviewed. The layout needs the fixes under *PCB re-review,
-2026-11-08* before it is ordered. Nothing here has been built, and no value here has been measured on a v2.0 board.
+**Status:** The schematic and the PCB layout are re-reviewed. Before the board is ordered, the layout needs fresh
+Gerbers, under *Rerun at 16:27*. Nothing here has been built, and no value here has been measured on a v2.0 board.
 **Last updated:** 2026-11-08
 
 ## Summary
@@ -175,6 +175,23 @@ no errors or warnings, and DRC with no violations and schematic parity. The circ
 The operator reported the stackup and the silkscreen widths as corrected. The saved files read as above, so the
 corrections may sit in KiCad unsaved. Changing the default in Board Setup does not change text already placed, and
 *Edit Text and Graphics Properties* applies a new width to every item at once.
+
+### Rerun at 16:27
+
+The checks ran again on the PCB saved at 16:27. ERC reports no errors or warnings. DRC reports schematic parity and
+one silkscreen warning, I8. The netlist is unchanged.
+
+| # | Status at the rerun |
+|---|---|
+| I1 | Open. The Gerbers are still from 2026-11-05 |
+| I3 | Fixed. All 22 text items use 0.15 mm lines, as do the project defaults |
+| I4 | Fixed. The stackup totals 1.58 mm, and the order sets 1.6 mm |
+| I6 | Fixed. J2's top labels read IN3 to IN6 |
+| I7 | Fixed. J1.6 reads ALRM on both sides |
+
+| # | Finding | Fix |
+|---|---|---|
+| I8 | DRC's `silk_overlap` warning: the top of the F.SilkS SFTY label touches J1's outline. It is legible in the 3D render, and the clipped stroke is cosmetic | Move the label about 0.5 mm away from J1, or accept the warning |
 
 ## First-board checks
 

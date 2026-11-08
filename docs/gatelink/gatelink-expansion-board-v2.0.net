@@ -1,8 +1,8 @@
 (export
 	(version "E")
 	(design
-		(source "/Users/jefflee/Documents/Computers_Network_Automation/Projects/KiCad/GateLink/LoRa-Expansion-Board-v2.0/LoRa-Expansion-Board.kicad_sch")
-		(date "2026-11-08T15:14:53")
+		(source "/private/tmp/claude-501/-Users-jefflee--claude-spares-spare-dPhOWZ/480ff183-3045-4cc6-a4ec-d4aa26dac55a/scratchpad/copy/LoRa-Expansion-Board-v2.0/LoRa-Expansion-Board.kicad_sch")
+		(date "2026-11-08T16:46:50")
 		(tool "Eeschema 10.0.7")
 		(sheet
 			(number "1")
@@ -536,7 +536,7 @@
 		)
 		(comp
 			(ref "D1")
-			(value "P6KE18")
+			(value "P6KE18A")
 			(footprint "Diode_THT:D_DO-15_P10.16mm_Horizontal")
 			(description "Bidirectional transient-voltage-suppression diode")
 			(fields

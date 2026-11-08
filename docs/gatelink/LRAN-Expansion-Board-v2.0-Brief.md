@@ -2,16 +2,16 @@
 
 **Document:** `LRAN-Expansion-Board-v2.0-Brief`
 **Version:** 0.3
-**Status:** The schematic and the PCB layout are re-reviewed. The schematic is ready, and the layout needs the
-silkscreen fixes under *PCB re-review, 2026-11-08* before it is ordered. Nothing here has been built, and no value
-here has been measured on a v2.0 board.
+**Status:** The schematic and the PCB layout are re-reviewed. Before the board is ordered, the layout needs P17's
+label fix and its Gerbers, under *Rerun at 16:42*. Nothing here has been built, and no value here has been measured
+on a v2.0 board.
 **Last updated:** 2026-11-08
 
 ## Summary
 
 **Expansion board v2.0 is a fabricated PCB that replaces the hand-built rev 0.3 carrier.**
 [`gatelink-expansion-board-v2.0.net`](./gatelink-expansion-board-v2.0.net) is the netlist from the re-review,
-exported from KiCad on 2026-11-08 at 15:14. It carries the schematic changes from all seven of *Corrections to
+exported from the 16:38 schematic on 2026-11-08. It carries the schematic changes from all seven of *Corrections to
 make*.
 The netlist reviewed on 2026-11-06, with those defects, is in git history.
 
@@ -201,6 +201,35 @@ orientation instead, and pick-and-place conventions do not apply.
 
 The operator reported the stackup and the silkscreen widths as corrected. The saved files read as above, so the
 corrections may sit in KiCad unsaved.
+
+### Rerun at 16:42
+
+The checks ran again on the PCB saved at 16:42 and the schematic saved at 16:38. ERC reports no errors or warnings.
+DRC reports no violations and schematic parity, both as saved and after a zone refill. The netlist differs from the
+15:14 export only in D1's value.
+
+**The operator closed three items** (operator, 2026-11-08):
+
+- **P3 and P14.** J1.1 now reads NC. The installed VE.Direct cable has its +5 V wire removed, so no wire needs
+  parking there.
+- **P10.** J12's 3.2 mm from the edge matches the hand-built perfboard exactly. The v1.0 KiCad layout was drawn
+  after that board was built, and does not match it. The continuity check under *First-board checks* stays.
+- **P6 and P13.** The Wio now has a label beside each pin in use, which is enough for hand assembly. The "D1"
+  label is gone.
+
+| # | Status at the rerun |
+|---|---|
+| P4 | Fixed. J1 reads NC, GND, MPTX and MPRX, and MPTX is the terminal that reaches G4 through R1 |
+| P7 | Fixed. Every board text item and both module outlines use 0.15 mm lines, as do the project defaults |
+| P15 | Fixed. The stackup totals 1.58 mm, and the order sets 1.6 mm |
+| P16 | Fixed. D1's value is P6KE18A |
+
+| # | Finding | Fix |
+|---|---|---|
+| P17 | The Wio label beside J11.6 reads RS_SW, and the net is `/RF_SW` (correction 6) | Relabel it RF_SW |
+
+**Still owed before ordering:** the Gerbers, and correction 2's check of U2's pin order against the MCP1825S
+datasheet.
 
 ## The Murata regulator
 

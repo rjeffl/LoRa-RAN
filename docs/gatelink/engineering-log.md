@@ -1864,3 +1864,20 @@ The briefs list each item under *PCB re-review, 2026-11-08*:
 
 **Falsified by:** a silkscreen Gerber, generated for the order, that shows J2 labelled IN3 to IN6 and every line at
 0.15 mm or more. For the Wio finding, a seated Wio whose 5V pin is not beside the "D1" label.
+
+## 2026-11-08 — The v2.0 rerun: both layouts are ready for Gerbers, after one label
+
+**The operator's revisions close every silkscreen and stackup item, and the rerun found one new label error.** The
+checks ran on the expansion board's PCB saved at 16:42 and the input board's saved at 16:27. Both pass ERC with no
+errors or warnings, and DRC with schematic parity. Silkscreen lines are 0.15 mm on both boards, and each stackup
+totals 1.58 mm. J2 now reads IN3 to IN6.
+
+**The operator closed three expansion-board items.** J1.1 reads NC, and the installed VE.Direct cable has its +5 V
+wire removed. J12's 3.2 mm from the edge matches the hand-built perfboard exactly, and the v1.0 KiCad layout, drawn
+after that board was built, does not. The Wio's labels for the pins in use are enough for hand assembly.
+
+**The new Wio label beside J11.6 reads RS_SW, and the net is `/RF_SW`.** On the input board, DRC warns that the SFTY
+label touches J1's outline, which is cosmetic. Both boards still need Gerbers, and U2's pin order still needs its
+datasheet check. The briefs carry these under *Rerun at 16:42* and *Rerun at 16:27*.
+
+**Falsified by:** a silkscreen Gerber, generated for the order, that differs from these labels or widths.
