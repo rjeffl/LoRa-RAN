@@ -1881,3 +1881,18 @@ label touches J1's outline, which is cosmetic. Both boards still need Gerbers, a
 datasheet check. The briefs carry these under *Rerun at 16:42* and *Rerun at 16:27*.
 
 **Falsified by:** a silkscreen Gerber, generated for the order, that differs from these labels or widths.
+
+## 2026-11-08 — The v2.0 final check: both boards need only their Gerbers
+
+**Both v2.0 layouts pass ERC with no errors or warnings, and DRC with no violations and schematic parity.** The
+checks ran on the expansion board's PCB saved at 16:54 and the input board's saved at 16:56. The Wio label beside
+J11.6 now reads RF_SW, and the input board's SFTY label clears J1's outline. Both stackups total 1.6 mm, and both
+netlists are unchanged.
+
+**The operator confirmed U2's pin order against the MCP1825S datasheet** (operator, 2026-11-08). That closes
+correction 2's last check.
+
+**Gerbers are the only item left before ordering.** The input board's are from 2026-11-05, and the expansion board
+has none. The briefs record this under *Final check at 16:54* and *Final check at 16:56*.
+
+**Falsified by:** Gerbers generated for the order that show a label or width different from these files.

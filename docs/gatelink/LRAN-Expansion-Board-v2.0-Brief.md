@@ -2,8 +2,8 @@
 
 **Document:** `LRAN-Expansion-Board-v2.0-Brief`
 **Version:** 0.3
-**Status:** The schematic and the PCB layout are re-reviewed. Before the board is ordered, the layout needs P17's
-label fix and its Gerbers, under *Rerun at 16:42*. Nothing here has been built, and no value here has been measured
+**Status:** The schematic and the PCB layout are re-reviewed, and every review item is closed. The board needs
+its Gerbers before it is ordered (*Final check at 16:54*). Nothing here has been built, and no value here has been measured
 on a v2.0 board.
 **Last updated:** 2026-11-08
 
@@ -230,6 +230,18 @@ DRC reports no violations and schematic parity, both as saved and after a zone r
 
 **Still owed before ordering:** the Gerbers, and correction 2's check of U2's pin order against the MCP1825S
 datasheet.
+
+### Final check at 16:54
+
+The checks ran again on the PCB saved at 16:54. ERC reports no errors or warnings. DRC reports no violations and
+schematic parity after a zone refill. The netlist is unchanged from the 16:38 export.
+
+- **P17 is fixed.** The label beside J11.6 reads RF_SW.
+- **Correction 2's pin check is done.** The operator confirmed U2's pin order against the MCP1825S datasheet
+  (operator, 2026-11-08).
+- The stackup now totals 1.6 mm, and every silkscreen item uses 0.15 mm lines.
+
+**Still owed before ordering:** the Gerbers.
 
 ## The Murata regulator
 

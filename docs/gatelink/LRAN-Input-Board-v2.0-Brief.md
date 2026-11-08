@@ -2,8 +2,8 @@
 
 **Document:** `LRAN-Input-Board-v2.0-Brief`
 **Version:** 0.4
-**Status:** The schematic and the PCB layout are re-reviewed. Before the board is ordered, the layout needs fresh
-Gerbers, under *Rerun at 16:27*. Nothing here has been built, and no value here has been measured on a v2.0 board.
+**Status:** The schematic and the PCB layout are re-reviewed, and every review item but I1 is closed. The board
+needs fresh Gerbers before it is ordered (*Final check at 16:56*). Nothing here has been built, and no value here has been measured on a v2.0 board.
 **Last updated:** 2026-11-08
 
 ## Summary
@@ -192,6 +192,12 @@ one silkscreen warning, I8. The netlist is unchanged.
 | # | Finding | Fix |
 |---|---|---|
 | I8 | DRC's `silk_overlap` warning: the top of the F.SilkS SFTY label touches J1's outline. It is legible in the 3D render, and the clipped stroke is cosmetic | Move the label about 0.5 mm away from J1, or accept the warning |
+
+### Final check at 16:56
+
+The checks ran again on the PCB saved at 16:56. ERC reports no errors or warnings. DRC reports no violations and
+schematic parity, so I8 is fixed: the SFTY label clears J1's outline. The stackup now totals 1.6 mm, and the netlist
+is unchanged. I1 is the only open item: the Gerbers are still from 2026-11-05.
 
 ## First-board checks
 
