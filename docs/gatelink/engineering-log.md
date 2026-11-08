@@ -1780,3 +1780,119 @@ layout, not a fault found.
 
 **Falsified by:** Q4's gate reading 0.8 V or more with the 1050 powered and its alarm off, or a Q1 to Q3 stage that does
 not switch cleanly from about 4.6 V.
+
+## 2026-11-08 — The v2.0 PCB review: the input board is close, and the expansion board's U1 does not fit
+
+**Both v2.0 layouts pass KiCad 10.0.7's DRC with schematic parity, and the review found work before either goes to
+JLCPCB.** It read both projects in `KiCad/GateLink/` with `kicad-cli`: ERC, DRC, a fresh netlist export, the track,
+via and drill sizes, and 3D renders of each side. Nothing has been built, so every finding here is a reading of the
+files or a calculation.
+
+**The expansion board's U1 footprint is a TO-220, and the OKI-78SR is deeper.** KiCad's own
+`Converter_DCDC_Murata_OKI-78SR_Vertical` puts the module's body 5.4 mm above the pin row and 3.4 mm below it. At
+U1's position, that body covers C7's pad 1 at (113.23, 95.40) and overlaps C6's body. This blocks assembly, and DRC
+cannot see it, because the TO-220 courtyard is smaller than the part.
+
+**Three of the brief's corrections are not in the schematic yet.** J7.1 is still on the net labelled `/G5`, and
+U2's value is still `LM7803_TO220` on a 78xx symbol. Corrections 4 and 5 are in: R4 is DIO1's 10 kΩ pull-down, C6 is
+22 µF on +5V and C7 is 10 µF on +12V. The brief's open questions on C1, C2, C3, C5, F1 and D2 are settled in the
+layout.
+
+**J1.2 is a second GND terminal, and that invites a short.** The VE.Direct cable carries the MPPT's +5 V on its
+pin 4, which rev 0.3 §6 leaves unconnected. With a spare GND terminal and no silkscreen labels, that wire lands
+on GND easily.
+
+**Two plug-in modules can go in rotated 180°.** The Wio's two 7-pin rows accept it rotated, which puts its GND on
+RF_SW and its 3V3 on NSS. The level shifter has no outline or pin-1 mark, which correction 7 asks for.
+
+**U2's nearest output capacitor is C4, about 15 mm away.** The review recommends a 1 to 4.7 µF ceramic at U2's pin 3.
+
+**J12's outer row sits about 3.2 mm from the board edge, against about 5.7 mm on v1.0.** The pin nets and the
+footprint's orientation match v1.0's J8, which the operator rang out on 2026-10-05. Whether the right-angle header
+still clears the edge and mates the same way is not checked.
+
+**The input board's circuit matches its brief on all four stages.** Its remaining items are small: the Gerbers in
+`Gerbers/` predate the last save of the PCB by four minutes, the terminal names are printed on the bottom side only,
+and the schematic has one dangling wire stub. C1 to C4's 2.50 mm footprint against the part's 2.54 mm leads makes no
+practical difference, which closes the brief's open check.
+
+**The input board's connectors were consolidated after the 2026-11-04 netlist.** J1 is now a 6-way terminal, Gnd,
+Gnd, Safety, Exit, Fire and Alarm, and J2 a 4-way terminal, IN3 to IN6. The gate nets are unchanged.
+[`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net) is now the export reviewed today.
+
+**Both boards print silkscreen text with 0.1 mm lines**, below JLCPCB's 0.15 mm minimum. Every copper and drill size
+is within JLCPCB's standard two-layer process.
+
+The briefs list each finding and its fix:
+[`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md) and
+[`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md), each under *PCB review, 2026-11-08*.
+
+**Falsified by:** the OKI-78SR datasheet's outline placing the body clear of C6 and C7 at U1's position, or a
+first-board J12 that mates differently from v1.0's.
+
+## 2026-11-08 — The v2.0 PCB re-review: the circuits are ready, and the silkscreen is not
+
+**Both v2.0 boards pass ERC with no errors or warnings, and DRC with no violations and schematic parity.** The
+operator revised both projects after the morning's review. This pass read the files saved at 15:25 and 15:28 with
+`kicad-cli`: ERC, DRC with and without a zone refill, a fresh netlist export, pad positions, silkscreen widths and 3D
+renders. Nothing has been built, so every finding here is a reading of the files.
+
+**The expansion board's schematic carries all seven corrections, and U1 now fits.** U1 uses the OKI-78SR footprint,
+and its courtyard clears C6, C7 and D2. C8 adds 4.7 µF at U2's output, a GND pour is on F.Cu, and the test points
+take a 1.0 mm drill. J1.1 is now a no-connect terminal for the VE.Direct cable's +5 V wire.
+[`gatelink-expansion-board-v2.0.net`](./gatelink-expansion-board-v2.0.net) is now the 15:14 export.
+
+**The operator assembles both boards by hand** (operator, 2026-11-08). The level shifter and the Wio have no stock
+footprint, and the level shifter's module does not mark its pin 1, so silkscreen labels carry each module's
+orientation.
+
+**The level shifter's labels match the netlist pin for pin. The Wio's do not mark it safely.** A "D1" label sits
+beside J9.1, which is the Wio's 5V pin, while the Wio's D1 is J11.2. J1.1 has no label to say the +5 V wire parks
+there.
+
+**The input board's top labels for J2 read IN1 to IN4, and its nets are IN3 to IN6.** The bottom labels are right.
+An installer working from the top would land the IN3 and IN4 wires on the IN5 and IN6 terminals.
+
+**The saved files still show a 1.65 mm stackup on both boards, and 0.1 mm silkscreen lines.** On the input board
+every text item uses them. On the expansion board six text items and both module outlines do. The operator reported
+both as corrected, so the edits may sit in KiCad unsaved. The input board's Gerbers are still from 2026-11-05, and the
+expansion board has none.
+
+The briefs list each item under *PCB re-review, 2026-11-08*:
+[`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md) P13 to P16, and
+[`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md) I6 and I7.
+
+**Falsified by:** a silkscreen Gerber, generated for the order, that shows J2 labelled IN3 to IN6 and every line at
+0.15 mm or more. For the Wio finding, a seated Wio whose 5V pin is not beside the "D1" label.
+
+## 2026-11-08 — The v2.0 rerun: both layouts are ready for Gerbers, after one label
+
+**The operator's revisions close every silkscreen and stackup item, and the rerun found one new label error.** The
+checks ran on the expansion board's PCB saved at 16:42 and the input board's saved at 16:27. Both pass ERC with no
+errors or warnings, and DRC with schematic parity. Silkscreen lines are 0.15 mm on both boards, and each stackup
+totals 1.58 mm. J2 now reads IN3 to IN6.
+
+**The operator closed three expansion-board items.** J1.1 reads NC, and the installed VE.Direct cable has its +5 V
+wire removed. J12's 3.2 mm from the edge matches the hand-built perfboard exactly, and the v1.0 KiCad layout, drawn
+after that board was built, does not. The Wio's labels for the pins in use are enough for hand assembly.
+
+**The new Wio label beside J11.6 reads RS_SW, and the net is `/RF_SW`.** On the input board, DRC warns that the SFTY
+label touches J1's outline, which is cosmetic. Both boards still need Gerbers, and U2's pin order still needs its
+datasheet check. The briefs carry these under *Rerun at 16:42* and *Rerun at 16:27*.
+
+**Falsified by:** a silkscreen Gerber, generated for the order, that differs from these labels or widths.
+
+## 2026-11-08 — The v2.0 final check: both boards need only their Gerbers
+
+**Both v2.0 layouts pass ERC with no errors or warnings, and DRC with no violations and schematic parity.** The
+checks ran on the expansion board's PCB saved at 16:54 and the input board's saved at 16:56. The Wio label beside
+J11.6 now reads RF_SW, and the input board's SFTY label clears J1's outline. Both stackups total 1.6 mm, and both
+netlists are unchanged.
+
+**The operator confirmed U2's pin order against the MCP1825S datasheet** (operator, 2026-11-08). That closes
+correction 2's last check.
+
+**Gerbers are the only item left before ordering.** The input board's are from 2026-11-05, and the expansion board
+has none. The briefs record this under *Final check at 16:54* and *Final check at 16:56*.
+
+**Falsified by:** Gerbers generated for the order that show a label or width different from these files.

@@ -1,9 +1,10 @@
 # LRAN — GateLink input board v2.0 brief
 
 **Document:** `LRAN-Input-Board-v2.0-Brief`
-**Version:** 0.2
-**Status:** The schematic is reviewed, and the PCB is not designed. Nothing here has been built, and no value here has been measured on a v2.0 board.
-**Last updated:** 2026-11-04
+**Version:** 0.4
+**Status:** The schematic and the PCB layout are re-reviewed, and every review item but I1 is closed. The board
+needs fresh Gerbers before it is ordered (*Final check at 16:56*). Nothing here has been built, and no value here has been measured on a v2.0 board.
+**Last updated:** 2026-11-08
 
 ## Summary
 
@@ -126,16 +127,77 @@ keeps the case for changes 1 and 2, though four parts on one board are not proof
 
 ## What the review still has to decide
 
-- **The PCB's outline, mounting and connectors in the enclosure.** The PCB is not designed. Its mounting holes go on
-  the PCB rather than in the schematic (operator).
-- **C1 to C4's footprint against the part.** The operator chose a 50 V ceramic with 2.54 mm lead spacing, and the
-  netlist's footprint is `C_Disc_D5.0mm_W2.5mm_P2.50mm`, a 2.50 mm pitch. Check the part's leads and body against it
-  during layout.
+- **The PCB's fit in the enclosure.** The layout is 60 × 40 mm with two M3 holes, and its fit is not checked.
+- **C1 to C4's footprint against the part: settled.** The footprint's 2.50 mm pitch against the part's 2.54 mm leads
+  makes no practical difference (review, 2026-11-08).
 - **The date v2.0 is built and swapped in**, which the operator picks later.
 
-**v2.0 draws no way to disconnect a failed stage.** The operator accepts lifting its field wire at J2 or J3 for that.
+**v2.0 draws no way to disconnect a failed stage.** The operator accepts lifting its field wire at J1 for that.
 This does not replace D90's firmware mask, which stays decided. A lifted SAFETY, EXIT or FIRE wire reads asserted, so
 the mask is still what stops that reading from acting.
+
+## PCB review, 2026-11-08
+
+The layout passes DRC with schematic parity in KiCad 10.0.7, and its nets match the stages above (engineering log,
+2026-11-08). The connectors were consolidated after the 2026-11-04 netlist: J1 is a 6-way terminal, Gnd, Gnd,
+Safety, Exit, Fire and Alarm, and J2 a 4-way terminal, IN3 to IN6.
+[`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net) is the 2026-11-08 export.
+
+| # | Finding | Fix |
+|---|---|---|
+| I1 | The Gerbers in `Gerbers/` predate the PCB's last save by four minutes | Regenerate them before ordering |
+| I2 | The terminal names are on B.SilkS only | Repeat them on F.SilkS, between the terminals and R1 to R4 |
+| I3 | Silkscreen text uses 0.1 mm lines, below JLCPCB's 0.15 mm minimum | Use 1.0 to 1.2 mm text with 0.15 to 0.18 mm lines |
+| I4 | The stackup gives 1.65 mm | Set 1.6 mm, JLCPCB's standard thickness |
+| I5 | ERC warns of one dangling wire stub near (138.43, 90.17) mm | Delete it. It changes no net |
+
+Every copper and drill size is within JLCPCB's standard two-layer process.
+
+## PCB re-review, 2026-11-08
+
+The operator revised the layout after the first review, and this pass read the PCB saved at 15:28. It passes ERC with
+no errors or warnings, and DRC with no violations and schematic parity. The circuit is unchanged:
+[`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net) matches a fresh export net for net.
+
+| # | Status at the re-review |
+|---|---|
+| I1 | Open. The Gerbers in `Gerbers/` are from 2026-11-05, and the operator has not regenerated them yet |
+| I2 | Fixed, but I6 found the J2 labels wrong |
+| I3 | Open. All 22 silkscreen text items, top and bottom, use 0.1 mm lines, and the project's default text thickness is still 0.1 mm |
+| I4 | Open. The saved stackup totals 1.65 mm |
+| I5 | Fixed. ERC reports no dangling wire |
+
+| # | Finding | Fix |
+|---|---|---|
+| I6 | **J2's F.SilkS labels read IN1, IN2, IN3 and IN4.** Its nets and its B.SilkS labels are IN3 to IN6, so an installer working from the top would land the IN3 and IN4 wires on the IN5 and IN6 terminals | Relabel them IN3 to IN6 |
+| I7 | J1.6 reads ALR on F.SilkS and ALRM on B.SilkS | Use one name on both sides |
+
+The operator reported the stackup and the silkscreen widths as corrected. The saved files read as above, so the
+corrections may sit in KiCad unsaved. Changing the default in Board Setup does not change text already placed, and
+*Edit Text and Graphics Properties* applies a new width to every item at once.
+
+### Rerun at 16:27
+
+The checks ran again on the PCB saved at 16:27. ERC reports no errors or warnings. DRC reports schematic parity and
+one silkscreen warning, I8. The netlist is unchanged.
+
+| # | Status at the rerun |
+|---|---|
+| I1 | Open. The Gerbers are still from 2026-11-05 |
+| I3 | Fixed. All 22 text items use 0.15 mm lines, as do the project defaults |
+| I4 | Fixed. The stackup totals 1.58 mm, and the order sets 1.6 mm |
+| I6 | Fixed. J2's top labels read IN3 to IN6 |
+| I7 | Fixed. J1.6 reads ALRM on both sides |
+
+| # | Finding | Fix |
+|---|---|---|
+| I8 | DRC's `silk_overlap` warning: the top of the F.SilkS SFTY label touches J1's outline. It is legible in the 3D render, and the clipped stroke is cosmetic | Move the label about 0.5 mm away from J1, or accept the warning |
+
+### Final check at 16:56
+
+The checks ran again on the PCB saved at 16:56. ERC reports no errors or warnings. DRC reports no violations and
+schematic parity, so I8 is fixed: the SFTY label clears J1's outline. The stackup now totals 1.6 mm, and the netlist
+is unchanged. I1 is the only open item: the Gerbers are still from 2026-11-05.
 
 ## First-board checks
 
