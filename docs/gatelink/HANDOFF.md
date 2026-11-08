@@ -365,8 +365,7 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **Expansion board v2.0 needs its Gerbers before it is ordered** (final check, 2026-11-08). Every review item is closed. [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), *Final check at 16:54*.
-- **Input board v2.0 needs fresh Gerbers before it is ordered** (D91; final check, 2026-11-08). Every other review item is closed. [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md), *Final check at 16:56*.
+- **Both v2.0 boards are ready to order** (D91; Gerbers checked, 2026-11-08). Upload the two `*.110826.zip` files, not the input board's `110626` zip. Each brief's *Gerbers, 2026-11-08* has the check: [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md).
 - **The input board differs from Impl Plan §3.2, and Q1's and Q3's gates leak.** The plan needs reconciling with what is built (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*). v2.0 follows the plan's Q1 to Q3 stage.
 - **D90's mask is not built, and its row has no name.** GateLink has no inhibit for any of IN3 to IN6 today (engineering log, 2026-11-03, *The operator accepts the review*).
 - **The HA handoff's *Open* says GateLink sends no `MPPT_ERROR`**, and `mppt_error_watch.cpp` sends it. Fix it when that file is next edited.

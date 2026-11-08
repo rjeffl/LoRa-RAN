@@ -1,9 +1,9 @@
 # LRAN — GateLink input board v2.0 brief
 
 **Document:** `LRAN-Input-Board-v2.0-Brief`
-**Version:** 0.4
-**Status:** The schematic and the PCB layout are re-reviewed, and every review item but I1 is closed. The board
-needs fresh Gerbers before it is ordered (*Final check at 16:56*). Nothing here has been built, and no value here has been measured on a v2.0 board.
+**Version:** 0.5
+**Status:** The schematic, the PCB layout and the Gerbers are reviewed, and the board is ready to order (*Gerbers,
+2026-11-08*). Nothing here has been built, and no value here has been measured on a v2.0 board.
 **Last updated:** 2026-11-08
 
 ## Summary
@@ -198,6 +198,17 @@ one silkscreen warning, I8. The netlist is unchanged.
 The checks ran again on the PCB saved at 16:56. ERC reports no errors or warnings. DRC reports no violations and
 schematic parity, so I8 is fixed: the SFTY label clears J1's outline. The stackup now totals 1.6 mm, and the netlist
 is unchanged. I1 is the only open item: the Gerbers are still from 2026-11-05.
+
+### Gerbers, 2026-11-08
+
+**I1 is fixed.** The operator regenerated the Gerbers and drill files at 17:02, into `Gerbers/` and
+`input-board-v2.0-Gerbers.110826.zip`. The set has seven Gerber layers, PTH and NPTH Excellon files and a job file,
+and the zip holds the same ten files, byte for byte.
+
+**Each file matches a fresh `kicad-cli` export of the saved PCB, apart from its timestamp.** The PCB saved at 17:03
+does not differ from the one the final check passed. The job file states a 1.6 mm board. Gerbers and drill files
+both use the auxiliary origin at the board's lower-left corner. The older `input-board-v2.0-gbr.110626.zip` is from
+2026-11-05, so do not upload it.
 
 ## First-board checks
 

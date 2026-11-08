@@ -1896,3 +1896,20 @@ correction 2's last check.
 has none. The briefs record this under *Final check at 16:54* and *Final check at 16:56*.
 
 **Falsified by:** Gerbers generated for the order that show a label or width different from these files.
+
+## 2026-11-08 — The v2.0 Gerbers match their boards, and both are ready to order
+
+**Both boards' Gerbers and drill files match a fresh `kicad-cli` export of the reviewed PCB, apart from timestamps.**
+The operator generated them at 17:01 and 17:02. Each set has seven Gerber layers, PTH and NPTH Excellon files and a
+job file, and each `*.110826.zip` holds the same ten files byte for byte. Since the final check, the expansion
+board's PCB changed only in its plot settings, and the input board's did not change.
+
+**The two boards use different origins, and each is consistent with itself.** The expansion board plots at KiCad's
+absolute origin. The input board's Gerbers and drill files both use the auxiliary origin at its lower-left corner.
+Both job files state a 1.6 mm board.
+
+**Upload the two `*.110826.zip` files.** The input board's folder still holds `input-board-v2.0-gbr.110626.zip`,
+from 2026-11-05.
+
+**Falsified by:** a fabricated board whose holes do not line up with its copper, or JLCPCB's Gerber viewer showing a
+layer different from the 3D renders in this review.

@@ -1,10 +1,9 @@
 # LRAN — GateLink expansion board v2.0 brief
 
 **Document:** `LRAN-Expansion-Board-v2.0-Brief`
-**Version:** 0.3
-**Status:** The schematic and the PCB layout are re-reviewed, and every review item is closed. The board needs
-its Gerbers before it is ordered (*Final check at 16:54*). Nothing here has been built, and no value here has been measured
-on a v2.0 board.
+**Version:** 0.4
+**Status:** The schematic, the PCB layout and the Gerbers are reviewed, and the board is ready to order (*Gerbers,
+2026-11-08*). Nothing here has been built, and no value here has been measured on a v2.0 board.
 **Last updated:** 2026-11-08
 
 ## Summary
@@ -242,6 +241,16 @@ schematic parity after a zone refill. The netlist is unchanged from the 16:38 ex
 - The stackup now totals 1.6 mm, and every silkscreen item uses 0.15 mm lines.
 
 **Still owed before ordering:** the Gerbers.
+
+### Gerbers, 2026-11-08
+
+The operator generated the Gerbers and drill files at 17:01, into `Gerbers/` and
+`LoRa-Expansion-Board-Gerbers.110826.zip`. The set has seven Gerber layers, PTH and NPTH Excellon files and a job
+file. The zip holds the same ten files, byte for byte.
+
+**Each file matches a fresh `kicad-cli` export of the saved PCB, apart from its timestamp.** The PCB saved at 17:01
+differs from the one the final check passed only in its plot settings. The job file states a 1.6 mm board, and
+Gerbers and drill files share KiCad's absolute origin.
 
 ## The Murata regulator
 
