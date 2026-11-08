@@ -1,19 +1,19 @@
 # LRAN — GateLink expansion board v2.0 brief
 
 **Document:** `LRAN-Expansion-Board-v2.0-Brief`
-**Version:** 0.2
-**Status:** The schematic and the PCB layout are reviewed, and the layout needs the fixes under *PCB review,
-2026-11-08* before it is ordered. Nothing here has
-been built, and no value here has been measured on a v2.0 board.
+**Version:** 0.3
+**Status:** The schematic and the PCB layout are re-reviewed. The schematic is ready, and the layout needs the
+silkscreen fixes under *PCB re-review, 2026-11-08* before it is ordered. Nothing here has been built, and no value
+here has been measured on a v2.0 board.
 **Last updated:** 2026-11-08
 
 ## Summary
 
 **Expansion board v2.0 is a fabricated PCB that replaces the hand-built rev 0.3 carrier.**
-[`gatelink-expansion-board-v2.0.net`](./gatelink-expansion-board-v2.0.net) is the netlist as reviewed on
-2026-11-06, exported from KiCad on that date. It still carries the defects listed under *Corrections to make*.
-The operator is fixing them in the schematic, so the committed netlist is a record of the review, not the board to
-order.
+[`gatelink-expansion-board-v2.0.net`](./gatelink-expansion-board-v2.0.net) is the netlist from the re-review,
+exported from KiCad on 2026-11-08 at 15:14. It carries the schematic changes from all seven of *Corrections to
+make*.
+The netlist reviewed on 2026-11-06, with those defects, is in git history.
 
 The circuit is the one [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3 describes. Every radio
 net, the SPI bus, the bus header and the power path match it. v2.0 changes parts and connectors for availability
@@ -152,6 +152,55 @@ labels are done, and its silkscreen is not.
 
 **For the JLCPCB order:** two layers, 1.6 mm, lead-free HASL. Choose where JLCPCB prints its order number, or pay to
 remove it.
+
+## PCB re-review, 2026-11-08
+
+The operator revised the schematic and the layout after the first review, and this pass read the files saved at
+15:25. The layout passes ERC with no errors or warnings. It passes DRC with no violations and schematic parity, both
+as saved and after a zone refill. No Gerbers have been generated yet.
+
+**The schematic carries all seven of *Corrections to make*.** J7.1 is on `/G4`, and U2 is MCP1825S-3302E/AB.
+U2's TO-220 pads are on VIN, GND and VOUT in pin order 1 to 3. Correction 2's check of that order against the
+MCP1825S datasheet is still owed. U1's value is OKI-78SR-5/1.5-W36-C. Correction 7's silkscreen is under P5 and P7
+below.
+
+**The operator assembles the board by hand** (operator, 2026-11-08). The level shifter and the Wio have no stock
+footprint, and the level shifter's module does not mark its pin 1. The silkscreen labels carry each module's
+orientation instead, and pick-and-place conventions do not apply.
+
+| # | Status at the re-review |
+|---|---|
+| P1 | Fixed. U1 uses `Converter_DCDC_Murata_OKI-78SR_Vertical`, and its courtyard clears C6, C7 and D2 |
+| P2 | Fixed |
+| P3 | Fixed in the netlist. J1.1 is a no-connect terminal and J1.2 is GND. J1.1 has no label, which P14 adds |
+| P4 | Partly fixed. J1.3 reads TX and J1.4 reads RX, named from the MPPT's side, while their nets, `/VE.RX` and `/VE.TX`, are named from the ESP32's side |
+| P5 | Fixed. J3 and J5 carry HV1 to HV4, HV, LV1 to LV4, LV and GND labels, and each matches its pin in the netlist. The module outline is drawn with 0.1 mm lines |
+| P6 | Partly fixed. The Wio's outline is drawn, with 0.1 mm lines and no mark for the USB end. P13 covers the label inside it |
+| P7 | Partly fixed. The new labels use 0.15 mm lines. The title, Port.A, Port.C, the date, Level Shift and Wio SX1262 still use 0.1 mm, as do both module outlines. The project's default graphic line width is still 0.1 mm |
+| P8 | Fixed. C8, 4.7 µF, sits about 3 mm from U2 pin 3 |
+| P9 | Fixed, with the GND pour on F.Cu |
+| P10 | Unchanged. It stays a first-board check |
+| P11 | Fixed. The test points use `TestPoint_THTPad_2.0x2.0mm_Drill1.0mm` |
+| P12 | Fixed. ERC is clean |
+
+### Fix before ordering
+
+| # | Finding | Fix |
+|---|---|---|
+| P7 | Six text items and both module outlines use 0.1 mm lines, so the outlines P5 and P6 asked for may not print. Changing the default in Board Setup does not change items already placed | Set every F.SilkS item to 0.15 mm or more with *Edit Text and Graphics Properties* |
+| P13 | A "D1" label sits inside the Wio outline beside J9.1, which is the Wio's 5V pin. The Wio's D1 is J11.2, on the other row. Read as an orientation key, the label points at the wrong pin, and a rotated Wio puts its GND on RF_SW and its 3V3 on NSS. It also repeats diode D1's reference | Label J9.1 "5V" and J11.1 "D0", and mark the USB end |
+| P14 | J1.1 has no label, so nothing tells the installer to park the VE.Direct cable's +5 V wire there | Label J1.1 "+5V NC" |
+
+### Recommended
+
+| # | Finding | Fix |
+|---|---|---|
+| P4 | The bare TX and RX labels read the opposite way from their net names | Label J1.3 "MPPT TX" and J1.4 "MPPT RX" |
+| P15 | The saved stackup totals 1.65 mm. The thickness is chosen on the JLCPCB order, so this does not change the board | Set 1.6 mm in Board Setup's *Physical Stackup* |
+| P16 | D1's value reads P6KE18, and *PCB review, 2026-11-08* orders the P6KE18A | Set the value to P6KE18A |
+
+The operator reported the stackup and the silkscreen widths as corrected. The saved files read as above, so the
+corrections may sit in KiCad unsaved.
 
 ## The Murata regulator
 

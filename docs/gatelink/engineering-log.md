@@ -1829,3 +1829,38 @@ The briefs list each finding and its fix:
 
 **Falsified by:** the OKI-78SR datasheet's outline placing the body clear of C6 and C7 at U1's position, or a
 first-board J12 that mates differently from v1.0's.
+
+## 2026-11-08 — The v2.0 PCB re-review: the circuits are ready, and the silkscreen is not
+
+**Both v2.0 boards pass ERC with no errors or warnings, and DRC with no violations and schematic parity.** The
+operator revised both projects after the morning's review. This pass read the files saved at 15:25 and 15:28 with
+`kicad-cli`: ERC, DRC with and without a zone refill, a fresh netlist export, pad positions, silkscreen widths and 3D
+renders. Nothing has been built, so every finding here is a reading of the files.
+
+**The expansion board's schematic carries all seven corrections, and U1 now fits.** U1 uses the OKI-78SR footprint,
+and its courtyard clears C6, C7 and D2. C8 adds 4.7 µF at U2's output, a GND pour is on F.Cu, and the test points
+take a 1.0 mm drill. J1.1 is now a no-connect terminal for the VE.Direct cable's +5 V wire.
+[`gatelink-expansion-board-v2.0.net`](./gatelink-expansion-board-v2.0.net) is now the 15:14 export.
+
+**The operator assembles both boards by hand** (operator, 2026-11-08). The level shifter and the Wio have no stock
+footprint, and the level shifter's module does not mark its pin 1, so silkscreen labels carry each module's
+orientation.
+
+**The level shifter's labels match the netlist pin for pin. The Wio's do not mark it safely.** A "D1" label sits
+beside J9.1, which is the Wio's 5V pin, while the Wio's D1 is J11.2. J1.1 has no label to say the +5 V wire parks
+there.
+
+**The input board's top labels for J2 read IN1 to IN4, and its nets are IN3 to IN6.** The bottom labels are right.
+An installer working from the top would land the IN3 and IN4 wires on the IN5 and IN6 terminals.
+
+**The saved files still show a 1.65 mm stackup on both boards, and 0.1 mm silkscreen lines.** On the input board
+every text item uses them. On the expansion board six text items and both module outlines do. The operator reported
+both as corrected, so the edits may sit in KiCad unsaved. The input board's Gerbers are still from 2026-11-05, and the
+expansion board has none.
+
+The briefs list each item under *PCB re-review, 2026-11-08*:
+[`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md) P13 to P16, and
+[`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md) I6 and I7.
+
+**Falsified by:** a silkscreen Gerber, generated for the order, that shows J2 labelled IN3 to IN6 and every line at
+0.15 mm or more. For the Wio finding, a seated Wio whose 5V pin is not beside the "D1" label.

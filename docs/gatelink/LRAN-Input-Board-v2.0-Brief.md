@@ -1,8 +1,8 @@
 # LRAN — GateLink input board v2.0 brief
 
 **Document:** `LRAN-Input-Board-v2.0-Brief`
-**Version:** 0.3
-**Status:** The schematic and the PCB layout are reviewed. The layout needs the small fixes under *PCB review,
+**Version:** 0.4
+**Status:** The schematic and the PCB layout are re-reviewed. The layout needs the fixes under *PCB re-review,
 2026-11-08* before it is ordered. Nothing here has been built, and no value here has been measured on a v2.0 board.
 **Last updated:** 2026-11-08
 
@@ -152,6 +152,29 @@ Safety, Exit, Fire and Alarm, and J2 a 4-way terminal, IN3 to IN6.
 | I5 | ERC warns of one dangling wire stub near (138.43, 90.17) mm | Delete it. It changes no net |
 
 Every copper and drill size is within JLCPCB's standard two-layer process.
+
+## PCB re-review, 2026-11-08
+
+The operator revised the layout after the first review, and this pass read the PCB saved at 15:28. It passes ERC with
+no errors or warnings, and DRC with no violations and schematic parity. The circuit is unchanged:
+[`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net) matches a fresh export net for net.
+
+| # | Status at the re-review |
+|---|---|
+| I1 | Open. The Gerbers in `Gerbers/` are from 2026-11-05, and the operator has not regenerated them yet |
+| I2 | Fixed, but I6 found the J2 labels wrong |
+| I3 | Open. All 22 silkscreen text items, top and bottom, use 0.1 mm lines, and the project's default text thickness is still 0.1 mm |
+| I4 | Open. The saved stackup totals 1.65 mm |
+| I5 | Fixed. ERC reports no dangling wire |
+
+| # | Finding | Fix |
+|---|---|---|
+| I6 | **J2's F.SilkS labels read IN1, IN2, IN3 and IN4.** Its nets and its B.SilkS labels are IN3 to IN6, so an installer working from the top would land the IN3 and IN4 wires on the IN5 and IN6 terminals | Relabel them IN3 to IN6 |
+| I7 | J1.6 reads ALR on F.SilkS and ALRM on B.SilkS | Use one name on both sides |
+
+The operator reported the stackup and the silkscreen widths as corrected. The saved files read as above, so the
+corrections may sit in KiCad unsaved. Changing the default in Board Setup does not change text already placed, and
+*Edit Text and Graphics Properties* applies a new width to every item at once.
 
 ## First-board checks
 
