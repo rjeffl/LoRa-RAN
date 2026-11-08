@@ -1,9 +1,10 @@
 # LRAN — GateLink input board v2.0 brief
 
 **Document:** `LRAN-Input-Board-v2.0-Brief`
-**Version:** 0.2
-**Status:** The schematic is reviewed, and the PCB is not designed. Nothing here has been built, and no value here has been measured on a v2.0 board.
-**Last updated:** 2026-11-04
+**Version:** 0.3
+**Status:** The schematic and the PCB layout are reviewed. The layout needs the small fixes under *PCB review,
+2026-11-08* before it is ordered. Nothing here has been built, and no value here has been measured on a v2.0 board.
+**Last updated:** 2026-11-08
 
 ## Summary
 
@@ -126,16 +127,31 @@ keeps the case for changes 1 and 2, though four parts on one board are not proof
 
 ## What the review still has to decide
 
-- **The PCB's outline, mounting and connectors in the enclosure.** The PCB is not designed. Its mounting holes go on
-  the PCB rather than in the schematic (operator).
-- **C1 to C4's footprint against the part.** The operator chose a 50 V ceramic with 2.54 mm lead spacing, and the
-  netlist's footprint is `C_Disc_D5.0mm_W2.5mm_P2.50mm`, a 2.50 mm pitch. Check the part's leads and body against it
-  during layout.
+- **The PCB's fit in the enclosure.** The layout is 60 × 40 mm with two M3 holes, and its fit is not checked.
+- **C1 to C4's footprint against the part: settled.** The footprint's 2.50 mm pitch against the part's 2.54 mm leads
+  makes no practical difference (review, 2026-11-08).
 - **The date v2.0 is built and swapped in**, which the operator picks later.
 
-**v2.0 draws no way to disconnect a failed stage.** The operator accepts lifting its field wire at J2 or J3 for that.
+**v2.0 draws no way to disconnect a failed stage.** The operator accepts lifting its field wire at J1 for that.
 This does not replace D90's firmware mask, which stays decided. A lifted SAFETY, EXIT or FIRE wire reads asserted, so
 the mask is still what stops that reading from acting.
+
+## PCB review, 2026-11-08
+
+The layout passes DRC with schematic parity in KiCad 10.0.7, and its nets match the stages above (engineering log,
+2026-11-08). The connectors were consolidated after the 2026-11-04 netlist: J1 is a 6-way terminal, Gnd, Gnd,
+Safety, Exit, Fire and Alarm, and J2 a 4-way terminal, IN3 to IN6.
+[`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net) is the 2026-11-08 export.
+
+| # | Finding | Fix |
+|---|---|---|
+| I1 | The Gerbers in `Gerbers/` predate the PCB's last save by four minutes | Regenerate them before ordering |
+| I2 | The terminal names are on B.SilkS only | Repeat them on F.SilkS, between the terminals and R1 to R4 |
+| I3 | Silkscreen text uses 0.1 mm lines, below JLCPCB's 0.15 mm minimum | Use 1.0 to 1.2 mm text with 0.15 to 0.18 mm lines |
+| I4 | The stackup gives 1.65 mm | Set 1.6 mm, JLCPCB's standard thickness |
+| I5 | ERC warns of one dangling wire stub near (138.43, 90.17) mm | Delete it. It changes no net |
+
+Every copper and drill size is within JLCPCB's standard two-layer process.
 
 ## First-board checks
 

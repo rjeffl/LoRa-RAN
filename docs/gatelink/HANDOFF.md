@@ -133,7 +133,7 @@ flashing, because the B3 soak's card has not been read.
 | 3 | **Input inhibit for IN3 to IN6 (D90)**, with the review's other items: G2, B2 and B3's investigation first. Ask the operator for the row's name and to confirm the ranges, then build both images | Decision Register §3.19; engineering log, 2026-11-03, *An input mask goes in* and *The firmware revision review*; brief, *Firmware freeze*; PRD R-3.5l; spec §7.2.1, §7.2.8 |
 | 3 | **Bench test and soak** on the new images and the repaired board, with the checks the review lists | Engineering log, 2026-11-03, *The firmware revision review*; *The soak's setup* here |
 | 4 | **The at-gate sequence**, on the repaired v1.1 board | brief, *At-gate sequence* |
-| Parallel | **Input board v2.0 (D91)**: the schematic is reviewed, so design the PCB and send it out. The operator picks a later date to build it and swap it in | v2.0 brief; [`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net); Impl Plan §3.2 |
+| Parallel | **Input board v2.0 (D91)**: the layout is reviewed, so make the brief's I1 to I5 fixes and send it out. The operator picks a later date to build it and swap it in | v2.0 brief; [`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net); Impl Plan §3.2 |
 
 **The new images replace `cb1be00`.** Flashing GateLink on the bench avoids a reflash at the gate. The
 bridge reads the same config table for its discovery, so a new parameter reaches its image and
@@ -365,8 +365,8 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **Expansion board v2.0's PCB layout is not reviewed.** The operator plans the review for a coming session and reports DRC clean (2026-11-06). Review the layout in `KiCad/GateLink/LoRa-Expansion-Board-v2.0/` against [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), with `kicad-cli` layer exports, before the board goes to fab. Check its corrections first, then part placement, power trace widths, silkscreen and J12's pin 1.
-- **Input board v2.0's PCB layout is not reviewed either** (D91). The operator plans to review it in the same session as the expansion board's (2026-11-06). Review the layout in `KiCad/GateLink/Input-Board-v2.0/` against [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md) and [`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net), including the brief's open check of C1 to C4's footprint against the part.
+- **Expansion board v2.0's layout needs fixes before it is ordered** (review, 2026-11-08). U1's footprint is a TO-220, and the OKI-78SR's body would sit on C6 and C7. Corrections 1 to 3 are still open, and J1.2's GND terminal invites a short to the MPPT's +5 V. [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), *PCB review, 2026-11-08*, lists P1 to P12.
+- **Input board v2.0's layout needs small fixes before it is ordered** (D91; review, 2026-11-08): regenerated Gerbers, top-side terminal names and thicker silkscreen lines. [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md), *PCB review, 2026-11-08*, lists I1 to I5.
 - **The input board differs from Impl Plan §3.2, and Q1's and Q3's gates leak.** The plan needs reconciling with what is built (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*). v2.0 follows the plan's Q1 to Q3 stage.
 - **D90's mask is not built, and its row has no name.** GateLink has no inhibit for any of IN3 to IN6 today (engineering log, 2026-11-03, *The operator accepts the review*).
 - **The HA handoff's *Open* says GateLink sends no `MPPT_ERROR`**, and `mppt_error_watch.cpp` sends it. Fix it when that file is next edited.

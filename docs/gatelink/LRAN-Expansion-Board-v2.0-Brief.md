@@ -1,10 +1,11 @@
 # LRAN — GateLink expansion board v2.0 brief
 
 **Document:** `LRAN-Expansion-Board-v2.0-Brief`
-**Version:** 0.1
-**Status:** The schematic is reviewed, and the operator is correcting it. The PCB is not ordered. Nothing here has
+**Version:** 0.2
+**Status:** The schematic and the PCB layout are reviewed, and the layout needs the fixes under *PCB review,
+2026-11-08* before it is ordered. Nothing here has
 been built, and no value here has been measured on a v2.0 board.
-**Last updated:** 2026-11-06
+**Last updated:** 2026-11-08
 
 ## Summary
 
@@ -116,6 +117,42 @@ J7 and J10 use the JST PH 2.0 mm footprint, which has the same pad layout.
 - **No DNP markings.** The operator assembles the board and chooses between J6 and U2 at the bench.
 - **Mounting holes are on the PCB**, for the standoffs rev 0.3 §3 and §7.6 require.
 
+## PCB review, 2026-11-08
+
+The layout passes DRC with schematic parity in KiCad 10.0.7 (engineering log, 2026-11-08). These findings come from
+the schematic, the layout and its 3D renders. None is a measurement.
+
+**Status of *Corrections to make*:** 1, 2 and 3 are still open. J7.1 is still on `/G5`, and U2 is still
+`LM7803_TO220` on a 78xx symbol. 4 and 5 are in, as R4, C6 (22 µF on +5V) and C7 (10 µF on +12V). 6 is done. 7's
+labels are done, and its silkscreen is not.
+
+### Fix before ordering
+
+| # | Finding | Fix |
+|---|---|---|
+| P1 | U1's TO-220 footprint is smaller than the OKI-78SR. KiCad's `Converter_DCDC_Murata_OKI-78SR_Vertical` puts the body 5.4 mm above the pin row and 3.4 mm below. At U1's position, the body covers C7's pad 1 and overlaps C6 | Use that footprint, move C6 and C7 clear, and rerun DRC |
+| P2 | Corrections 1 to 3 are open | Swap J7's labels. Set U2's value to MCP1825S-3302E/AB and its symbol to match, and confirm its pin order against the datasheet. Set U1's value to OKI-78SR-5/1.5-W36-C |
+| P3 | J1.2 is GND. The VE.Direct cable's +5 V wire, unconnected under rev 0.3 §6, lands on it easily and shorts the MPPT's supply | Make J1.2 a no-connect terminal to park that wire, or use a 3-way terminal |
+| P4 | J1 has no silkscreen labels, though *Decided in the review* asks for them | Label J1.3 "MPPT TX → G4" and J1.4 "MPPT RX ← G5" |
+| P5 | Correction 7's silkscreen is missing: J3 and J5 have no module outline, pin-1 mark or HV/LV labels | Add them |
+| P6 | The Wio fits its sockets rotated 180°, which puts its GND on RF_SW and its 3V3 on NSS | Draw the module's outline, with its USB end toward the bottom edge |
+| P7 | Silkscreen text uses 0.1 mm lines, below JLCPCB's 0.15 mm minimum | Use 1.0 to 1.2 mm text with 0.15 to 0.18 mm lines |
+
+### Recommended
+
+| # | Finding | Fix |
+|---|---|---|
+| P8 | U2's nearest output capacitor is C4, about 15 mm away | Add a 1 to 4.7 µF ceramic from U2 pin 3 to GND. J6's module shares it |
+| P9 | GND is 1 mm traces with no pour | Pour GND on B.Cu, stitched to F.Cu |
+| P10 | J12's outer row is about 3.2 mm from the edge, against about 5.7 mm on v1.0. Its nets and orientation match v1.0's J8 | Check that the right-angle header clears the edge and mates as v1.0 did |
+| P11 | J2, J4 and J8 use a 1.00 mm-pitch footprint with a 0.5 mm drill, too small for a test loop | Use `TestPoint_THTPad_D2.0mm_Drill1.0mm` |
+| P12 | ERC reports 43 errors: net labels used as notes, and no power flag on /VIN or +12V | Turn the notes into text and add the flags, so a real error stands out |
+
+**D1:** the square pad, at the band end, is on +12V, so the cathode is right. Order the P6KE18A.
+
+**For the JLCPCB order:** two layers, 1.6 mm, lead-free HASL. Choose where JLCPCB prints its order number, or pay to
+remove it.
+
 ## The Murata regulator
 
 **No reason found to change from the OKI-78SR, with the capacitors in correction 5 added.** It is a buck like the
@@ -129,6 +166,10 @@ BabyBuck, so rev 0.3 §4's buck-then-LDO rationale stands. Where it differs:
 | No-load current | About 209 µA | Probably a few mA. Read the datasheet figure and update rev 0.3 §4's budget |
 
 ## Still to decide
+
+**The 2026-11-08 layout settles all four items:** C1 uses a 6.3 mm footprint, C2, C3 and C5 are 100 nF, D2 is fitted, and
+F1's 5.08 mm pitch fits a typical radial PPTC such as the MF-R050. Check F1's pitch against the part bought. The
+items as the review left them:
 
 - **C1's can against its footprint.** A 47 µF, 50 V electrolytic is usually 6.3 mm in diameter, and the footprint
   is `CP_Radial_D5.0mm_P2.50mm`. Rev 0.3 §2 requires 25 V at least and specifies 50 V.

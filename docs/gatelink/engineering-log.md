@@ -1780,3 +1780,52 @@ layout, not a fault found.
 
 **Falsified by:** Q4's gate reading 0.8 V or more with the 1050 powered and its alarm off, or a Q1 to Q3 stage that does
 not switch cleanly from about 4.6 V.
+
+## 2026-11-08 — The v2.0 PCB review: the input board is close, and the expansion board's U1 does not fit
+
+**Both v2.0 layouts pass KiCad 10.0.7's DRC with schematic parity, and the review found work before either goes to
+JLCPCB.** It read both projects in `KiCad/GateLink/` with `kicad-cli`: ERC, DRC, a fresh netlist export, the track,
+via and drill sizes, and 3D renders of each side. Nothing has been built, so every finding here is a reading of the
+files or a calculation.
+
+**The expansion board's U1 footprint is a TO-220, and the OKI-78SR is deeper.** KiCad's own
+`Converter_DCDC_Murata_OKI-78SR_Vertical` puts the module's body 5.4 mm above the pin row and 3.4 mm below it. At
+U1's position, that body covers C7's pad 1 at (113.23, 95.40) and overlaps C6's body. This blocks assembly, and DRC
+cannot see it, because the TO-220 courtyard is smaller than the part.
+
+**Three of the brief's corrections are not in the schematic yet.** J7.1 is still on the net labelled `/G5`, and
+U2's value is still `LM7803_TO220` on a 78xx symbol. Corrections 4 and 5 are in: R4 is DIO1's 10 kΩ pull-down, C6 is
+22 µF on +5V and C7 is 10 µF on +12V. The brief's open questions on C1, C2, C3, C5, F1 and D2 are settled in the
+layout.
+
+**J1.2 is a second GND terminal, and that invites a short.** The VE.Direct cable carries the MPPT's +5 V on its
+pin 4, which rev 0.3 §6 leaves unconnected. With a spare GND terminal and no silkscreen labels, that wire lands
+on GND easily.
+
+**Two plug-in modules can go in rotated 180°.** The Wio's two 7-pin rows accept it rotated, which puts its GND on
+RF_SW and its 3V3 on NSS. The level shifter has no outline or pin-1 mark, which correction 7 asks for.
+
+**U2's nearest output capacitor is C4, about 15 mm away.** The review recommends a 1 to 4.7 µF ceramic at U2's pin 3.
+
+**J12's outer row sits about 3.2 mm from the board edge, against about 5.7 mm on v1.0.** The pin nets and the
+footprint's orientation match v1.0's J8, which the operator rang out on 2026-10-05. Whether the right-angle header
+still clears the edge and mates the same way is not checked.
+
+**The input board's circuit matches its brief on all four stages.** Its remaining items are small: the Gerbers in
+`Gerbers/` predate the last save of the PCB by four minutes, the terminal names are printed on the bottom side only,
+and the schematic has one dangling wire stub. C1 to C4's 2.50 mm footprint against the part's 2.54 mm leads makes no
+practical difference, which closes the brief's open check.
+
+**The input board's connectors were consolidated after the 2026-11-04 netlist.** J1 is now a 6-way terminal, Gnd,
+Gnd, Safety, Exit, Fire and Alarm, and J2 a 4-way terminal, IN3 to IN6. The gate nets are unchanged.
+[`gatelink-input-board-v2.0.net`](./gatelink-input-board-v2.0.net) is now the export reviewed today.
+
+**Both boards print silkscreen text with 0.1 mm lines**, below JLCPCB's 0.15 mm minimum. Every copper and drill size
+is within JLCPCB's standard two-layer process.
+
+The briefs list each finding and its fix:
+[`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md) and
+[`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md), each under *PCB review, 2026-11-08*.
+
+**Falsified by:** the OKI-78SR datasheet's outline placing the body clear of C6 and C7 at U1's position, or a
+first-board J12 that mates differently from v1.0's.
