@@ -1239,3 +1239,39 @@ change, and the bridge handoff carries it.
 
 **Auto mode refused the empty retained publish that clears the old sensor's config**, so that is the
 operator's, and the sensor remains until then.
+
+## 2026-11-11 — `input_mask` in HA, and a copy that reached production
+
+**GateLink deploys under D92 with `input_mask` 15, and production's raw FIRE input read `off`.** A
+masked input reads 0 in `input_bits`, and `node_flags` bit 7 stays unset because it cannot mark IN5
+and IN6 apart (GateLink PRD R-3.5l, D90). So `binary_sensor.gatelink_fire_input` said clear about an
+input nothing measured. The bridge's discovery cannot fix that without a bridge change, so the HA
+package mirrors IN3 to IN6 as template binary sensors. Each reads unavailable while
+`number.gatelink_input_mask` names its input, which is how the raw FIRE and ALARM entities already
+show bit 7 (plan §7.4). `sensor.lran_gatelink_inputs_not_sensed` names the masked inputs.
+
+**The sandbox has no `number.gatelink_input_mask`**, because no bridge has served it since B3. The
+test forced the entity's state over REST with the values 15, 5 and 0, then `unavailable`:
+
+| `input_mask` | Mirrors unavailable | Text sensor |
+|---|---|---|
+| 15 | all four | `IN3, IN4, IN5, IN6` |
+| 5 | safety loop, FIRE | `IN3, IN5` |
+| 0 | none | `unknown` at first, then `No input` |
+| `unavailable` | none: they follow the raw entities | `unavailable` |
+
+The first mask-0 read was `unknown` because the template rendered `None`, which HA parses as null.
+It now renders `No input`. The forced state, named *FAKE input_mask (session test)*, is left at
+`unavailable` and goes at the sandbox's next restart.
+
+**The first copy reached production.** The handoff named `/Volumes/config` as the sandbox. On this
+Mac only production was mounted, from 192.168.2.24, and macOS had named it `/Volumes/config`.
+`templates.yaml` and `lran.yaml` were copied there, then restored from the branch they came from,
+and `cmp` confirmed them byte for byte. Production was not reloaded or restarted, so its templates
+never loaded the change. Its YAML dashboard reads the file at each page load, so for a few minutes
+the *Gate inputs* card named entities that did not exist. The config check, two template reloads
+and one restart in that stretch all went to the sandbox through `ha-sandbox`. That is why the new
+entities did not appear: the sandbox never had the files. The handoff now tells a mount by its host.
+
+**The sandbox came back from that restart on HA 2026.11.1**; it read 2026.11.0 before it. This
+session installed no update, so an update was likely already pending. Unconfirmed.

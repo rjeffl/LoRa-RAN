@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.25
+**Version:** 0.26
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
 **Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02; H10 steps 2 to 5 done on production 2026-11-02
-**Last updated:** 2026-11-02
+**Last updated:** 2026-11-11
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
@@ -377,6 +377,8 @@ is unavailable, as System PRD §6.2 requires.
 | `sensor.lran_gatelink_gate_status` | The Gate dashboard's words for the gate: *Closed*, *Opening*, *Closing*, *Open and holding*, *Open and auto close pending*, *Fault* or *Status unknown*. The cover gives the direction, and `sensor.gatelink_gate` tells the two open states apart |
 | `sensor.lran_gatelink_crossing_log` | Today's gate crossings, newest first, in its `entries` attribute (§8.4). The state is the number of entries. Trigger-based, so it keeps them across a restart |
 | `sensor.lran_gatelink_lowest_pack_temperature` | The `min_max` integration over the four BMS temperatures: GateLink's reference for inhibiting charge (R-6.4a) |
+| `binary_sensor.lran_gatelink_{safety_loop,exit_wand,fire_input,alarm_input}` | The raw IN3 to IN6 entity, but `unavailable` while `number.gatelink_input_mask` names the input. A masked input reads 0 in `input_bits`, and `node_flags` bit 7 stays unset, so the raw entity says clear about an input nothing measured (GateLink PRD R-3.5l, D90). With the mask unknown, it follows the raw entity. The *Gate inputs* card reads these (§8.2) |
+| `sensor.lran_gatelink_inputs_not_sensed` | The inputs `input_mask` names, as `IN3, IN4, IN5, IN6`, or `No input`. Unavailable while the mask is unknown |
 | `sensor.lran_gatelink_mppt_{bulk,absorption,float,off}_7d` | The `history_stats` integration: hours in that MPPT charge state over 7 days, for the weekly report (§9.4). In `reports.yaml` |
 
 **Net power and the draw read the pack, not the MPPT's load output.** v0.1 had net power
@@ -851,6 +853,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.26 | 2026-11-11 | §7.4: IN3 to IN6 read `unavailable` while `input_mask` names them, through template mirrors, and a sensor names the masked inputs. GateLink deploys with `input_mask` 15 under D92, and R-3.5l's exception (D90) leaves the masked inputs reading clear. `input_mask`, `display_mode` and `ved_log_s` need nothing more here: discovery already generates them, and the Maintenance dashboard shows them |
 | 0.25 | 2026-11-02 | §4: relay dry-run is a discovery switch, not a read-only sensor, by operator choice. It was settable only by an MQTT publish |
 | 0.24 | 2026-11-02 | §7.3: email targets the SMTP integration's recipient entities, and the additional list holds entities rather than addresses, because the action that takes a typed address is deprecated and, with no target, mails every recipient. §6, §8.3, §12: `press-flash.js` lights a pressed Gate tile, by operator choice |
 | 0.23 | 2026-11-02 | H10's steps 2 to 5 ran on production. §6: production's existing packages include covers `packages/lran/`, so it takes only the `lovelace:` block. §10: production keeps HA's default `purge_keep_days`, by operator choice. §12: production's email uses its existing notifier, and an open client needs its frontend reloaded after Fluvy's install |

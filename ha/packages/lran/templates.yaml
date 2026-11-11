@@ -138,6 +138,50 @@ template:
         availability: "{{ has_value('counter.lran_gatelink_traversals_today') }}"
         state: "{{ states('counter.lran_gatelink_traversals_today') | int }}"
 
+      # The inputs input_mask names, for the Gate inputs card (plan 7.4). Bits 0-3 name
+      # IN3-IN6 (D90). A number entity's state can read "15.0", which int rejects, so it
+      # goes through float first. "No input", not "None", which HA reads as unknown.
+      - name: LRAN GateLink inputs not sensed
+        unique_id: lran_gatelink_inputs_not_sensed
+        icon: mdi:eye-off-outline
+        availability: "{{ is_number(states('number.gatelink_input_mask')) }}"
+        state: >-
+          {% set m = states('number.gatelink_input_mask') | float | int %}
+          {% set names = ['IN3', 'IN4', 'IN5', 'IN6'] %}
+          {% for i in range(4) if m | bitwise_and(2 ** i) %}{{ names[i] }}{{ ', ' if not loop.last }}{% else %}No input{% endfor %}
+
+  # IN3-IN6 as the Gate inputs card shows them. A masked input reads 0 in input_bits, so
+  # its raw entity says clear about an input nothing measured, and node_flags bit 7 stays
+  # unset because it cannot mark IN5 and IN6 apart (GateLink PRD R-3.5l, D90). These read
+  # unavailable while input_mask names the input, as the raw FIRE and ALARM entities do
+  # while bit 7 is set. With input_mask unknown they follow the raw entity, as before D90.
+  - binary_sensor:
+      - name: LRAN GateLink safety loop
+        unique_id: lran_gatelink_safety_loop
+        availability: >-
+          {{ has_value('binary_sensor.gatelink_safety_loop')
+             and not (states('number.gatelink_input_mask') | float(0) | int) | bitwise_and(1) }}
+        state: "{{ is_state('binary_sensor.gatelink_safety_loop', 'on') }}"
+      - name: LRAN GateLink exit wand
+        unique_id: lran_gatelink_exit_wand
+        availability: >-
+          {{ has_value('binary_sensor.gatelink_exit_wand')
+             and not (states('number.gatelink_input_mask') | float(0) | int) | bitwise_and(2) }}
+        state: "{{ is_state('binary_sensor.gatelink_exit_wand', 'on') }}"
+      - name: LRAN GateLink FIRE input
+        unique_id: lran_gatelink_fire_input
+        availability: >-
+          {{ has_value('binary_sensor.gatelink_fire_input')
+             and not (states('number.gatelink_input_mask') | float(0) | int) | bitwise_and(4) }}
+        state: "{{ is_state('binary_sensor.gatelink_fire_input', 'on') }}"
+      - name: LRAN GateLink ALARM input
+        unique_id: lran_gatelink_alarm_input
+        device_class: problem
+        availability: >-
+          {{ has_value('binary_sensor.gatelink_alarm_input')
+             and not (states('number.gatelink_input_mask') | float(0) | int) | bitwise_and(8) }}
+        state: "{{ is_state('binary_sensor.gatelink_alarm_input', 'on') }}"
+
   # The Vehicles dashboard's log (plan 7.4): today's gate crossings, newest first. A
   # trigger-based sensor keeps them across a restart, and the recorder excludes it
   # (site.yaml), because every crossing rewrites the whole list.
