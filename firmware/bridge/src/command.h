@@ -86,6 +86,13 @@ bool command_allowed(NodeType type, uint8_t cmd);
 // executed, and the retry would be a second relay pulse or a second reboot.
 bool resync_may_retry(uint8_t cmd);
 
+// B2 (GateLink log, 2026-11-03) - whether a resolved command should bring its node's next
+// poll forward. SET_RELAY_DRY_RUN and SET_BMS_POLLING are the only controls whose state HA
+// reads from node/state, which moves only at a poll, so without one the switch springs back
+// for up to poll_interval_s. Only an accepted answer, or the cached one, moves that state.
+struct CmdStep;
+bool poll_after_resolve(const CmdStep& st);
+
 // ---------------------------------------------------------------------------
 // The state machine's output.
 // ---------------------------------------------------------------------------
@@ -124,7 +131,7 @@ struct CmdStep {
   // (spec 10.3 step 2) so the NEXT command starts in the node's current context.
   bool ctx_adopted = false;
 
-  // Resolve: how it ended.
+  // Resolve: how it ended. `cmd` is set on Resolve as on Send.
   CmdOutcome outcome = CmdOutcome::Pending;
   uint8_t    result  = 0;  // spec 8.2, valid when outcome is Acked
   uint8_t    detail  = 0;  // spec 6.3; the CACHED result when result is DUPLICATE_CACHED

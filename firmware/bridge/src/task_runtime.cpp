@@ -775,6 +775,10 @@ void sched_commands(uint32_t now_ms) {
         // a retry to carry it to the registry, so it goes there now.
         if (st.ctx_adopted) (void)registry_adopt_ctx(st.dst, st.ctx_id);
         publish_cmd_ack(st);
+        if (poll_after_resolve(st)) {
+          SchedLock lock;
+          g_scheduler.poll_soon(st.dst);
+        }
         continue;
 
       case CmdAction::Send:

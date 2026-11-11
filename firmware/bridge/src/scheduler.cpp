@@ -102,6 +102,12 @@ void PollScheduler::enrol(lran::NodeId node) {
   rows_[i].due_set  = false;
 }
 
+void PollScheduler::poll_soon(lran::NodeId node) {
+  const int i = index_of(node);
+  if (i < 0 || !rows_[i].enrolled) return;
+  rows_[i].due_set = false;
+}
+
 uint32_t PollScheduler::on_heard(lran::NodeId node, uint32_t now_ms) {
   const int i = index_of(node);
   if (i < 0) return kNotAnAnswer;

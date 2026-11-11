@@ -325,6 +325,20 @@ void test_missed_polls_count_and_any_frame_clears_them() {
   TEST_ASSERT_EQUAL_UINT16(UINT16_MAX, r.state(kNodeWellLink)->missed_polls);
 }
 
+// B2 - an acknowledged switch brings its node's poll forward; an unenrolled row stays out.
+void test_poll_soon_makes_an_enrolled_row_due_at_once() {
+  PollScheduler s;
+  s.enrol(kNodeGateLink);
+  TEST_ASSERT_EQUAL_HEX8(kNodeGateLink, poll_now(s, 0));
+  s.on_heard(kNodeGateLink, 100);
+  expect(s.next(200, true), PollAction::None);
+  s.poll_soon(kNodeGateLink);
+  expect(s.next(300, true), PollAction::Poll, kNodeGateLink);
+  PollScheduler t;
+  t.poll_soon(kNodeGateLink);
+  expect(t.next(0, true), PollAction::None);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_no_row_is_polled_until_deployed_or_heard);
@@ -346,5 +360,6 @@ int main() {
   RUN_TEST(test_poll_seqs_advance);
   RUN_TEST(test_the_poll_frame_is_what_a_node_decodes);
   RUN_TEST(test_missed_polls_count_and_any_frame_clears_them);
+  RUN_TEST(test_poll_soon_makes_an_enrolled_row_due_at_once);
   return UNITY_END();
 }

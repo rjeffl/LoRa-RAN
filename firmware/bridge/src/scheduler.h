@@ -99,6 +99,10 @@ class PollScheduler {
   // D61 - a deployed row. Enrols it, due at once; a row already enrolled keeps its schedule.
   void enrol(lran::NodeId node);
 
+  // B2 - an enrolled row is due at once, and served before any row merely late. Its next
+  // poll then sets the schedule again, poll_interval_s after it is sent.
+  void poll_soon(lran::NodeId node);
+
   // The seq for the next POLL. POLL is unauthenticated (spec 9.2), so it takes no command seq:
   // spending one would move nothing a node checks, but it would muddle the space BF-18 owns.
   lran::Seq take_poll_seq() { return poll_seq_++; }

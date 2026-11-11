@@ -578,6 +578,28 @@ void test_a_late_on_aired_leaves_a_resolved_command_alone() {
                         static_cast<int>(c.next(900).action));
 }
 
+// B2 - only an accepted or cached SET_RELAY_DRY_RUN or SET_BMS_POLLING asks for a poll.
+void test_poll_after_resolve_takes_the_two_switches_only() {
+  CmdStep st;
+  st.action  = CmdAction::Resolve;
+  st.outcome = CmdOutcome::Acked;
+  st.result  = static_cast<uint8_t>(lran::AckResult::Accepted);
+  st.cmd     = static_cast<uint8_t>(lran::Cmd::SetRelayDryRun);
+  TEST_ASSERT_TRUE(poll_after_resolve(st));
+  st.cmd = static_cast<uint8_t>(lran::Cmd::SetBmsPolling);
+  TEST_ASSERT_TRUE(poll_after_resolve(st));
+  st.result = static_cast<uint8_t>(lran::AckResult::DuplicateCached);
+  TEST_ASSERT_TRUE(poll_after_resolve(st));
+  st.result = static_cast<uint8_t>(lran::AckResult::RejectedArg);
+  TEST_ASSERT_FALSE(poll_after_resolve(st));
+  st.result = static_cast<uint8_t>(lran::AckResult::Accepted);
+  st.cmd    = static_cast<uint8_t>(lran::Cmd::Open);
+  TEST_ASSERT_FALSE(poll_after_resolve(st));
+  st.cmd     = static_cast<uint8_t>(lran::Cmd::SetBmsPolling);
+  st.outcome = CmdOutcome::NoAck;
+  TEST_ASSERT_FALSE(poll_after_resolve(st));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_every_retry_reuses_the_same_seq);
@@ -607,5 +629,6 @@ int main() {
   RUN_TEST(test_a_command_without_a_key_is_not_built);
   RUN_TEST(test_the_window_counts_from_when_the_frame_aired);
   RUN_TEST(test_a_late_on_aired_leaves_a_resolved_command_alone);
+  RUN_TEST(test_poll_after_resolve_takes_the_two_switches_only);
   return UNITY_END();
 }

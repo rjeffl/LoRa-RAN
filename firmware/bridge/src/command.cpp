@@ -60,6 +60,14 @@ bool command_allowed(NodeType type, uint8_t cmd) {
   return false;
 }
 
+bool poll_after_resolve(const CmdStep& st) {
+  if (st.action != CmdAction::Resolve || st.outcome != CmdOutcome::Acked) return false;
+  const auto cmd = static_cast<lran::Cmd>(st.cmd);
+  if (cmd != lran::Cmd::SetRelayDryRun && cmd != lran::Cmd::SetBmsPolling) return false;
+  const auto result = static_cast<lran::AckResult>(st.result);
+  return result == lran::AckResult::Accepted || result == lran::AckResult::DuplicateCached;
+}
+
 bool resync_may_retry(uint8_t cmd) {
   // Spec 8.1's split, read the way a node reads it: by range, without parsing semantics.
   // NOP falls in the actuation range and loses a retry it could have had, which costs
@@ -135,6 +143,7 @@ CmdStep CommandPath::next(uint32_t now_ms) {
     case Phase::Resolved:
       st.action  = CmdAction::Resolve;
       st.dst     = req_.dst;
+      st.cmd     = req_.cmd;
       st.seq     = seq_;
       st.attempt = attempt_;
       st.outcome = outcome_;
