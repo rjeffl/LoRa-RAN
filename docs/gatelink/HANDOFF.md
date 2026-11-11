@@ -146,7 +146,7 @@ images. The operator records the result in the engineering log before deployment
 | Tier | Task | Read |
 |---|---|---|
 | 3 | **The overnight power-chain soak and the bench checks** above: the card files, the power cycle, IN1 and IN2 with the harness powered. Operator, with a session for the reading if wanted | Engineering log, 2026-11-11; Decision Register §3.20; *The soak's setup* |
-| 3 | **HA reads `input_mask`**: built and run on the sandbox on 2026-11-11. IN3 to IN6 read unavailable while masked (PRD R-3.5l's exception, D90). Production takes it by a file copy once the operator OKs it | `docs/ha/HANDOFF.md`, *The next job* |
+| 3 | **HA reads `input_mask`**: built, and on production since 2026-11-11. IN3 to IN6 read unavailable while masked (PRD R-3.5l's exception, D90) | `docs/ha/HANDOFF.md`, *The next job* |
 | 4 | **The at-gate sequence**, with no input board (D92) | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |
 | Parallel | **Input board v2.0 (D91)**: fabrication is underway. GateLink's images for it follow once the boards are in | v2.0 brief; Impl Plan §3.2 |

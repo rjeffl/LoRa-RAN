@@ -28,12 +28,11 @@ Continue from docs/ha/HANDOFF.md: task H10, step 6.
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10's
 steps 2 to 5 ran on production on 2026-11-02. Step 6 waits for GL8 at the gate, and step 7 for the
-operator. Production has the email, press-flash and dry-run switch changes. The sandbox runs the
-`input_mask` change for D92 (GateLink PRD R-3.5l, D90), and production does not yet.
+operator. Production has the email, press-flash and dry-run switch changes. Both installs run the
+`input_mask` change for D92 (GateLink PRD R-3.5l, D90), ported to production on 2026-11-11.
 
 | Task | Read |
 |---|---|
-| **D92: copy the `input_mask` change to production**, once the operator OKs it. `templates.yaml` and `lran.yaml` only, then a template reload | *The next job* here; *The dev flow* |
 | **H10, step 6** Verify tier 1 on production, as part of GL8 | *The next job* here; plan §12 and §9.1; the deployment brief's GL8 row |
 | **H10, step 7** Turn on email, when the operator is ready | *The next job* here; plan §7.3 |
 
@@ -43,14 +42,12 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**The `input_mask` change waits for the operator's OK to reach production.** On the sandbox, four
-template mirrors of IN3 to IN6 read unavailable while `number.gatelink_input_mask` names their input,
+**The `input_mask` change is on production (2026-11-11).** Four template mirrors of IN3 to IN6 read unavailable while `number.gatelink_input_mask` names their input,
 and `sensor.lran_gatelink_inputs_not_sensed` lists the masked inputs (plan §7.4). The Events view's
-*Gate inputs* card reads them. Production's GateLink has `input_mask` 15, so its raw FIRE input reads
-`off` about an input nothing measures. The copy is `templates.yaml` and `lran.yaml`, then
-`ha_reload_core(target="templates")` on `ha-prod`. After it, the four mirrors should read
-`unavailable` and the text sensor `IN3, IN4, IN5, IN6`. The card was not seen rendered: the sandbox's
-screenshot showed HA's home page, not the view.
+*Gate inputs* card reads them. With GateLink's `input_mask` at 15, production's mirrors read
+`unavailable` and the text sensor `IN3, IN4, IN5, IN6`. The card has not been seen rendered:
+production has no screenshot engine, and the sandbox's screenshot showed HA's home page, not the
+view. When input board v2.0 arrives and the mask returns to 0, the mirrors follow the raw inputs.
 
 **Before deployment the operator turns off `lran_1_fire` and `lran_1_hard_shutdown`** (Decision
 Register §3.20, D92). That is the operator's step, not this layer's.

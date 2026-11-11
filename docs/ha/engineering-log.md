@@ -1275,3 +1275,11 @@ entities did not appear: the sandbox never had the files. The handoff now tells 
 
 **The sandbox came back from that restart on HA 2026.11.1**; it read 2026.11.0 before it. This
 session installed no update, so an update was likely already pending. Unconfirmed.
+
+**Ported to production the same evening, on the operator's OK.** `mount` showed production's share,
+192.168.2.24, at `/Volumes/config`. Both of its files still matched `main`. After the copy, the
+config check read `valid` and the template reload ran. `number.gatelink_input_mask` read 15, the
+four mirrors read `unavailable` and the text sensor `IN3, IN4, IN5, IN6`, under the expected entity
+IDs. No LRAN sensor read `restored: true`. Production's current recorder run began at 23:19:31Z, so
+production also restarted this evening, on HA 2026.11.1. This session did not restart it, and it is
+not known whether that restart fell inside the stretch when the wrong files were on its share.
