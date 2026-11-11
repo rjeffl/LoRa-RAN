@@ -1283,3 +1283,6 @@ four mirrors read `unavailable` and the text sensor `IN3, IN4, IN5, IN6`, under 
 IDs. No LRAN sensor read `restored: true`. Production's current recorder run began at 23:19:31Z, so
 production also restarted this evening, on HA 2026.11.1. This session did not restart it, and it is
 not known whether that restart fell inside the stretch when the wrong files were on its share.
+
+**Correction, same day:** the operator installed both HA core updates, which were pending before
+this session's restarts. That answers the two unconfirmed version changes above.
