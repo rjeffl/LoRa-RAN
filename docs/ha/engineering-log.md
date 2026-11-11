@@ -1239,3 +1239,80 @@ change, and the bridge handoff carries it.
 
 **Auto mode refused the empty retained publish that clears the old sensor's config**, so that is the
 operator's, and the sensor remains until then.
+
+## 2026-11-11 — `input_mask` in HA, and a copy that reached production
+
+**GateLink deploys under D92 with `input_mask` 15, and production's raw FIRE input read `off`.** A
+masked input reads 0 in `input_bits`, and `node_flags` bit 7 stays unset because it cannot mark IN5
+and IN6 apart (GateLink PRD R-3.5l, D90). So `binary_sensor.gatelink_fire_input` said clear about an
+input nothing measured. The bridge's discovery cannot fix that without a bridge change, so the HA
+package mirrors IN3 to IN6 as template binary sensors. Each reads unavailable while
+`number.gatelink_input_mask` names its input, which is how the raw FIRE and ALARM entities already
+show bit 7 (plan §7.4). `sensor.lran_gatelink_inputs_not_sensed` names the masked inputs.
+
+**The sandbox has no `number.gatelink_input_mask`**, because no bridge has served it since B3. The
+test forced the entity's state over REST with the values 15, 5 and 0, then `unavailable`:
+
+| `input_mask` | Mirrors unavailable | Text sensor |
+|---|---|---|
+| 15 | all four | `IN3, IN4, IN5, IN6` |
+| 5 | safety loop, FIRE | `IN3, IN5` |
+| 0 | none | `unknown` at first, then `No input` |
+| `unavailable` | none: they follow the raw entities | `unavailable` |
+
+The first mask-0 read was `unknown` because the template rendered `None`, which HA parses as null.
+It now renders `No input`. The forced state, named *FAKE input_mask (session test)*, is left at
+`unavailable` and goes at the sandbox's next restart.
+
+**The first copy reached production.** The handoff named `/Volumes/config` as the sandbox. On this
+Mac only production was mounted, from 192.168.2.24, and macOS had named it `/Volumes/config`.
+`templates.yaml` and `lran.yaml` were copied there, then restored from the branch they came from,
+and `cmp` confirmed them byte for byte. Production was not reloaded or restarted, so its templates
+never loaded the change. Its YAML dashboard reads the file at each page load, so for a few minutes
+the *Gate inputs* card named entities that did not exist. The config check, two template reloads
+and one restart in that stretch all went to the sandbox through `ha-sandbox`. That is why the new
+entities did not appear: the sandbox never had the files. The handoff now tells a mount by its host.
+
+**The sandbox came back from that restart on HA 2026.11.1**; it read 2026.11.0 before it. This
+session installed no update, so an update was likely already pending. Unconfirmed.
+
+**Ported to production the same evening, on the operator's OK.** `mount` showed production's share,
+192.168.2.24, at `/Volumes/config`. Both of its files still matched `main`. After the copy, the
+config check read `valid` and the template reload ran. `number.gatelink_input_mask` read 15, the
+four mirrors read `unavailable` and the text sensor `IN3, IN4, IN5, IN6`, under the expected entity
+IDs. No LRAN sensor read `restored: true`. Production's current recorder run began at 23:19:31Z, so
+production also restarted this evening, on HA 2026.11.1. This session did not restart it, and it is
+not known whether that restart fell inside the stretch when the wrong files were on its share.
+
+**Correction, same day:** the operator installed both HA core updates, which were pending before
+this session's restarts. That answers the two unconfirmed version changes above.
+
+## 2026-11-11 — `input_mask` and `display_mode` controls by name
+
+**The operator expected controls, not number boxes.** `input_mask` and `display_mode` had rows in
+the GateLink view, but only as steppers inside the *Gate and relay* and *Link* lists. A new
+*Inputs and display* card there holds a template switch for each mask bit and a template select for
+`display_mode`, *Off*, *On* or *Button* (plan §8.2). They write through the existing `number`
+entities, so they need no discovery or bridge change. Each switch writes the whole mask, so it reads
+unavailable while the mask is unknown rather than writing over bits it cannot read.
+
+**Tested on the sandbox by reading only.** With `input_mask` forced to 5 and `display_mode` to 2,
+the switches read IN3 and IN5 on and the select read *Button*. A forced state is not a `number`
+entity, so `number.set_value` could not run there, and no switch or select has written a value yet.
+
+**Audit: every configuration row is on a dashboard.** All 64 rows in
+`lib/lran-config/include/lran/config/table.h` have discovery under `ha/discovery/`, and every
+`config`-category entity appears in `ha/dashboards/`. Five entities appear on no dashboard, and
+none is a configuration option: `binary_sensor.gatelink_auto_close_pending`,
+`binary_sensor.gatelink_held_open_by_keypad`, `sensor.gatelink_solar_yield_yesterday`,
+`sensor.gatelink_boot_count` (the Events view counts boots with `sensor.lran_gatelink_boots`
+instead) and `button.welllink_restore_defaults`. Their entity IDs were derived from the discovery
+names, not read from HA.
+
+**Ported to production the same evening, on the operator's OK.** Production's
+`lran-maintenance.yaml` was the 2026-11-02 copy, without D92's `display_mode`, `input_mask` and
+`ved_log_s` rows. That is why the operator found no D92 settings there. It differed from `main` in
+nothing else, so the copy lost nothing. Every other LRAN package and dashboard file on production
+matched the repository. After the config check and template reload, the four mask switches read
+`on` against `input_mask` 15, and the select read *Button* against `display_mode` 2. Nothing was
+pressed.

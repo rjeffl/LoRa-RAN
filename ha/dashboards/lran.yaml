@@ -623,16 +623,20 @@ views:
             title: Gate inputs
             grid_options:
               columns: full
+          # The template mirrors, which read unavailable while input_mask names the input,
+          # rather than the raw entities, which read clear (R-3.5l, D90; templates.yaml).
           - type: custom:fluvy-entities-card
             rows:
-              - entity: binary_sensor.gatelink_safety_loop
+              - entity: binary_sensor.lran_gatelink_safety_loop
                 name: Safety loop
-              - entity: binary_sensor.gatelink_exit_wand
+              - entity: binary_sensor.lran_gatelink_exit_wand
                 name: Exit wand
-              - entity: binary_sensor.gatelink_alarm_input
+              - entity: binary_sensor.lran_gatelink_alarm_input
                 name: Alarm input
-              - entity: binary_sensor.gatelink_fire_input
+              - entity: binary_sensor.lran_gatelink_fire_input
                 name: FIRE input
+              - entity: sensor.lran_gatelink_inputs_not_sensed
+                name: Not sensed (input_mask)
               - entity: binary_sensor.gatelink_hard_shutdown_latch
                 name: Hard-shutdown latch
           - type: custom:fluvy-entities-card
