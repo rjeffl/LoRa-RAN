@@ -182,6 +182,90 @@ template:
              and not (states('number.gatelink_input_mask') | float(0) | int) | bitwise_and(8) }}
         state: "{{ is_state('binary_sensor.gatelink_alarm_input', 'on') }}"
 
+  # input_mask a bit at a time, for LRAN Configuration's GateLink view (plan 8.2). On means
+  # GateLink treats that input as not sensed (D90). Each writes the whole mask through
+  # number.gatelink_input_mask, so it is unavailable while the mask is unknown rather than
+  # writing over bits it cannot read.
+  - switch:
+      - name: LRAN GateLink IN3 masked
+        unique_id: lran_gatelink_in3_masked
+        icon: mdi:eye-off-outline
+        availability: "{{ is_number(states('number.gatelink_input_mask')) }}"
+        state: "{{ states('number.gatelink_input_mask') | float | int | bitwise_and(1) != 0 }}"
+        turn_on:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_input_mask }
+            data:
+              value: "{{ states('number.gatelink_input_mask') | float | int | bitwise_or(1) }}"
+        turn_off:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_input_mask }
+            data:
+              value: "{{ states('number.gatelink_input_mask') | float | int | bitwise_and(14) }}"
+      - name: LRAN GateLink IN4 masked
+        unique_id: lran_gatelink_in4_masked
+        icon: mdi:eye-off-outline
+        availability: "{{ is_number(states('number.gatelink_input_mask')) }}"
+        state: "{{ states('number.gatelink_input_mask') | float | int | bitwise_and(2) != 0 }}"
+        turn_on:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_input_mask }
+            data:
+              value: "{{ states('number.gatelink_input_mask') | float | int | bitwise_or(2) }}"
+        turn_off:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_input_mask }
+            data:
+              value: "{{ states('number.gatelink_input_mask') | float | int | bitwise_and(13) }}"
+      - name: LRAN GateLink IN5 masked
+        unique_id: lran_gatelink_in5_masked
+        icon: mdi:eye-off-outline
+        availability: "{{ is_number(states('number.gatelink_input_mask')) }}"
+        state: "{{ states('number.gatelink_input_mask') | float | int | bitwise_and(4) != 0 }}"
+        turn_on:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_input_mask }
+            data:
+              value: "{{ states('number.gatelink_input_mask') | float | int | bitwise_or(4) }}"
+        turn_off:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_input_mask }
+            data:
+              value: "{{ states('number.gatelink_input_mask') | float | int | bitwise_and(11) }}"
+      - name: LRAN GateLink IN6 masked
+        unique_id: lran_gatelink_in6_masked
+        icon: mdi:eye-off-outline
+        availability: "{{ is_number(states('number.gatelink_input_mask')) }}"
+        state: "{{ states('number.gatelink_input_mask') | float | int | bitwise_and(8) != 0 }}"
+        turn_on:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_input_mask }
+            data:
+              value: "{{ states('number.gatelink_input_mask') | float | int | bitwise_or(8) }}"
+        turn_off:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_input_mask }
+            data:
+              value: "{{ states('number.gatelink_input_mask') | float | int | bitwise_and(7) }}"
+
+  # display_mode by name (GateLink PRD R-4.7e, D92): 0 keeps the backlight off, 1 keeps it on,
+  # and 2, the default, is R-4.7a to R-4.7c's behaviour.
+  - select:
+      - name: LRAN GateLink display mode
+        unique_id: lran_gatelink_display_mode
+        icon: mdi:monitor
+        availability: >-
+          {{ is_number(states('number.gatelink_display_mode'))
+             and states('number.gatelink_display_mode') | float | int in [0, 1, 2] }}
+        state: >-
+          {{ ['Off', 'On', 'Button'][states('number.gatelink_display_mode') | float | int] }}
+        options: "{{ ['Off', 'On', 'Button'] }}"
+        select_option:
+          - action: number.set_value
+            target: { entity_id: number.gatelink_display_mode }
+            data:
+              value: "{{ ['Off', 'On', 'Button'].index(option) }}"
+
   # The Vehicles dashboard's log (plan 7.4): today's gate crossings, newest first. A
   # trigger-based sensor keeps them across a restart, and the recorder excludes it
   # (site.yaml), because every crossing rewrites the whole list.

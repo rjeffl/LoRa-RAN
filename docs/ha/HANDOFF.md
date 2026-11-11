@@ -33,6 +33,7 @@ operator. Production has the email, press-flash and dry-run switch changes. Both
 
 | Task | Read |
 |---|---|
+| **D92: copy the *Inputs and display* controls to production**, once the operator OKs it | *The next job* here; *The dev flow* |
 | **H10, step 6** Verify tier 1 on production, as part of GL8 | *The next job* here; plan §12 and §9.1; the deployment brief's GL8 row |
 | **H10, step 7** Turn on email, when the operator is ready | *The next job* here; plan §7.3 |
 
@@ -41,6 +42,13 @@ pushing and opening the PR. Merge it once the operator accepts it, then rewrite 
 section and *The next job*.
 
 ## The next job, in one place
+
+**The *Inputs and display* controls wait for the operator's OK to reach production.** The
+GateLink view of LRAN Configuration gains a switch per `input_mask` bit and a `display_mode`
+select (plan §8.2). The copy is `templates.yaml` and `lran-maintenance.yaml`, then a template
+reload on `ha-prod`. No switch or select has yet written a value: the sandbox has no `number`
+entities for them to write through. The first write on production is that test, and it sends
+`config/set` to GateLink.
 
 **The `input_mask` change is on production (2026-11-11).** Four template mirrors of IN3 to IN6 read unavailable while `number.gatelink_input_mask` names their input,
 and `sensor.lran_gatelink_inputs_not_sensed` lists the masked inputs (plan §7.4). The Events view's

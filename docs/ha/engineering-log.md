@@ -1286,3 +1286,25 @@ not known whether that restart fell inside the stretch when the wrong files were
 
 **Correction, same day:** the operator installed both HA core updates, which were pending before
 this session's restarts. That answers the two unconfirmed version changes above.
+
+## 2026-11-11 — `input_mask` and `display_mode` controls by name
+
+**The operator expected controls, not number boxes.** `input_mask` and `display_mode` had rows in
+the GateLink view, but only as steppers inside the *Gate and relay* and *Link* lists. A new
+*Inputs and display* card there holds a template switch for each mask bit and a template select for
+`display_mode`, *Off*, *On* or *Button* (plan §8.2). They write through the existing `number`
+entities, so they need no discovery or bridge change. Each switch writes the whole mask, so it reads
+unavailable while the mask is unknown rather than writing over bits it cannot read.
+
+**Tested on the sandbox by reading only.** With `input_mask` forced to 5 and `display_mode` to 2,
+the switches read IN3 and IN5 on and the select read *Button*. A forced state is not a `number`
+entity, so `number.set_value` could not run there, and no switch or select has written a value yet.
+
+**Audit: every configuration row is on a dashboard.** All 64 rows in
+`lib/lran-config/include/lran/config/table.h` have discovery under `ha/discovery/`, and every
+`config`-category entity appears in `ha/dashboards/`. Five entities appear on no dashboard, and
+none is a configuration option: `binary_sensor.gatelink_auto_close_pending`,
+`binary_sensor.gatelink_held_open_by_keypad`, `sensor.gatelink_solar_yield_yesterday`,
+`sensor.gatelink_boot_count` (the Events view counts boots with `sensor.lran_gatelink_boots`
+instead) and `button.welllink_restore_defaults`. Their entity IDs were derived from the discovery
+names, not read from HA.

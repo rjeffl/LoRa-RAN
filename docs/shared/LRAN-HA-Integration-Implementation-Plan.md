@@ -495,7 +495,7 @@ its colours can disagree with the alerts. The number and the alerts are what to 
 
 | View | Contents |
 |---|---|
-| **GateLink** | Configuration persisted, shown first, because `off` means the node is running unsaved settings. The dry-run, deployed, buzzer, BMS polling and MPPT write-enable switches. Request status, request configuration and *Restore defaults*, which asks first. The MPPT configuration readback. Pack capacity. The GateLink `number` entities |
+| **GateLink** | Configuration persisted, shown first, because `off` means the node is running unsaved settings. The dry-run, deployed, buzzer, BMS polling and MPPT write-enable switches. Request status, request configuration and *Restore defaults*, which asks first. The MPPT configuration readback. Pack capacity. *Inputs and display*: a switch per `input_mask` bit, which masks IN3 to IN6 (D90), and `display_mode` as *Off*, *On* or *Button* (GateLink PRD R-4.7e, D92). Template entities in `templates.yaml` write both through their `number` entities, and each is unavailable while its number is unknown. The other GateLink `number` entities |
 | **WellLink** | Its requests and settings, unavailable until it is deployed |
 | **Bridge** | The bridge's `number` entities and its simnode switch |
 | **Notification** | A level selector per alert, reminder, health alert and report, with *Restore default levels* (§7.5). The two additional-recipient lists and a switch per alert and reminder that sends to them (§7.3). Mute and email. *GateLink thresholds*, which set when those alerts fire |
@@ -853,7 +853,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
-| 0.26 | 2026-11-11 | §7.4: IN3 to IN6 read `unavailable` while `input_mask` names them, through template mirrors, and a sensor names the masked inputs. GateLink deploys with `input_mask` 15 under D92, and R-3.5l's exception (D90) leaves the masked inputs reading clear. `input_mask`, `display_mode` and `ved_log_s` need nothing more here: discovery already generates them, and the Maintenance dashboard shows them |
+| 0.26 | 2026-11-11 | §8.2: the GateLink view's *Inputs and display* card sets `input_mask` a bit at a time and `display_mode` by name, by operator choice. §7.4: IN3 to IN6 read `unavailable` while `input_mask` names them, through template mirrors, and a sensor names the masked inputs. GateLink deploys with `input_mask` 15 under D92, and R-3.5l's exception (D90) leaves the masked inputs reading clear. `input_mask`, `display_mode` and `ved_log_s` need nothing more here: discovery already generates them, and the Maintenance dashboard shows them. Every config-table row has a dashboard row |
 | 0.25 | 2026-11-02 | §4: relay dry-run is a discovery switch, not a read-only sensor, by operator choice. It was settable only by an MQTT publish |
 | 0.24 | 2026-11-02 | §7.3: email targets the SMTP integration's recipient entities, and the additional list holds entities rather than addresses, because the action that takes a typed address is deprecated and, with no target, mails every recipient. §6, §8.3, §12: `press-flash.js` lights a pressed Gate tile, by operator choice |
 | 0.23 | 2026-11-02 | H10's steps 2 to 5 ran on production. §6: production's existing packages include covers `packages/lran/`, so it takes only the `lovelace:` block. §10: production keeps HA's default `purge_keep_days`, by operator choice. §12: production's email uses its existing notifier, and an open client needs its frontend reloaded after Fluvy's install |
