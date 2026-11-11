@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.47, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.50, §5
 for the architecture and §8 for the milestones.
-**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.27.
+**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.31.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.19** (`ver = 2`).
 **Session state:** `docs/gatelink/HANDOFF.md`. Start there.
 
@@ -30,8 +30,11 @@ lran-node's `PhyTrial` (spec §12.4.2), and the committed group is in NVS, never
 `vedirect_task` reads the MPPT's text blocks into spec §7.2.2's status fields, sets §7.2.6
 bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPPT one
 transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
-the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
-INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `aw drive <0|1>`, `aw redir`, `sense`, `sd`,
+the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` runs the backlight per
+`display_mode` (PRD R-4.7, D92), which `io_task` applies, and shows VE.Direct, BMS and radio
+status lines above the INA226 and LM75 line. `app_task` writes `/ved.log` every `ved_log_s`;
+`bms_task` writes a changed `0x8D` reply to `/bms8d.log` (G2). `input_mask` (D90) clears
+IN3-IN6 below the debounce, after injection. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `aw drive <0|1>`, `aw redir`, `sense`, `sd`,
 `beep`, `relayfault [off <n>]`, `file ls`, `file cat`, `file tail`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall|iostall]`, `restart`, `panic`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,

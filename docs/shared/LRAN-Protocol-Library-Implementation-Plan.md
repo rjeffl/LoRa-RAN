@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.31
+**Version:** 0.32
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-10-28
+**Last updated:** 2026-11-11
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -787,7 +787,8 @@ messages. GateLink's three charge-inhibition thresholds, `charge_inhibit_temp_c`
 `charge_inhibit_band_ma` and `charge_inhibit_rise_mv`, returned on 2026-10-15, once the
 bridge could carry them: 24 rows, 165 bytes, and a readback of 233, still two messages.
 GateLink's `bms_retry_s` followed on 2026-10-26: 25 rows, 172 bytes, and a readback of 240,
-still two messages.
+still two messages. D90's `input_mask` and D92's `ved_log_s` and `display_mode` followed on
+2026-11-11: 28 rows, 191 bytes, and a readback of 259, still two messages.
 
 **Two findings from the count belong to GateLink's documents, not to this one**, and are
 tracked in [`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md). GateLink
@@ -933,6 +934,9 @@ is RF or software.
 
 ## 8. Changelog
 
+- **v0.32** — **GateLink's block grows to 28 rows** with `input_mask`, `ved_log_s` and
+  `display_mode` (D90, D92). §4 records the readback: 259 bytes, still two messages. No API
+  changes.
 - **v0.31** — **Protocol specification v0.18 → v0.19.** No codec change: **D84–D88** give
   meanings to values the codec already carries, and the W4 vectors are unchanged. §7.1 of
   the spec now names `include/lran/schema/` and `src/schema/`, where the schemas are.

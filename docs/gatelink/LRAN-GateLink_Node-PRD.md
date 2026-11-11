@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.30
+**Version:** 0.31
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-11-02
+**Last updated:** 2026-11-11
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -463,7 +463,9 @@ the node's side:
   not sensed (Protocol Spec §7.2.8, **D80**). Under **D83** they are sensed, so GateLink
   does not set it. Otherwise
   `input_bits` bits 4 and 5 read 0, which says "not asserted" about inputs nothing
-  measured.
+  measured. **An input `input_mask` names is the exception (D90):** it reads 0 in
+  `input_bits` and bit 7 stays unset, because bit 7 cannot mark IN5 and IN6 apart. HA reads
+  the mask from `config/state` to tell a masked input from a clear one.
 
 ---
 
@@ -638,6 +640,10 @@ steel gate-controller enclosure  (outdoors, at the gate)
   timer, whenever any debug mode is active**, returning to manual behaviour when the
   last debug mode exits (**D6**).
 - **R-4.7d.** Only the **backlight** is switched; the panel stays initialised.
+- **R-4.7e.** `display_mode` (**D92**) SHALL select the behaviour: `2`, the default, is
+  R-4.7a to R-4.7c; `1` keeps the backlight on; `0` keeps it off, and neither a button nor
+  a debug mode lights it. The backlight is lit at boot, so a reset shows the boot page for
+  one `display_timeout_s`.
 
 > An earlier design switched display *rail power*, which required full re-initialisation
 > after every cycle — a known way to build a display that works exactly once. Switching
@@ -1091,6 +1097,9 @@ implementation plan.*
 
 ## 10. Changelog
 
+- **v0.31** — **R-3.5l's exception for a masked input** (D90): bit 7 stays unset, and HA
+  reads `input_mask`. **New R-4.7e, `display_mode`** (D92), and R-4.7 is now built. Both
+  arrive with D92's temporary deployment (operator, 2026-11-11).
 - **v0.30** — **R-6.4c states when the count is unavailable** as the firmware already
   behaves: only with no reference reading. No firmware change (operator, 2026-11-02).
 

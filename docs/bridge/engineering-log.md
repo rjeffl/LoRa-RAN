@@ -2166,3 +2166,20 @@ was marked valid, because a reset before marking would have rolled it back to `a
 **The link read −85 dBm and SNR 11 dB, against −49 dBm and SNR 11 dB before the move**, with no missed
 polls and `rx_rejected_mac` 0, about 122 s after boot. GateLink is still on the bench, so this says
 nothing about the link from the gate. GateLink did not reset across the move.
+
+## 2026-11-11 — B2 polls after a switch's ACK, the config cap moves to 3584, and B3 does not reproduce
+
+**B2 works on the production bridge at `ba13ffd`.** `SET_RELAY_DRY_RUN` ON drew its ACK at 202.70 s, a POLL 1.0 s later,
+and `node/state` with `dry_run: true` at 204.76 s. Before, the switch waited for the next scheduled poll,
+up to `poll_interval_s`.
+
+**`kMaxConfigPayloadLen` rises from 3072 to 3584.** With D90 and D92's three GateLink rows, `config/state` measured
+2418 bytes at 40 rows, and `test_config`'s room for eight more rows at the longest name failed. The bench's
+`config/state` read 2090 bytes with real values. The heltec image uses 79.4 % of RAM.
+
+**B3's symptom did not reproduce.** After GateLink rebooted, the bridge's readback filled every row by 10.8 s. The
+Request configuration button drew `acked` and a full `config/state` 5 s later.
+
+**A `config/set` sent while GateLink rebooted drew no `config/ack`.** The harness published `display_mode` 0.9 s
+after GateLink's flash reset. No `config/ack` came in 30 s, and the same `set` 40 s later was acknowledged. This
+session did not find where the first one went. Root rule 4 says a discard is counted and answered, so this is open.

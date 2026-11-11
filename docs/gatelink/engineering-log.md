@@ -1913,3 +1913,39 @@ from 2026-11-05.
 
 **Falsified by:** a fabricated board whose holes do not line up with its copper, or JLCPCB's Gerber viewer showing a
 layer different from the 3D renders in this review.
+
+## 2026-11-11 — D92's images: the mask, the panel and two card logs, built and run on the bench
+
+**The operator decided a temporary deployment with no input board (D92)**, so field data, the low-temperature
+charge inhibit above all, starts before the v2.0 boards arrive. This session built D90's mask and the operator's
+additions, flashed both production images at `155a054` from a clean tree, and started a soak. The operator named
+the rows on 2026-11-11: `input_mask`, `display_mode`, and `ved_log_s` for the VE.Direct card log.
+
+**The B3 soak's card, read before the flash.** `/log/fault.txt` shows 72,001 s with no reset, a power-on boot,
+then events at 337 to 390 s with `inputs` 0x20, 0x10, 0x18 and 0x1c, and another power-on boot. Those are IN6,
+IN5, then IN3 to IN5 reading asserted, the pattern a missing or unpowered input board gives. `/bms.log` holds 241
+reads, 6 aborted windows and 7 cap ends, and the cap ends all follow the last boot, with the pack at the gate.
+
+**What the bench showed, harness unpowered and the MPPT and pack at the gate:**
+
+| Check | Result |
+|---|---|
+| Banners and first-boot link | Both `0.1.0 (ba13ffd)`, then GateLink at `155a054`. `config/state` has no null row 10.8 s after boot |
+| Boot with `input_mask` 0 | `boot: FIRE_ASSERTED present at boot, sent again`, and `event/fire_asserted` reached the **production** broker at 14:01:23 |
+| `input_mask` 15 | `config/ack` says `persisted`. Debounced inputs 0x00, against raw 0x00 |
+| Software reset | `cfg: 1 restored`, first input read 0x00, and no FIRE at boot |
+| The mask's falsifier | `inject` set IN3 to IN6, released them, then set IN5 and IN6 (injected 0x3c, value 0x30). Debounced inputs stayed 0x00, with no alarm, event or `Fault` |
+| OPEN and CLOSE in dry-run | `DRY_RUN` (result 16) each; `relay 1` measured 499.9 ms |
+| `display_mode` 2, 1 and 0 | The operator saw each behave as R-4.7e says. A press lit the panel without a beep, and a second press blanked it |
+| Status lines | The operator saw `VE none`, `BMS 0/0 none`, the RX line and the INA226 line |
+| `/ved.log` | A line every 60 s, with sentinels while the MPPT is away |
+
+**One fix came from the bench.** Before the first VE.Direct block, `/ved.log`'s `age_ms` printed the uptime, which
+reads as a real age. It now prints `UINT32_MAX` (`155a054`).
+
+**Not covered here.** G2's `0x8D` request has not met the pack, so whether it fits the BLE window is unmeasured.
+`/bms.log`'s new `alm=` field is that window's cost. A true power cycle of the mask, the backlight's current (M12),
+and IN1 and IN2 with the harness powered are still owed. `EXCOM_COM` was not metered (D92).
+
+**Falsified by:** a `/bms.log` line at the gate whose `end=cap` follows `ans=` and a nonzero `alm=`, which would say
+the `0x8D` request pushed a window past `bms_window_max_ms`.

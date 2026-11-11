@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.49
+**Version:** 0.50
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.30
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.31
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -1598,6 +1598,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 ## 10. Changelog
 
+- **v0.50** — **PRD v0.30 → v0.31, for D90 and D92.** GateLink's block gains `input_mask`
+  (`0x1013`), `ved_log_s` (`0x1032`) and `display_mode` (`0x1053`): 28 rows, a 259-byte
+  readback, still two messages. `ui_task` now drives the backlight through `io_task`, which
+  owns the internal I²C bus, and draws three status lines. `bms_task` requests `0x8D` after a
+  good `0x8C` and writes a changed reply to `/bms8d.log` (G2). `app_task` writes `/ved.log`.
 - **v0.49** — **PRD v0.28 → v0.30.** R-3.2.3f is built, and R-6.4c's new wording matches the
   firmware. §3.2 records M3's polarities as measured.
 - **v0.48** — **PRD v0.27 → v0.28.** R-6.4c's count becomes a lower bound, which changes nothing built or

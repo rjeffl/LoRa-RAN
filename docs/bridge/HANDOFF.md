@@ -218,12 +218,12 @@ ran on the air after the OTA of `57997fa` the same day.
 
 ## Waits on GateLink or the operator
 
-**Take this with the next bridge change: poll a node right after it acknowledges `SET_RELAY_DRY_RUN` or
-`SET_BMS_POLLING`.** Those two switches are the only controls that read `node/state`, which moves only at
-a poll, so HA's toggle springs back for up to a minute at the default `poll_interval_s`. The operator
-called it minor on 2026-11-02 because of that scope, and it does not justify an OTA upload alone. Rows on
-`config/set` are not affected (spec §16.7.4; HA engineering log, same date). If a control is ever added on
-`node/state`, it inherits this.
+**B2 is built (2026-11-11):** an accepted or cached `SET_RELAY_DRY_RUN` or `SET_BMS_POLLING` now brings the
+node's poll forward, about 1 s after the ACK on the bench (engineering log, 2026-11-11).
+
+**A `config/set` sent while GateLink rebooted drew no `config/ack`** (engineering log, 2026-11-11). Find where it
+went: root rule 4 wants it counted and answered. B3's own symptom did not reproduce the same day.
+`firmware/bridge/CLAUDE.md` still cites Impl Plan v0.95; fix it with the next edit to that file.
 
 - **B6 and B7**, and **BF-30**'s readback against the real MPPT, which confirms the
   register scales and whether `0xEDEA` carries the system voltage setting.
