@@ -1,7 +1,7 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.26
+**Version:** 0.27
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
@@ -9,7 +9,8 @@
 **Last updated:** 2026-11-11
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
-> **Everything HA-side is built in the sandbox and ported to production as files.** The
+> **Everything HA-side lives in this repository and reaches an install as files.** While the
+> operator is production's only user, a change goes straight to production (§12.1). The
 > dashboards, helpers, scripts and automations live in this repository as YAML, so the
 > production install is a copy and a reload, not a rebuild by hand. The bridge's discovery
 > configs are the other half, and they are already generated from the firmware (`ha/README.md`).
@@ -206,8 +207,8 @@ lovelace:
 
 **YAML-mode dashboards, so the repository is the source.** A dashboard edited in the UI on
 production would drift from the repository and be lost at the next copy. The cost is that
-the dashboard cannot be edited in the UI. To try a change, edit the file in the sandbox and
-reload.
+the dashboard cannot be edited in the UI. To try a change, edit the file in the repository,
+copy it to the install §12.1 names, and reload.
 
 **`site.yaml` is the only file that differs between installs.** It defines three scripts,
 `script.lran_site_push`, `script.lran_site_email` and `script.lran_site_email_to`, which call
@@ -845,6 +846,30 @@ press nothing since v0.11, so they needed no change.
    the gate.
 7. Turn on `input_boolean.lran_email_enabled` when the operator is ready for email.
 
+### 12.1 Changes after the port
+
+**While the operator is production's only user, a change goes straight to production** (operator,
+2026-11-11). Development is still active, so displays and notifications are expected to change.
+The sandbox has had no bridge since B3. A test there runs against forced states, and a control
+cannot write through a `number` entity that is not there (engineering log, 2026-11-11).
+
+**What a change must not break is the interfaces production's devices already use:**
+
+- the LRAN entity IDs that discovery and production's registry set, which phones, dashboards and
+  automations name, and the MQTT topics (protocol spec §16)
+- production's other integrations and devices, and any configuration outside `packages/lran/`,
+  `dashboards/lran/`, `www/lran/` and the §6 blocks
+- the notify targets and Companion apps that the alerts reach
+
+**The repository and HA backups are the way back.** A package or dashboard copy is undone by
+copying `main`'s file back. Take a backup before a restart or a change to `configuration.yaml`.
+
+**The sandbox still comes first for an HA, Fluvy or ha-mcp upgrade.** Gate commands on production
+still need relay dry-run on (§12 step 6).
+
+**This ends when other users join production.** Changes then return to the sandbox first and
+reach production by a copy, as before 2026-11-11.
+
 ## 13. Open questions
 
 None. The approach zone's question was answered on 2026-11-02: the prompt is parked (§9.5).
@@ -853,6 +878,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.27 | 2026-11-11 | §12.1, new: while the operator is production's only user, a change goes straight to production, by operator choice. It must not break the interfaces production's devices use, and the repository and HA backups are the way back. Upgrades still go to the sandbox first. The rule ends when other users join. The banner and §6 change to match |
 | 0.26 | 2026-11-11 | §8.2: the GateLink view's *Inputs and display* card sets `input_mask` a bit at a time and `display_mode` by name, by operator choice. §7.4: IN3 to IN6 read `unavailable` while `input_mask` names them, through template mirrors, and a sensor names the masked inputs. GateLink deploys with `input_mask` 15 under D92, and R-3.5l's exception (D90) leaves the masked inputs reading clear. `input_mask`, `display_mode` and `ved_log_s` need nothing more here: discovery already generates them, and the Maintenance dashboard shows them. Every config-table row has a dashboard row |
 | 0.25 | 2026-11-02 | §4: relay dry-run is a discovery switch, not a read-only sensor, by operator choice. It was settable only by an MQTT publish |
 | 0.24 | 2026-11-02 | §7.3: email targets the SMTP integration's recipient entities, and the additional list holds entities rather than addresses, because the action that takes a typed address is deprecated and, with no target, mails every recipient. §6, §8.3, §12: `press-flash.js` lights a pressed Gate tile, by operator choice |
