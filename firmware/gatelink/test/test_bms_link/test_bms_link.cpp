@@ -171,12 +171,14 @@ void test_log_line_names_the_end_and_its_stages() {
   gatelink::BmsRxCounters k;
   k.frames     = 287;
   k.crc_errors = 1;
-  char out[200];
+  k.alarms     = 3;
+  t.alarms_ms  = 120;
+  char out[256];
   const size_t n = gatelink::format_bms_log_line(out, sizeof(out), 87011,
                                                  gatelink::BmsEnd::NotFound, 3070, t, false, k, 2, 41);
   TEST_ASSERT_EQUAL_STRING(
       "uptime_s=87011 end=not_found ms=3070 init=40 scan=3000 conn=0 hs=0 ans=0 down=25 "
-      "abort=0 frames=287 crc=1 bad_term=0 undecoded=0 drain_to=2 drain_max=41",
+      "abort=0 frames=287 crc=1 bad_term=0 undecoded=0 drain_to=2 drain_max=41 alm=120 alarms=3",
       out);
   TEST_ASSERT_EQUAL(std::strlen(out), n);
 }
@@ -186,6 +188,26 @@ void test_log_line_too_long_returns_zero() {
   TEST_ASSERT_EQUAL(0, gatelink::format_bms_log_line(out, sizeof(out), 1, gatelink::BmsEnd::Read,
                                                      1, gatelink::BmsTiming{}, true,
                                                      gatelink::BmsRxCounters{}, 0, 0));
+}
+
+// G2 - a 0x8D reply is written raw, and only when it differs from the last one written.
+void test_alarms_line_and_change() {
+  gatelink::BmsAlarmsRaw a, b;
+  TEST_ASSERT_FALSE(gatelink::bms_alarms_differ(a, b));
+  a.len      = 3;
+  a.bytes[0] = 0x04;
+  a.bytes[2] = 0x29;
+  TEST_ASSERT_TRUE(gatelink::bms_alarms_differ(a, b));
+  b = a;
+  TEST_ASSERT_FALSE(gatelink::bms_alarms_differ(a, b));
+  b.bytes[1] = 0x06;
+  TEST_ASSERT_TRUE(gatelink::bms_alarms_differ(a, b));
+  char out[128];
+  const size_t n = gatelink::format_bms_alarms_line(out, sizeof(out), 42, a);
+  TEST_ASSERT_EQUAL_STRING("uptime_s=42 len=3 raw=040029", out);
+  TEST_ASSERT_EQUAL(std::strlen(out), n);
+  char small[24];
+  TEST_ASSERT_EQUAL(0, gatelink::format_bms_alarms_line(small, sizeof(small), 42, a));
 }
 
 void test_tx_gate() {
@@ -220,5 +242,6 @@ int main(int, char**) {
 RUN_TEST(test_an_aborted_window_is_retried_once);
   RUN_TEST(test_log_line_names_the_end_and_its_stages);
   RUN_TEST(test_log_line_too_long_returns_zero);
+  RUN_TEST(test_alarms_line_and_change);
   return UNITY_END();
 }

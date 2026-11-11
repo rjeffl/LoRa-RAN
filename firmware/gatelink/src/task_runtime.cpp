@@ -250,6 +250,15 @@ struct BusStats {
 BusStats          g_bus;
 std::atomic<bool> g_bus_run{false};
 
+// D92 - ui_task decides the backlight and io_task, the internal I2C bus's one user, applies it.
+std::atomic<bool> g_backlight_want{true};
+
+// D92 - the panel's RX line: the last frame addressed here that decoded, from lora_task.
+std::atomic<uint32_t> g_rx_ms{0};
+std::atomic<bool>     g_rx_heard{false};
+std::atomic<int16_t>  g_rx_rssi_dbm{0};
+std::atomic<int16_t>  g_rx_snr_db10{0};
+
 // lora_task reads the sync word this often during a test: far more SPI traffic than GL3's
 // receive loop makes, short of starving the tasks below it.
 constexpr uint32_t kBusRadioPeriodMs = 5;
@@ -350,6 +359,7 @@ void io_task(void*) {
   // F5 - a trailing edge whose write failed. Nothing else would write the expander again, so
   // the relay would stay closed until the next pulse.
   bool             release_owed = false;
+  bool             backlight_lit = true;  // board_begin() lit it
 
   TickType_t last        = xTaskGetTickCount();
   uint32_t   next_poll   = now_ms();
@@ -379,6 +389,7 @@ void io_task(void*) {
     const uint32_t spacing_ms = live_param(kParamRelayMinSpacingMs);
     const uint32_t settle_ms  = live_param(kParamUnlockSettleMs);
     const uint8_t  samples    = static_cast<uint8_t>(live_param(kParamInputDebounceSamples));
+    const uint8_t  input_mask = static_cast<uint8_t>(live_param(kParamInputMask));
 
     // The trailing edge first: it is the one with a deadline.
     if (pulser.update(now)) {
@@ -471,7 +482,10 @@ void io_task(void*) {
         // R-5.4b - injection replaces the inputs it names, below the debounce.
         const uint16_t inj    = g_inject.load(std::memory_order_relaxed);
         const uint8_t  mask   = static_cast<uint8_t>(inj >> 8);
-        const uint8_t  live   = static_cast<uint8_t>((inputs_from_levels(raw) & ~mask) | (inj & mask));
+        // D90 - the input mask comes after injection, so an injected input it names reads
+        // clear too. That is how the bench proves the mask without a forced wire.
+        const uint8_t  live   = apply_input_mask(
+            static_cast<uint8_t>((inputs_from_levels(raw) & ~mask) | (inj & mask)), input_mask);
         const uint8_t  inputs = debounce.update(live, samples);
         g_io.inject_mask = mask;
         g_io.raw_edges += static_cast<uint32_t>(__builtin_popcount(raw ^ g_io.inputs_raw));
@@ -484,6 +498,11 @@ void io_task(void*) {
       }
       g_io.buttons |= buttons;
       portEXIT_CRITICAL(&g_io_mux);
+      const bool  want          = g_backlight_want.load(std::memory_order_relaxed);
+      if (want != backlight_lit) {
+        board_set_backlight(want);
+        backlight_lit = want;
+      }
     }
 
     if (g_aw_req.exchange(false)) {
@@ -858,12 +877,15 @@ struct BmsView {
   uint32_t    suspended      = 0;  // polls skipped by SET_BMS_POLLING
   uint32_t    card_logged    = 0;  // windows appended to /bms.log
   uint32_t    card_failed    = 0;  // windows whose /bms.log line was not written
+  BmsHistory  history;              // D92 - the panel's BMS line
 };
 portMUX_TYPE g_bms_mux = portMUX_INITIALIZER_UNLOCKED;
 BmsView      g_bms;
 
 // One line per BLE window, for a soak with no console attached (format_bms_log_line()).
 constexpr const char* kBmsLogPath = "/bms.log";
+// G2 (D92) - one line per change in the pack's 0x8D reply (format_bms_alarms_line()).
+constexpr const char* kBmsAlarmsLogPath = "/bms8d.log";
 
 // PRD R-3.4e - the HA switch, carried from lora_task's application.
 std::atomic<bool> g_bms_polling{true};
@@ -918,7 +940,13 @@ class Node final : public RadioClient, public GateLinkPort {
   // RadioClient
   void on_frame(const uint8_t* buf, size_t len, int16_t rssi_dbm, int16_t snr_db10,
                 uint32_t now_ms) override {
-    engine_.receive(ctx_, app_, buf, len, rssi_dbm, snr_db10, now_ms);
+    const auto rx = engine_.receive(ctx_, app_, buf, len, rssi_dbm, snr_db10, now_ms);
+    if (rx.decoded) {
+      g_rx_rssi_dbm.store(rssi_dbm, std::memory_order_relaxed);
+      g_rx_snr_db10.store(snr_db10, std::memory_order_relaxed);
+      g_rx_ms.store(now_ms, std::memory_order_relaxed);
+      g_rx_heard.store(true, std::memory_order_release);
+    }
     // Impl Plan 6.4 - a CONFIG met an absent or dirty card: try it again now, after the
     // answer is queued. A card put back then holds RAM's overrides, and the next answer
     // says PERSISTED. With no card the attempt holds the SPI bus for about 1 s (bench,
@@ -1352,6 +1380,36 @@ void service_injection(InjectScript& script, uint8_t* mask, uint8_t* value, uint
   g_inject_step.store(static_cast<uint8_t>(script.next_step()), std::memory_order_relaxed);
 }
 
+// D92 - /ved.log, a line every ved_log_s (0 = off) for the charge-inhibit close-out. The
+// append holds the SPI lock for up to 59 ms, as a /bms.log line does, about once a minute.
+// A failed write is counted and not retried: the next line follows ved_log_s later.
+constexpr const char* kVedLogPath = "/ved.log";
+std::atomic<uint32_t> g_ved_log_written{0};
+std::atomic<uint32_t> g_ved_log_failed{0};
+
+void ved_log(const MpptSnapshot& mppt, const BmsSnapshot& bms, bool inhibited, uint32_t now) {
+  static uint32_t last_ms = 0;
+  static bool     started = false;
+  const uint32_t  period_ms = live_param(kParamVedLogS) * 1000;
+  if (period_ms == 0 || (started && now - last_ms < period_ms)) return;
+  started = true;
+  last_ms = now;
+  ChargeLogBms b;
+  if (bms.have) {
+    for (uint8_t i = 0; i < bms.data.temp_count && i < bms::kMaxTemps; ++i) {
+      if (i == 0 || bms.data.temp_dc[i] < b.coldest_c10) b.coldest_c10 = bms.data.temp_dc[i];
+    }
+    b.current_ma = bms.data.current_ma;
+    b.age_s      = (now - bms.read_ms) / 1000;
+  }
+  static char line[200];  // static: app_task's stack also runs FATFS's write
+  const size_t n = format_ved_log_line(line, sizeof(line),
+                                       static_cast<uint32_t>(esp_timer_get_time() / 1000000), mppt,
+                                       ved_view().block_age_ms, inhibited, b);
+  const bool ok = n > 0 && board_sd_append(kVedLogPath, line);
+  (ok ? g_ved_log_written : g_ved_log_failed).fetch_add(1, std::memory_order_relaxed);
+}
+
 // GL3 - state derivation, detection and the pushes they cause (PRD R-3.1.4, 3.2; Impl Plan
 // 5.2, 6.2, 6.3), and the one task that feeds the watchdog. A task that cannot subscribe
 // logs it and runs unwatched: a gate controller that stops for want of a watchdog protects
@@ -1460,6 +1518,7 @@ void app_task(void*) {
       mppt_errors.update(mppt, gc, &g_event_ids, &charge_out);
       // The flag first, so the STATUS it causes carries it.
       g_charge_inhibited.store(charge.inhibited(), std::memory_order_relaxed);
+      ved_log(mppt, bms_now, charge.inhibited(), now);
       g_charge_source.store(static_cast<uint8_t>(charge.source()), std::memory_order_relaxed);
       g_charge_path.store(static_cast<uint8_t>(charge.path()), std::memory_order_relaxed);
       if (charge_changed) {
@@ -1577,6 +1636,7 @@ void bms_task(void*) {
       if (g_bms.abort_ms > g_bms.abort_max_ms) g_bms.abort_max_ms = g_bms.abort_ms;
     }
     ++g_bms.ends[static_cast<size_t>(end)];
+    if (end != BmsEnd::Aborted) g_bms.history.record(end == BmsEnd::Read);
     portEXIT_CRITICAL(&g_bms_mux);
 
     char text[120];
@@ -1593,7 +1653,7 @@ void bms_task(void*) {
     // holds the SPI lock for up to 59 ms, and a frame waits behind it as behind a
     // config.json write. No card, or a removed one, costs a count and not a remount: a
     // remount with no card holds the bus for about 1 s (Impl Plan 6.4).
-    static char card[200];  // static: FATFS's open and write run on this 6 KB stack too
+    static char card[256];  // static: FATFS's open and write run on this 6 KB stack too
     const size_t len = format_bms_log_line(
         card, sizeof(card), static_cast<uint32_t>(esp_timer_get_time() / 1000000), end,
         done - start, t, asked_at != 0, bms_rx_counters(), bms_drain().timeouts, bms_drain().max_ms);
@@ -1607,25 +1667,69 @@ void bms_task(void*) {
       std::snprintf(text, sizeof(text), "bms_name %s", name);
       fault_line(text);
     }
+    // G2 (D92) - 0x8D's reply, raw, each time it changes. The first one after a boot is
+    // written too, so the file's lines bracket every reset. A failed write is tried again
+    // on the next read.
+    static BmsAlarmsRaw alarms_seen;
+    if (end == BmsEnd::Read && snap.alarms.len > 0 && bms_alarms_differ(snap.alarms, alarms_seen)) {
+      const size_t n = format_bms_alarms_line(
+          card, sizeof(card), static_cast<uint32_t>(esp_timer_get_time() / 1000000), snap.alarms);
+      if (n > 0 && board_sd_append(kBmsAlarmsLogPath, card)) alarms_seen = snap.alarms;
+      QueueSink().line(card);
+    }
     portENTER_CRITICAL(&g_bms_mux);
     ++(logged ? g_bms.card_logged : g_bms.card_failed);
     portEXIT_CRITICAL(&g_bms_mux);
   }
 }
 
-// GL1 - the buttons, for now as a beep each, and the INA226 and LM75 on the panel's last
-// line once a second. That line is how measurement M12 is read with USB unplugged (Impl
-// Plan 3.4). The panel pages follow; until then the boot page stays above it. During a bus
-// test the panel is redrawn whole on every tick instead.
+// D92 - the panel's status lines, once a second: VE.Direct, the BMS's BLE windows and the
+// last frame heard. Each says whether its link works, without a console.
+void draw_status_lines(uint32_t now) {
+  char text[48];
+  const VedView v = ved_view();
+  format_ved_line(v.have_block, v.block_age_ms, live_param(kParamVedirectStaleS), v.mppt.batt_mv,
+                  text, sizeof(text));
+  text[kPageCols] = '\0';
+  board_show_line(kRowVed, text);
+
+  portENTER_CRITICAL(&g_bms_mux);
+  const BmsHistory  h    = g_bms.history;
+  const BmsSnapshot snap = g_bms.snap;
+  portEXIT_CRITICAL(&g_bms_mux);
+  format_bms_line(h, g_bms_polling.load(), snap.have, (now - snap.read_ms) / 1000, text,
+                  sizeof(text));
+  text[kPageCols] = '\0';
+  board_show_line(kRowBms, text);
+
+  const bool heard = g_rx_heard.load(std::memory_order_acquire);
+  format_lora_line(heard, (now - g_rx_ms.load()) / 1000, g_rx_rssi_dbm.load(),
+                   g_rx_snr_db10.load(), text, sizeof(text));
+  text[kPageCols] = '\0';
+  board_show_line(kRowLora, text);
+}
+
+// GL1 - the INA226 and LM75 on the panel's last line once a second. That line is how
+// measurement M12 is read with USB unplugged (Impl Plan 3.4). The boot page stays above
+// D92's status lines. During a bus test the panel is redrawn whole on every tick instead.
+// The buttons drive the backlight (PRD R-4.7) and beep only with buzzer_enable set.
 void ui_task(void*) {
   TickType_t last     = xTaskGetTickCount();
   uint32_t   ticks    = 0;
   uint32_t   frame    = 0;
   bool       was_test = false;
+  Backlight  backlight(now_ms());
   for (;;) {
     count(TaskId::Ui);
-    if (take_buttons() != 0) board_beep(2000, 60);
+    const bool pressed = take_buttons() != 0;
+    if (pressed && live_param(kParamBuzzerEnable) != 0) board_beep(2000, 60);
     const bool test = g_bus_run.load(std::memory_order_relaxed);
+    // R-4.7c - a bus test or a running injection script is a debug mode.
+    const bool debug = test || g_inject_running.load(std::memory_order_relaxed);
+    g_backlight_want.store(backlight.update(static_cast<uint8_t>(live_param(kParamDisplayMode)),
+                                            pressed, debug, live_param(kParamDisplayTimeoutS),
+                                            now_ms()),
+                           std::memory_order_relaxed);
     if (test) {
       PageText page{};
       page.count = 1;
@@ -1650,6 +1754,7 @@ void ui_task(void*) {
         }
         text[kPageCols] = '\0';
         board_show_line(kPageLines - 1, text);
+        draw_status_lines(now_ms());
       }
     }
     was_test = test;
@@ -2107,6 +2212,10 @@ void console_command(char* cmd) {
                       ld(v.link.hex_sent), ld(v.link.hex_retries), ld(v.link.hex_answered), ld(v.link.hex_timeouts),
                       ld(v.link.hex_uart_errors), ld(v.link.hex_async), ld(v.link.hex_unmatched),
                       ld(v.link.hex_bad), ld(v.text.hex_too_long), v.busy ? "; one outstanding" : "");
+    write_line(line, n, sizeof(line));
+    n = std::snprintf(line, sizeof(line), "ved: /ved.log %lu written, %lu failed, every %lu s",
+                      ld(g_ved_log_written.load()), ld(g_ved_log_failed.load()),
+                      ld(live_param(kParamVedLogS)));
   } else if (std::strcmp(cmd, "beep") == 0) {
     board_beep(2000, 200);
     n = std::snprintf(line, sizeof(line), "beep");

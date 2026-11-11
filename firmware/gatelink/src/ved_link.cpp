@@ -5,6 +5,7 @@
 
 #include "ved_link.h"
 
+#include <cstdio>
 #include <cstring>
 
 namespace gatelink {
@@ -203,6 +204,18 @@ void VedLink::finish(lran::HexStatus status, const char* hex, size_t n) {
   if (n > 0) std::memcpy(result_.hex, hex, n);
   result_.n       = n;
   result_ready_   = true;
+}
+
+size_t format_ved_log_line(char* out, size_t cap, uint32_t uptime_s, const MpptSnapshot& m,
+                           uint32_t block_age_ms, bool inhibited, const ChargeLogBms& b) {
+  const int w = std::snprintf(
+      out, cap,
+      "uptime_s=%lu age_ms=%lu batt_mv=%u batt_ma=%d pv_cv=%u pv_w=%u cs=%u err=%u "
+      "inhibited=%d bms_c10=%d bms_ma=%ld bms_age_s=%lu",
+      static_cast<unsigned long>(uptime_s), static_cast<unsigned long>(block_age_ms), m.batt_mv,
+      m.batt_ma, m.pv_cv, m.pv_w, m.charge_state, m.mppt_err, inhibited ? 1 : 0, b.coldest_c10,
+      static_cast<long>(b.current_ma), static_cast<unsigned long>(b.age_s));
+  return w > 0 && static_cast<size_t>(w) < cap ? static_cast<size_t>(w) : 0;
 }
 
 }  // namespace gatelink

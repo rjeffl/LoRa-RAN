@@ -26,12 +26,14 @@ Implementation Plan §4.4, as the row's meaning cites.
 | `0x1010` | `input_poll_ms` | u16 | ms | 100 | 20 to 500 | read-write | Input expander poll period, PRD R-3.1.4d |
 | `0x1011` | `input_debounce_samples` | u8 |  | 2 | 1 to 10 | read-write | Agreeing reads before an input changes, PRD R-3.1.4d |
 | `0x1012` | `hold_confirm_ms` | u16 | ms | 2000 | 500 to 10000 | read-write | Stable OPEN without MOVING before a hold, PRD R-3.1.4b |
+| `0x1013` | `input_mask` | u8 |  | 0 | 0 to 15 | read-write | Board inputs read as clear, bit 0 = IN3 to bit 3 = IN6, D90 |
 | `0x1020` | `detect_sequence_window_ms` | u32 | ms | 60000 | 5000 to 300000 | read-write | Longest EXIT-to-SAFETY traversal, PRD R-3.2.3e |
 | `0x1021` | `detect_sequence_idle_ms` | u16 | ms | 10000 | 1000 to 60000 | read-write | Quiet time that resets classification, PRD R-3.2.3e |
 | `0x1022` | `held_open_alert_repeat_s` | u16 | s | 0 | 0 to 3600 | read-write | Held-open alert repeat, PRD R-3.2.3e; 0 = one per detection |
 | `0x1023` | `cause_window_ms` | u16 | ms | 10000 | 1000 to 60000 | read-write | EXIT edge to gate opening, read as the wand, Impl Plan 6.3 |
 | `0x1030` | `hex_timeout_ms` | u16 | ms | 1000 | 200 to 1000 | read-write | MPPT HEX reply wait before TIMEOUT, PRD R-3.3d |
 | `0x1031` | `vedirect_stale_s` | u8 | s | 5 | 2 to 60 | read-write | No complete text block for this long is stale, PRD R-3.3f |
+| `0x1032` | `ved_log_s` | u16 | s | 60 | 0 to 3600 | read-write | Period of /ved.log's MPPT line, D92; 0 = off |
 | `0x1040` | `bms_poll_s` | u16 | s | 300 | 60 to 3600 | read-write | BLE BMS read period, PRD R-3.4a |
 | `0x1041` | `charge_inhibit_confirm_s` | u16 | s | 300 | 60 to 3600 | read-write | Inferred charge inhibit must hold this long, PRD R-6.4b |
 | `0x1042` | `bms_window_max_ms` | u16 | ms | 5000 | 2000 to 30000 | read-write | BLE window cap; LoRa waits no longer, Impl Plan 5.2 |
@@ -42,6 +44,7 @@ Implementation Plan §4.4, as the row's meaning cites.
 | `0x1050` | `display_timeout_s` | u16 | s | 60 | 10 to 3600 | read-write | Backlight inactivity timeout, PRD R-4.7b |
 | `0x1051` | `buzzer_enable` | bool |  | 0 | 0 to 1 | read-write | Panel buzzer, Impl Plan 5.2 ui_task |
 | `0x1052` | `inject_spacing_ms` | u16 | ms | 1000 | 100 to 60000 | read-write | Gap between injected inputs, PRD R-5.4b |
+| `0x1053` | `display_mode` | u8 |  | 2 | 0 to 2 | read-write | Backlight: 0 off, 1 on, 2 button and display_timeout_s, PRD R-4.7 |
 | `0x1060` | `watchdog_timeout_s` | u8 | s | 10 | 5 to 60 | read-write | Task watchdog timeout, fed by app_task, Impl Plan 5.2 |
 
 ## Every node's block, `0x0100`–`0x01FF`
@@ -74,6 +77,6 @@ the node (D47). They are not part of the node's readback.
 
 ## What a full readback costs
 
-A `CONFIG_ACK` has 193 bytes for results (spec §7.4). GateLink's block takes 172 and every
-node's block 68, so a full readback takes 240 bytes. It arrives as more than one message, marked
+A `CONFIG_ACK` has 193 bytes for results (spec §7.4). GateLink's block takes 191 and every
+node's block 68, so a full readback takes 259 bytes. It arrives as more than one message, marked
 `MORE_FOLLOWS` (spec §7.4.1).

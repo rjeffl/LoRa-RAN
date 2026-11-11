@@ -113,6 +113,14 @@ constexpr uint8_t inputs_from_levels(uint8_t levels) {
   return static_cast<uint8_t>((levels ^ kInputsActiveLow) & kInputsWired);
 }
 
+// D90 - input_mask's bits 0-3 name IN3-IN6, input_bits' bits 2-5, and a named input reads
+// clear. The shift keeps IN1 and IN2 out of the mask's reach, whatever its upper bits hold.
+inline constexpr uint8_t kInputMaskShift = 2;
+
+constexpr uint8_t apply_input_mask(uint8_t inputs, uint8_t input_mask) {
+  return static_cast<uint8_t>(inputs & ~((input_mask & 0x0F) << kInputMaskShift));
+}
+
 // Eight inputs, as one mask. A bit changes only after `samples` consecutive raw reads
 // agree on its new value (input_debounce_samples; Impl Plan 4.4).
 class Debouncer {

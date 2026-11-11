@@ -20,11 +20,28 @@ namespace gatelink {
 
 // The last successful read, as bms_task publishes it. `have` stays false until the first
 // read succeeds, and the block carries its sentinels until then.
+// G2, D92 - 0x8D's payload as it arrived, undecoded (bms-protocol 9). Its reply has been 24
+// bytes; the room past that keeps a longer one whole rather than cut.
+inline constexpr size_t kBmsAlarmsMax = 32;
+struct BmsAlarmsRaw {
+  uint8_t len = 0;  // 0 = none read
+  uint8_t bytes[kBmsAlarmsMax] = {};
+};
+
+bool bms_alarms_differ(const BmsAlarmsRaw& a, const BmsAlarmsRaw& b);
+
+// The card's /bms8d.log line for a 0x8D reply unlike the last one written, without the
+// newline: uptime_s=<s> len=<n> raw=<hex>. A protection event, such as a cold charge block,
+// shows as a new line, which R-3.4a and R-3.4c need to map the bits. Returns the length, or
+// 0 if `cap` is too small.
+size_t format_bms_alarms_line(char* out, size_t cap, uint32_t uptime_s, const BmsAlarmsRaw& a);
+
 struct BmsSnapshot {
   bool          have    = false;
   bms::BmsData  data    = {};
   int16_t       rssi_dbm = 0;  // the connection's RSSI at the read; 0 = not measured
   uint32_t      read_ms = 0;   // when the read completed
+  BmsAlarmsRaw  alarms;        // G2 - the window's 0x8D reply, if one came in time
 };
 
 // Fills spec 7.2.3's block and 7.2.7's flags into `s`.
@@ -90,6 +107,7 @@ struct BmsTiming {
   uint32_t connect_ms   = 0;
   uint32_t handshake_ms = 0;  // HiLink, read-back and the FFF1 subscription
   uint32_t answer_ms    = 0;  // the 0x8C request to its decoded answer
+  uint32_t alarms_ms    = 0;  // G2 - the 0x8D request to its answer, after 0x8C's
   uint32_t teardown_ms  = 0;  // disconnect and controller de-init
 };
 
@@ -98,7 +116,8 @@ struct BmsRxCounters {
   uint32_t frames     = 0;  // complete 0x8C frames that decoded
   uint32_t crc_errors = 0;
   uint32_t bad_term   = 0;
-  uint32_t undecoded  = 0;  // complete frames that were not a good 0x8C
+  uint32_t undecoded  = 0;  // complete frames that were neither a good 0x8C nor 0x8D
+  uint32_t alarms     = 0;  // complete 0x8D frames, kept raw (G2)
   uint32_t discarded  = 0;  // bytes the reassembler dropped while resyncing
 };
 

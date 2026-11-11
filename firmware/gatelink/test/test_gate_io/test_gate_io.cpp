@@ -197,6 +197,17 @@ void test_inputs_from_levels_inverts_in3_to_in5_and_drops_in7_in8() {
   TEST_ASSERT_EQUAL_HEX8(0x00, inputs_from_levels(0xDC));  // IN7 and IN8 are ignored
 }
 
+// D90 - the mask clears IN3 to IN6 and never reaches IN1 and IN2. With no input board,
+// IN3, IN4 and IN5 read asserted, and 0x0F is the mask that deployment sets (D92).
+void test_input_mask_clears_in3_to_in6_only() {
+  TEST_ASSERT_EQUAL_HEX8(0x3F, apply_input_mask(0x3F, 0x00));
+  TEST_ASSERT_EQUAL_HEX8(0x03, apply_input_mask(0x3F, 0x0F));
+  TEST_ASSERT_EQUAL_HEX8(0x3B, apply_input_mask(0x3F, 0x01));  // IN3 alone
+  TEST_ASSERT_EQUAL_HEX8(0x1F, apply_input_mask(0x3F, 0x08));  // IN6 alone
+  TEST_ASSERT_EQUAL_HEX8(0x03, apply_input_mask(0x3F, 0xFF));  // upper bits reach nothing
+  TEST_ASSERT_EQUAL_HEX8(0x03, apply_input_mask(inputs_from_levels(0x00) | 0x03, 0x0F));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_pulse_holds_its_width_and_then_ends);
@@ -217,5 +228,6 @@ int main() {
   RUN_TEST(test_bad_step_is_refused_and_ends);
   RUN_TEST(test_second_sequence_is_refused_while_one_runs);
   RUN_TEST(test_inputs_from_levels_inverts_in3_to_in5_and_drops_in7_in8);
+  RUN_TEST(test_input_mask_clears_in3_to_in6_only);
   return UNITY_END();
 }
