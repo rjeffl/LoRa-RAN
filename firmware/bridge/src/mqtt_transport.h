@@ -48,8 +48,11 @@ namespace bridge {
 // 2026-10-15, when the config documents left for their own type: each move past 1024
 // was made for a config document.
 //
-// THE CONFIG CAP is 3072. A config/state with every value at its widest was 2200 bytes
-// for GateLink's 36 rows (2026-10-14), about 61 bytes a row, so 3072 holds about 50.
+// THE CONFIG CAP is 3584. A config/state with every value at its widest was 2200 bytes
+// for GateLink's 36 rows (2026-10-14), about 61 bytes a row. At 40 rows, with D90 and D92's
+// three, it measured 2418 bytes (2026-11-11), and test_config's room for eight more rows at
+// the longest name no longer fit 3072. The raise costs 512 bytes on each of the queue's
+// four slots and the three static messages.
 //
 // test_diag, test_publish and test_config are the checks. Each builds the worst document
 // its table can produce and fails here rather than at the broker.
@@ -61,7 +64,7 @@ namespace bridge {
 
 inline constexpr size_t kMaxTopicLen         = 96;
 inline constexpr size_t kMaxPayloadLen       = 1024;
-inline constexpr size_t kMaxConfigPayloadLen = 3072;
+inline constexpr size_t kMaxConfigPayloadLen = 3584;
 
 // How many publications the transport may hold unfinished before mqtt_task stops handing
 // it more (MqttTransport::pending()). Eight covers the events in flight at QoS 1 and one

@@ -48,6 +48,13 @@ class NotifyHandler final : public bms::BmsTransport::NotifyHandler {
               bms::tdt::decode_cells_and_pack(rx_.frame(), d)) {
             last_ = d;
             ++counters_.frames;
+          } else if (rx_.frame().cmd == bms::tdt::kCmdAlarms) {
+            // G2 - kept raw: the bitmaps are not mapped (bms-protocol 9).
+            const bms::tdt::Frame& f = rx_.frame();
+            alarms_.len = static_cast<uint8_t>(f.payload_len < kBmsAlarmsMax ? f.payload_len
+                                                                             : kBmsAlarmsMax);
+            std::memcpy(alarms_.bytes, f.payload, alarms_.len);
+            ++counters_.alarms;
           } else {
             ++counters_.undecoded;
           }
@@ -89,6 +96,13 @@ class NotifyHandler final : public bms::BmsTransport::NotifyHandler {
     return k;
   }
 
+  BmsAlarmsRaw alarms() const {
+    portENTER_CRITICAL(&mux_);
+    const BmsAlarmsRaw a = alarms_;
+    portEXIT_CRITICAL(&mux_);
+    return a;
+  }
+
   bms::BmsData last() const {
     portENTER_CRITICAL(&mux_);
     const bms::BmsData d = last_;
@@ -100,6 +114,7 @@ class NotifyHandler final : public bms::BmsTransport::NotifyHandler {
   mutable portMUX_TYPE       mux_ = portMUX_INITIALIZER_UNLOCKED;
   bms::tdt::FrameReassembler rx_;
   bms::BmsData               last_ = {};
+  BmsAlarmsRaw               alarms_;
   BmsRxCounters              counters_;
 };
 
@@ -246,15 +261,20 @@ BmsEnd handshake() {
   return BmsEnd::Read;
 }
 
-BmsEnd request_and_wait(const BmsWindowArgs& a) {
-  const uint32_t before = g_notify.counters().frames;
+uint32_t answers_to(uint8_t cmd) {
+  const BmsRxCounters k = g_notify.counters();
+  return cmd == bms::tdt::kCmdAlarms ? k.alarms : k.frames;
+}
+
+BmsEnd request_and_wait(const BmsWindowArgs& a, uint8_t cmd) {
+  const uint32_t before = answers_to(cmd);
   uint8_t        req[bms::tdt::kRequestLen];
-  const size_t   n = bms::tdt::build_request(bms::tdt::kCmdCellsPack, req, sizeof(req));
+  const size_t   n = bms::tdt::build_request(cmd, req, sizeof(req));
   if (n == 0 || !g_transport.write(bms::GattChar::Tx, req, n, true)) return BmsEnd::Request;
   BmsEnd why = BmsEnd::NoAnswer;
   for (;;) {
     g_notify.tick();
-    if (g_notify.counters().frames != before) return BmsEnd::Read;
+    if (answers_to(cmd) != before) return BmsEnd::Read;
     if (!g_transport.is_connected()) return BmsEnd::NoAnswer;
     // The cap is the answer's timeout: a pack that never answers ends as NoAnswer, not Cap.
     if (ended(a, &why)) return why == BmsEnd::Cap ? BmsEnd::NoAnswer : why;
@@ -309,9 +329,16 @@ BmsEnd run(const BmsWindowArgs& a, BmsSnapshot* out, BmsTiming* t) {
 
   {
     Step s(&t->answer_ms);
-    why = request_and_wait(a);
+    why = request_and_wait(a, bms::tdt::kCmdCellsPack);
   }
   if (why != BmsEnd::Read) return why;
+  // G2 (D92) - 0x8D, after the read it must not delay. Its answer only records, so a miss or
+  // an abort here still ends the window as a read: the 0x8C data is already in hand.
+  BmsAlarmsRaw alarms;
+  if (!ended(a, &why)) {
+    Step s(&t->alarms_ms);
+    if (request_and_wait(a, bms::tdt::kCmdAlarms) == BmsEnd::Read) alarms = g_notify.alarms();
+  }
 
   // R-3.4f - the connection's RSSI, read while it is up. The scan's figure is the fallback.
   const int link_rssi = g_transport.rssi();
@@ -319,6 +346,7 @@ BmsEnd run(const BmsWindowArgs& a, BmsSnapshot* out, BmsTiming* t) {
   out->data     = g_notify.last();
   out->rssi_dbm = static_cast<int16_t>(link_rssi != 0 ? link_rssi : scan_rssi);
   out->read_ms  = now_ms();
+  out->alarms   = alarms;
   return BmsEnd::Read;
 }
 

@@ -105,6 +105,10 @@ void board_show_line(size_t row, const char* text);
 // Non-blocking: the buzzer runs on a LEDC timer.
 void board_beep(uint16_t freq_hz, uint16_t ms);
 
+// PRD R-4.7d - the backlight alone; the panel stays initialised. It sits on IO expander 0, on
+// the internal I2C bus, so only io_task calls this.
+void board_set_backlight(bool on);
+
 // Mounts the card under the SpiLock. FAT32 only; the core's FatFs has no exFAT
 // (engineering log, 2026-10-06).
 bool board_sd_begin();

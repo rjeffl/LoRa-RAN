@@ -171,7 +171,7 @@ inline constexpr ParamDef kNodeCommonParams[] = {
 // renumbering one HA already knows. The readback walks them in id order (spec 7.4.1).
 //
 // THESE ROWS OUTGROW ONE CONFIG_ACK. With node-common and the PHY group, a GateLink
-// readback is 205 bytes against spec 7.4's 193, so it needs spec 7.4.1's MORE_FOLLOWS
+// readback is 259 bytes against spec 7.4's 193, so it needs spec 7.4.1's MORE_FOLLOWS
 // split. readback_bytes() below counts it, and test_table pins the count.
 inline constexpr ParamDef kGateLinkParams[] = {
     // Relays. R-3.1.2b's spacing has no name in the PRD; its default equals the pulse.
@@ -193,6 +193,11 @@ inline constexpr ParamDef kGateLinkParams[] = {
      nullptr, "Agreeing reads before an input changes, PRD R-3.1.4d"},
     {0x1012, "hold_confirm_ms", Owner::Node, Access::ReadWrite, PType::U16, 500, 10000, 2000,
      "ms", "Stable OPEN without MOVING before a hold, PRD R-3.1.4b"},
+    // D90 - bits 0-3 are IN3-IN6, and the mask cannot name IN1 or IN2. 0 leaves every
+    // input live, so an empty config.json behaves as the image before it did. A masked
+    // input reads clear and never sets node_flags bit 7; HA reads this row instead.
+    {0x1013, "input_mask", Owner::Node, Access::ReadWrite, PType::U8, 0, 15, 0, nullptr,
+     "Board inputs read as clear, bit 0 = IN3 to bit 3 = IN6, D90"},
 
     // Detection. u32 because a u16 of ms stops at 65.5 s, barely above the 60 s default.
     {0x1020, "detect_sequence_window_ms", Owner::Node, Access::ReadWrite, PType::U32, 5000,
@@ -212,6 +217,10 @@ inline constexpr ParamDef kGateLinkParams[] = {
      "ms", "MPPT HEX reply wait before TIMEOUT, PRD R-3.3d"},
     {0x1031, "vedirect_stale_s", Owner::Node, Access::ReadWrite, PType::U8, 2, 60, 5, "s",
      "No complete text block for this long is stale, PRD R-3.3f"},
+    // D92 - the charge-inhibit close-out needs the charger's view on the card, apart from
+    // the radio and HA. A line every 60 s is about 120 kB a day.
+    {0x1032, "ved_log_s", Owner::Node, Access::ReadWrite, PType::U16, 0, 3600, 60, "s",
+     "Period of /ved.log's MPPT line, D92; 0 = off"},
 
     // Battery. bms_poll_s's floor keeps R-3.4e's phone access between polls.
     {0x1040, "bms_poll_s", Owner::Node, Access::ReadWrite, PType::U16, 60, 3600, 300, "s",
@@ -244,6 +253,10 @@ inline constexpr ParamDef kGateLinkParams[] = {
      "Panel buzzer, Impl Plan 5.2 ui_task"},
     {0x1052, "inject_spacing_ms", Owner::Node, Access::ReadWrite, PType::U16, 100, 60000,
      1000, "ms", "Gap between injected inputs, PRD R-5.4b"},
+    // D92 - 2 is R-4.7a and R-4.7b's behavior, and the default. 1 keeps the backlight on, as
+    // every image before this one did. 0 keeps it off, and the buttons do not light it.
+    {0x1053, "display_mode", Owner::Node, Access::ReadWrite, PType::U8, 0, 2, 2, nullptr,
+     "Backlight: 0 off, 1 on, 2 button and display_timeout_s, PRD R-4.7"},
 
     // System. The watchdog timeout is a parameter because GateLink has no OTA (root rule 8;
     // operator, 2026-10-07). The floor is what keeps a bad SET from becoming a reset loop:

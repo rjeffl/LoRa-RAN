@@ -5,7 +5,9 @@
 
 #include <unity.h>
 
+#include <cstdint>
 #include <cstring>
+#include <initializer_list>
 
 #include "ui_pages.h"
 
@@ -73,11 +75,61 @@ void test_long_fields_are_cut_to_the_panel() {
   }
 }
 
+// D92 - the status lines fit the panel's 19 columns at their longest.
+void test_status_lines_read_as_designed() {
+  char line[48];
+  format_ved_line(false, 0, 5, 0, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("VE none", line);
+  format_ved_line(true, 2400, 5, 13210, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("VE ok 2s 13.21V", line);
+  format_ved_line(true, 45000, 5, 13210, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("VE STALE 45s", line);
+  format_ved_line(true, 1000, 5, UINT16_MAX, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("VE ok 1s", line);
+
+  BmsHistory h;
+  format_bms_line(h, true, false, 0, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("BMS 0/0 none", line);
+  for (bool ok : {true, false, true, true, true, true, true}) h.record(ok);  // 7 > kDepth
+  format_bms_line(h, true, true, 250, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("BMS 5/6 ok 4m", line);
+  format_bms_line(h, false, true, 250, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("BMS off", line);
+
+  format_lora_line(false, 0, 0, 0, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("RX none", line);
+  format_lora_line(true, 12, -87, 75, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("RX 12s -87 7.5dB", line);
+  format_lora_line(true, 99, -112, -125, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("RX 99s -112 -12.5dB", line);
+  TEST_ASSERT_LESS_OR_EQUAL(kPageCols, std::strlen(line));
+  format_lora_line(true, 7200, -90, -5, line, sizeof(line));
+  TEST_ASSERT_EQUAL_STRING("RX 2h -90 -0.5dB", line);
+}
+
+// PRD R-4.7 with D92's display_mode.
+void test_backlight_follows_mode_button_and_timeout() {
+  Backlight b(0);
+  TEST_ASSERT_TRUE(b.update(Backlight::kButton, false, false, 60, 1000));    // lit from boot
+  TEST_ASSERT_FALSE(b.update(Backlight::kButton, false, false, 60, 60000));  // timed out
+  TEST_ASSERT_TRUE(b.update(Backlight::kButton, true, false, 60, 70000));    // press lights
+  TEST_ASSERT_FALSE(b.update(Backlight::kButton, true, false, 60, 71000));   // press blanks
+  TEST_ASSERT_TRUE(b.update(Backlight::kButton, false, true, 60, 200000));   // debug holds it
+  TEST_ASSERT_TRUE(b.update(Backlight::kButton, false, true, 60, 900000));
+  TEST_ASSERT_TRUE(b.update(Backlight::kButton, false, false, 60, 959000));  // timer restarted
+  TEST_ASSERT_FALSE(b.update(Backlight::kButton, false, false, 60, 960000));
+  TEST_ASSERT_FALSE(b.update(Backlight::kOff, true, true, 60, 961000));      // off means off
+  TEST_ASSERT_TRUE(b.update(Backlight::kOn, false, false, 60, 962000));
+  TEST_ASSERT_TRUE(b.update(Backlight::kOn, false, false, 60, 9999000));     // on ignores timeout
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_template_key_is_reported_unprovisioned);
   RUN_TEST(test_provisioned_key_is_reported_provisioned);
   RUN_TEST(test_page_names_node_version_and_reset);
   RUN_TEST(test_long_fields_are_cut_to_the_panel);
+  RUN_TEST(test_status_lines_read_as_designed);
+  RUN_TEST(test_backlight_follows_mode_button_and_timeout);
   return UNITY_END();
 }

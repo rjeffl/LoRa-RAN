@@ -127,6 +127,26 @@ bool bms_retry_next(BmsEnd end, bool was_retry) {
   return end == BmsEnd::Aborted && !was_retry;
 }
 
+bool bms_alarms_differ(const BmsAlarmsRaw& a, const BmsAlarmsRaw& b) {
+  if (a.len != b.len) return true;
+  for (size_t i = 0; i < a.len && i < kBmsAlarmsMax; ++i) {
+    if (a.bytes[i] != b.bytes[i]) return true;
+  }
+  return false;
+}
+
+size_t format_bms_alarms_line(char* out, size_t cap, uint32_t uptime_s, const BmsAlarmsRaw& a) {
+  int w = std::snprintf(out, cap, "uptime_s=%lu len=%u raw=", static_cast<unsigned long>(uptime_s),
+                        a.len);
+  if (w <= 0) return 0;
+  size_t n = static_cast<size_t>(w);
+  for (size_t i = 0; i < a.len && i < kBmsAlarmsMax; ++i) {
+    if (n + 3 > cap) return 0;
+    n += static_cast<size_t>(std::snprintf(out + n, cap - n, "%02x", a.bytes[i]));
+  }
+  return n < cap ? n : 0;
+}
+
 size_t format_bms_log_line(char* out, size_t cap, uint32_t uptime_s, BmsEnd end,
                            uint32_t window_ms, const BmsTiming& t, bool abort_asked,
                            const BmsRxCounters& k, uint32_t drain_timeouts, uint32_t drain_max_ms) {
@@ -134,7 +154,8 @@ size_t format_bms_log_line(char* out, size_t cap, uint32_t uptime_s, BmsEnd end,
   const int w = std::snprintf(
       out, cap,
       "uptime_s=%lu end=%s ms=%lu init=%lu scan=%lu conn=%lu hs=%lu ans=%lu down=%lu "
-      "abort=%d frames=%lu crc=%lu bad_term=%lu undecoded=%lu drain_to=%lu drain_max=%lu",
+      "abort=%d frames=%lu crc=%lu bad_term=%lu undecoded=%lu drain_to=%lu drain_max=%lu "
+      "alm=%lu alarms=%lu",
       static_cast<unsigned long>(uptime_s), bms_end_name(end),
       static_cast<unsigned long>(window_ms), static_cast<unsigned long>(t.init_ms),
       static_cast<unsigned long>(t.scan_ms), static_cast<unsigned long>(t.connect_ms),
@@ -142,7 +163,8 @@ size_t format_bms_log_line(char* out, size_t cap, uint32_t uptime_s, BmsEnd end,
       static_cast<unsigned long>(t.teardown_ms), abort_asked ? 1 : 0,
       static_cast<unsigned long>(k.frames), static_cast<unsigned long>(k.crc_errors),
       static_cast<unsigned long>(k.bad_term), static_cast<unsigned long>(k.undecoded),
-      static_cast<unsigned long>(drain_timeouts), static_cast<unsigned long>(drain_max_ms));
+      static_cast<unsigned long>(drain_timeouts), static_cast<unsigned long>(drain_max_ms),
+      static_cast<unsigned long>(t.alarms_ms), static_cast<unsigned long>(k.alarms));
   return w > 0 && static_cast<size_t>(w) < cap ? static_cast<size_t>(w) : 0;
 }
 

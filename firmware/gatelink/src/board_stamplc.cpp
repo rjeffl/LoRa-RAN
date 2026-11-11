@@ -111,6 +111,7 @@ void board_begin() {
   // Every relay output stayed off through this, on a logic analyzer, across power cycles
   // and a watchdog reset (PRD R-3.5j, bench 2026-10-07). PRD v0.18 drops the brownout leg.
   M5StamPLC.begin();
+  // Lit, so the boot page shows; ui_task's Backlight then follows display_mode (PRD R-4.7).
   M5StamPLC.setBacklight(true);
   // GateLink mounts the StamPLC upside down (bench, 2026-10-02). Turning from the library's
   // landscape default keeps that default's offset and panel size, whatever M5GFX sets.
@@ -226,6 +227,8 @@ void board_show_line(size_t row, const char* text) {
 }
 
 void board_beep(uint16_t freq_hz, uint16_t ms) { M5StamPLC.tone(freq_hz, ms); }
+
+void board_set_backlight(bool on) { M5StamPLC.setBacklight(on); }
 
 bool board_sd_begin() {
   SpiLock lock;

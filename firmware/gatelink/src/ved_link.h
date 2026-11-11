@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <climits>
 #include <cstddef>
 #include <cstdint>
 
@@ -72,6 +73,20 @@ struct MpptSnapshot {
 // Scales one decoded block into spec 7.2.2's fields. A value its field cannot hold reads as
 // the sentinel, not a clipped number. The flags are left to the caller.
 MpptSnapshot mppt_from_text(const vedirect::MpptText& m);
+
+// D92 - the card's /ved.log line, every ved_log_s, without the newline. It keeps the
+// charger's side of the charge-inhibit close-out apart from the radio and HA, with the
+// inhibit flag and the pack's coldest sensor and current beside it. key=value, as
+// /bms.log is. Sentinels print as they are (root rule 6): a reader filters them. bms_c10
+// is 0.1 C. age_ms, the last text block's age, and bms_age_s are UINT32_MAX with none. Returns the length, or 0 if `cap`
+// is too small.
+struct ChargeLogBms {
+  int16_t  coldest_c10 = INT16_MIN;
+  int32_t  current_ma  = INT32_MIN;
+  uint32_t age_s       = UINT32_MAX;
+};
+size_t format_ved_log_line(char* out, size_t cap, uint32_t uptime_s, const MpptSnapshot& m,
+                           uint32_t block_age_ms, bool inhibited, const ChargeLogBms& b);
 
 // A HEX_REQ's string, handed from lora_task. `token` matches the answer to it.
 struct HexJob {

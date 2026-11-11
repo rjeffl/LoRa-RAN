@@ -1,15 +1,15 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.98
+**Version:** 0.99
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.21
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.31 — **built first, gates this node**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.32 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-11-02
+**Last updated:** 2026-11-11
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -3139,6 +3139,11 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.99** — **Cites Library Plan v0.32**, whose GateLink block has 28 rows. GateLink's
+  `config/state` measured 2418 bytes at 40 rows, so `kMaxConfigPayloadLen` rises from 3072 to
+  3584 to keep `test_config`'s room for eight more rows. **B2:** an accepted or cached
+  `SET_RELAY_DRY_RUN` or `SET_BMS_POLLING` brings the node's next poll forward, so HA's switch
+  no longer springs back for up to `poll_interval_s` (bridge engineering log, 2026-11-11).
 - **v0.98** — **§11.3 moves the production broker to the deployment brief's B3**, by operator
   decision of 2026-11-02.
 

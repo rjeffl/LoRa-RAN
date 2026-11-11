@@ -157,6 +157,8 @@ views:
                 name: Watchdog timeout
               - entity: number.gatelink_display_timeout_s
                 name: Display timeout
+              - entity: number.gatelink_display_mode
+                name: Display mode (0 off, 1 on, 2 button)
           - type: custom:fluvy-helpers-card
             title: Gate and relay
             rows:
@@ -180,6 +182,8 @@ views:
                 name: Input poll
               - entity: number.gatelink_input_debounce_samples
                 name: Input debounce samples
+              - entity: number.gatelink_input_mask
+                name: Input mask (IN3 to IN6)
               - entity: number.gatelink_held_open_alert_repeat_s
                 name: Held-open alert repeat
               - entity: number.gatelink_inject_spacing_ms
@@ -195,6 +199,8 @@ views:
                 name: BMS retry after abort
               - entity: number.gatelink_vedirect_stale_s
                 name: VE.Direct stale after
+              - entity: number.gatelink_ved_log_s
+                name: VE.Direct card log period
               - entity: number.gatelink_hex_timeout_ms
                 name: HEX timeout
               - entity: number.gatelink_charge_inhibit_band_ma

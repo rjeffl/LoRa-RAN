@@ -287,6 +287,28 @@ void test_reply_with_nothing_outstanding_is_counted() {
   TEST_ASSERT_EQUAL_UINT32(1, r.link.counters().hex_unmatched);
 }
 
+// D92 - /ved.log's line, with no BMS read yet: its fields print as sentinels.
+void test_ved_log_line() {
+  gatelink::MpptSnapshot m;
+  m.batt_mv      = 13210;
+  m.batt_ma      = -150;
+  m.pv_cv        = 1834;
+  m.pv_w         = 0;
+  m.charge_state = 0;
+  m.mppt_err     = 0;
+  char out[200];
+  const size_t n =
+      gatelink::format_ved_log_line(out, sizeof(out), 3600, m, 412, true, gatelink::ChargeLogBms{});
+  TEST_ASSERT_EQUAL_STRING(
+      "uptime_s=3600 age_ms=412 batt_mv=13210 batt_ma=-150 pv_cv=1834 pv_w=0 cs=0 err=0 "
+      "inhibited=1 bms_c10=-32768 bms_ma=-2147483648 bms_age_s=4294967295",
+      out);
+  TEST_ASSERT_EQUAL(std::strlen(out), n);
+  char small[32];
+  TEST_ASSERT_EQUAL(0, gatelink::format_ved_log_line(small, sizeof(small), 1, m, 0, false,
+                                                     gatelink::ChargeLogBms{}));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_no_block_is_stale_with_sentinels);
@@ -303,5 +325,6 @@ int main() {
   RUN_TEST(test_ping_and_unknown_replies);
   RUN_TEST(test_uart_failure_is_uart_error);
   RUN_TEST(test_reply_with_nothing_outstanding_is_counted);
+  RUN_TEST(test_ved_log_line);
   return UNITY_END();
 }

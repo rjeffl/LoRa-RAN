@@ -755,18 +755,27 @@ void test_a_repeated_config_is_answered_from_the_cache() {
   TEST_ASSERT_EQUAL_UINT32(1, b.f1().executions);
 }
 
+// The store fills, and the next new row is refused. Two SETs, because GateLink's 28 rows
+// (D92) make the store 32 deep, the most results one CONFIG_ACK holds at u8: one SET of 33
+// would lose the last result (GateLink handoff, Open).
 void test_the_config_store_is_bounded() {
   Board b;
-  auto  set = cfg_of(ConfigOp::Set);
-  for (uint16_t i = 0; i < kConfigStoreDepth + 1; ++i) add_entry(&set, 0x0200 + i, PType::U8, i);
-  b.log.expect("RAM store full");
-  send_config(b, 1, set);
+  static_assert(kConfigStoreDepth <= schema::kMaxConfigAckEntries, "the store outgrew one ACK");
+  auto fill = cfg_of(ConfigOp::Set);
+  for (uint16_t i = 0; i < kConfigStoreDepth; ++i) add_entry(&fill, 0x0200 + i, PType::U8, i);
+  send_config(b, 1, fill);
   const schema::NodeConfigAckV1 a = next_config_ack(b);
-  TEST_ASSERT_EQUAL_UINT8(kConfigStoreDepth + 1, a.count);
+  TEST_ASSERT_EQUAL_UINT8(kConfigStoreDepth, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::Ok),
                           static_cast<uint8_t>(a.entries[kConfigStoreDepth - 1].status));
+  auto more = cfg_of(ConfigOp::Set);
+  add_entry(&more, static_cast<uint16_t>(0x0200 + kConfigStoreDepth), PType::U8, 1);
+  b.log.expect("RAM store full");
+  send_config(b, 2, more);
+  const schema::NodeConfigAckV1 r = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(1, r.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::UnknownParam),
-                          static_cast<uint8_t>(a.entries[kConfigStoreDepth].status));
+                          static_cast<uint8_t>(r.entries[0].status));
   TEST_ASSERT_TRUE(b.log.seen());
 }
 

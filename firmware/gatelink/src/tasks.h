@@ -86,6 +86,12 @@ inline constexpr uint16_t kParamRelayMinSpacingMs   = 0x1001;
 inline constexpr uint16_t kParamUnlockSettleMs      = 0x1002;
 inline constexpr uint16_t kParamInputPollMs         = 0x1010;
 inline constexpr uint16_t kParamInputDebounceSamples = 0x1011;
+inline constexpr uint16_t kParamInputMask           = 0x1013;  // D90
+// And ui_task's panel (PRD R-4.7) and app_task's MPPT card log (D92).
+inline constexpr uint16_t kParamDisplayTimeoutS     = 0x1050;
+inline constexpr uint16_t kParamBuzzerEnable        = 0x1051;
+inline constexpr uint16_t kParamDisplayMode         = 0x1053;
+inline constexpr uint16_t kParamVedLogS             = 0x1032;
 // And those vedirect_task and lora_task read (GL4).
 inline constexpr uint16_t kParamHexTimeoutMs        = 0x1030;
 inline constexpr uint16_t kParamVedirectStaleS      = 0x1031;
