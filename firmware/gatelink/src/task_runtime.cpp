@@ -1403,9 +1403,11 @@ void ved_log(const MpptSnapshot& mppt, const BmsSnapshot& bms, bool inhibited, u
     b.age_s      = (now - bms.read_ms) / 1000;
   }
   static char line[200];  // static: app_task's stack also runs FATFS's write
+  const VedView v = ved_view();
+  // With no block since boot the age is the uptime, which would read as a real one.
   const size_t n = format_ved_log_line(line, sizeof(line),
                                        static_cast<uint32_t>(esp_timer_get_time() / 1000000), mppt,
-                                       ved_view().block_age_ms, inhibited, b);
+                                       v.have_block ? v.block_age_ms : UINT32_MAX, inhibited, b);
   const bool ok = n > 0 && board_sd_append(kVedLogPath, line);
   (ok ? g_ved_log_written : g_ved_log_failed).fetch_add(1, std::memory_order_relaxed);
 }

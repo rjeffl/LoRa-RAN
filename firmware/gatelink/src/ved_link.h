@@ -78,7 +78,7 @@ MpptSnapshot mppt_from_text(const vedirect::MpptText& m);
 // charger's side of the charge-inhibit close-out apart from the radio and HA, with the
 // inhibit flag and the pack's coldest sensor and current beside it. key=value, as
 // /bms.log is. Sentinels print as they are (root rule 6): a reader filters them. bms_c10
-// is 0.1 C, and bms_age_s is UINT32_MAX with no read. Returns the length, or 0 if `cap`
+// is 0.1 C. age_ms, the last text block's age, and bms_age_s are UINT32_MAX with none. Returns the length, or 0 if `cap`
 // is too small.
 struct ChargeLogBms {
   int16_t  coldest_c10 = INT16_MIN;
