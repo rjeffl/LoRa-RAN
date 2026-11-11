@@ -80,8 +80,9 @@ relays are wired to.
 **Alerts reach real devices now**: `notify.mobile_app_jbook16_m5` and
 `notify.mobile_app_jliphone16`. This has not been checked alert by alert.
 
-**A change to a package or dashboard now reaches production only by a copy**, after the sandbox has
-run it (*The dev flow*).
+**A change goes straight to production while the operator is its only user** (plan §12.1,
+2026-11-11). It must not break the interfaces production's devices use. Upgrades still go to the
+sandbox first (*The dev flow*).
 
 ## What the last session established
 
@@ -246,9 +247,18 @@ python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads
 
 ### The dev flow: files over Samba, everything else through ha-mcp
 
-**From 2026-10-26 the sandbox is worked through two channels, and production is worked the same
-way.** Files go over the Samba mount, because the repository is their source and
-the port to production is a file copy (plan §12). Everything that asks HA something or tells
+**From 2026-11-11, while the operator is production's only user, a change goes straight to
+production** (plan §12.1). Development is still active, so displays and notifications may change.
+Three things must not break: the LRAN entity IDs and MQTT topics, production's other integrations
+and devices, and the notify targets the alerts reach. Touch nothing outside `packages/lran/`,
+`dashboards/lran/`, `www/lran/` and plan §6's blocks. The repository and HA backups are the way
+back: copy `main`'s file to undo a copy, and take a backup with `ha_manage_backup` before a restart
+or a `configuration.yaml` change. The sandbox still comes first for an HA, Fluvy or ha-mcp upgrade.
+
+**When other users join production, this rule ends**, and changes return to the sandbox first.
+
+**Both installs are worked through two channels.** Files go over the Samba mount, because the
+repository is their source and an install takes a file copy (plan §12). Everything that asks HA something or tells
 it to act goes through the ha-mcp server (app 8.7.0 on the sandbox), not the REST API with a
 token. The REST flow before then needed `~/.lran_ha_token`, which only one machine had.
 
@@ -256,8 +266,9 @@ token. The REST flow before then needed `~/.lran_ha_token`, which only one machi
 made, so `/Volumes/config` is production whenever production was mounted first. On 2026-11-11 only
 production was mounted, and a copy meant for the sandbox reached it (engineering log, 2026-11-11).
 The operator keeps only production mounted on the Mac, so ask for the sandbox's mount when a task
-needs it. The commands below copy to the sandbox, whose host is 192.168.2.52; production's is
-192.168.2.24. `cp -X` skips the extended attributes the share refuses.
+needs it. Production's host is 192.168.2.24 and the sandbox's is 192.168.2.52. Before a copy,
+compare the target's file with `main`'s: a difference is either a change not yet copied or an edit
+made on the install, and only the first is safe to overwrite. `cp -X` skips the extended attributes the share refuses.
 
 ```bash
 mount | grep 192.168.2.                      # set M to the path on the line with the host you mean
@@ -271,6 +282,7 @@ Then, through ha-mcp:
 
 | Step | Tool |
 |---|---|
+| Back up production before a restart or a `configuration.yaml` change | `ha_manage_backup` |
 | Check the configuration before any reload or restart | `ha_get_system_health(include="config_check")`; read `config_check.is_valid` and `errors` |
 | Reload a package's templates, automations or scripts | `ha_reload_core(target=…)`, then `ha_get_state` on its sensors: none may be `restored: true` (*Traps*) |
 | Restart, when a reload does not cover the change | `ha_restart(confirm=True)`, which runs the config check itself first |
