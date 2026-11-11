@@ -111,14 +111,29 @@ the arrangement per D91, and GateLink's firmware for v2.0 follows once the board
 
 **Both boards run production images of `155a054` (GateLink) and `ba13ffd` (bridge)**, flashed over USB from a
 clean tree (engineering log, 2026-11-11). The new images replace `cb1be00`. **`input_mask` is 15 on GateLink's
-card**, persisted and restored across a software reset. A soak started 2026-11-11 at 14:08 with the harness in
-`~/lran-soak/2026-11-11-d92/`, under `nohup`, with the MPPT and the pack still at the gate.
+card**, persisted and restored across a software reset. A first soak ran 14 min with USB attached and no MPPT or
+pack, then stopped by operator decision for a power-chain soak.
+
+**The operator plans deployment for 2026-11-12, after an overnight power-chain soak.** It follows
+*The soak's setup* below: the MPPT and the pack back on the bench, **USB off the StamPLC**, the bridge on its own
+supply. Log it with only the bridge's port, so GateLink's power comes through the chain alone:
+
+```bash
+D=~/lran-soak/2026-11-11-power; mkdir -p "$D"
+nohup ~/.platformio/penv/bin/python tools/bench/bench.py --dir "$D" run --port BRG=/dev/cu.usbserial-0001 --mqtt > "$D/run.out" 2>&1 &
+```
+
+**The soak passes with** no `BOOT` after the first, no missed polls, VE.Direct never stale, BMS windows
+reading (an aborted one read on its retry), and no input events. Charging, if there is sun, is the first on these
+images. The operator records the result in the engineering log before deployment.
 
 **Before GateLink leaves the bench, the operator:**
 
-1. Stops the soak (`bench.py --dir ~/lran-soak/2026-11-11-d92 send quit`) and reads `/ved.log`, `/bms.log` and
-   `/log/fault.txt` with `bench.py attach`.
-2. Power-cycles GateLink, USB and 12 V both off, and confirms `cfg: 1 restored` and no `FIRE_ASSERTED` at boot.
+1. Stops the soak (`bench.py --dir "$D" send quit`), plugs USB in, and reads `/ved.log`, `/bms.log`,
+   `/bms8d.log` and `/log/fault.txt` with `bench.py attach`. `/bms.log`'s `alm=` is what G2's `0x8D` request costs
+   a window, and its first measurement (engineering log, 2026-11-11, falsifier).
+2. Confirms the soak's first `BOOT`, after a power-up with USB and 12 V both off, shows `cfg: 1 restored` and no
+   `FIRE_ASSERTED`. That is the mask's true power cycle.
 3. Powers the harness and confirms IN1 and IN2 follow the gate, which also answers whether `EXCOM_COM` reaches the
    StamPLC without the input board (D92's falsifier).
 4. Turns off the HA automations `lran_1_fire` and `lran_1_hard_shutdown` for the period (D92).
@@ -130,7 +145,7 @@ card**, persisted and restored across a software reset. A soak started 2026-11-1
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Read the D92 soak and close the bench checks** above: the card files, the power cycle, IN1 and IN2 with the harness powered. Operator, with a session for the reading | Engineering log, 2026-11-11; Decision Register §3.20 |
+| 3 | **The overnight power-chain soak and the bench checks** above: the card files, the power cycle, IN1 and IN2 with the harness powered. Operator, with a session for the reading if wanted | Engineering log, 2026-11-11; Decision Register §3.20; *The soak's setup* |
 | 3 | **HA reads `input_mask`** to show IN3 to IN6 as not sensed rather than clear (PRD R-3.5l's exception, D90). An HA package change; no firmware | PRD R-3.5l; `docs/ha/HANDOFF.md`, *The next job* |
 | 4 | **The at-gate sequence**, with no input board (D92) | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |
