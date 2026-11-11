@@ -1949,3 +1949,41 @@ and IN1 and IN2 with the harness powered are still owed. `EXCOM_COM` was not met
 
 **Falsified by:** a `/bms.log` line at the gate whose `end=cap` follows `ans=` and a nonzero `alm=`, which would say
 the `0x8D` request pushed a window past `bms_window_max_ms`.
+
+## 2026-11-11 — The power-chain soak starts, and the mask survives a true power cycle
+
+**The operator started the overnight power-chain soak** with the MPPT and the pack on the bench, no PV, USB off the
+StamPLC, and the bridge on its own supply. GateLink powered up at 14:41 EST after a full power-down, USB and 12 V
+both off, while the operator wired the production power harness. That boot is the mask's true power cycle.
+
+**The harness logs MQTT alone.** The bridge's USB port is not on this Mac, and the operator approved an MQTT-only
+run on this laptop, detached from any session so it runs unattended. The log is
+`~/lran-soak/2026-11-11-power/bench.log`, started at 14:43:26 EST:
+
+```bash
+D=~/lran-soak/2026-11-11-power; mkdir -p "$D"
+nohup ~/.platformio/penv/bin/python tools/bench/bench.py --dir "$D" run --mqtt > "$D/run.out" 2>&1 &
+```
+
+**The mask held across the power cycle, on MQTT and HA evidence.** HA's `binary_sensor.gatelink_fire_input` went
+from `unavailable` to `off` at 14:40:49 EST and was not `on` afterwards. The bridge's config mirror reads
+`input_mask` 15, source `override`. The earlier boot with `input_mask` 0 put `event/fire_asserted` on the
+production broker, so a lost mask would have shown. The console's `cfg: 1 restored` line was not read, because no
+console was attached.
+
+**The soak's starting state, 14:43 to 14:47 EST:**
+
+| Topic | State |
+|---|---|
+| Link | Both available. RSSI −53 dBm, SNR 11 dB, `missed_polls` 0, `deployed` 1 |
+| `node/state` | `uptime_s` 119, `boot_time` 19:41:00Z, `node_mv` 13604, `boot_count` null |
+| `solar/state` | Available. `batt_mv` 13600, `batt_ma` −10, `pv_mv` 30, charger `off`, no error, `charge_inhibited` false |
+| `battery/state` | First window read at +200 s: SOC 98 %, `pack_mv` 13630, `pack_ma` 0, cells 3402 to 3410 mV at 17 to 21 °C, BLE RSSI −62 dBm |
+| `gate/state` | `closed`, `input_bits` 0 |
+
+**What the MQTT-only log cannot show.** It has no `BOOT` line, so a reset reads as `uptime_s` falling or a new
+`boot_time`. `boot_count` is null and cannot count them. The card's `/ved.log`, `/bms.log`, `/bms8d.log` and
+`/log/fault.txt` cover the rest once USB goes back in.
+
+**Falsified by:** a `node/state` in the log whose `boot_time` is later than 19:41:00Z, or `/log/fault.txt` showing a
+boot during the soak.
