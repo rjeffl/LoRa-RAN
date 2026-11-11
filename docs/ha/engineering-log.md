@@ -1308,3 +1308,11 @@ none is a configuration option: `binary_sensor.gatelink_auto_close_pending`,
 `sensor.gatelink_boot_count` (the Events view counts boots with `sensor.lran_gatelink_boots`
 instead) and `button.welllink_restore_defaults`. Their entity IDs were derived from the discovery
 names, not read from HA.
+
+**Ported to production the same evening, on the operator's OK.** Production's
+`lran-maintenance.yaml` was the 2026-11-02 copy, without D92's `display_mode`, `input_mask` and
+`ved_log_s` rows. That is why the operator found no D92 settings there. It differed from `main` in
+nothing else, so the copy lost nothing. Every other LRAN package and dashboard file on production
+matched the repository. After the config check and template reload, the four mask switches read
+`on` against `input_mask` 15, and the select read *Button* against `display_mode` 2. Nothing was
+pressed.
