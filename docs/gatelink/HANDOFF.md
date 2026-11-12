@@ -125,8 +125,10 @@ pack, then stopped by operator decision for a power-chain soak.
 **The power-chain soak is over: 21.4 h with no reset, and the BMS criterion not met** (engineering log,
 2026-11-12). The windows due about 00:49 and 05:30 EST on 2026-11-12 produced no reading, and at 05:35:47 the
 battery went unavailable for one minute. The MQTT log ends at 12:05 EST, where `bench.py` lost the broker; HA showed
-GateLink still on its 19:41:00Z boot afterwards. Charging was not tested, because no panel was connected. **Whether
-the two misses hold up deployment is the operator's call**, best made after `/bms.log` says what happened in them.
+GateLink still on its 19:41:00Z boot afterwards; the operator may have caused that loss by moving the Mac. Charging
+was not tested, because no panel was connected, and waits until GateLink is at the gate. **Whether
+the two misses hold up deployment is the operator's call**, best made after `/bms.log` says what happened in them. The operator has no explanation for them yet. **PR 259 stays unmerged until
+the card read**, which waits for the operator at the bench.
 
 **Before GateLink leaves the bench, the operator:**
 

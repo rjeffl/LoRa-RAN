@@ -2025,3 +2025,8 @@ harness powered.
 
 **Falsified by:** a `/log/fault.txt` boot between 19:41:00Z on 2026-11-11 and the card read, or `/bms.log` entries
 showing the 00:49 and 05:30 windows read.
+
+**Operator notes, 2026-11-12.** The broker loss at 12:05 EST may have been the operator's: they tried to close the
+Claude app before moving the Mac, and `[Errno 65] No route to host` fits a machine leaving its network. The operator
+has no explanation for the two missed BMS windows; `/bms.log` is still the record that could give one. Charging
+waits until GateLink is at the gate.
