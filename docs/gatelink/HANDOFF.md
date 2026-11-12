@@ -154,7 +154,7 @@ ready, GateLink comes off the gate for the retrofit and a bench retest before it
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **HA reads `input_mask`** to show IN3 to IN6 as not sensed rather than clear (PRD R-3.5l's exception, D90). An HA package change; no firmware | PRD R-3.5l; `docs/ha/HANDOFF.md`, *The next job* |
+| 3 | **HA reads `input_mask`**: built, and on production since 2026-11-11. IN3 to IN6 read unavailable while masked (PRD R-3.5l's exception, D90) | `docs/ha/HANDOFF.md`, *The next job* |
 | 3 | **An MQTT logger on an always-on machine**, the HA host Mac: `bench.py run --mqtt` through the live soak. HA's recorder keeps entity states for about 10 days; the log keeps every message, `rxlog` and `boot_time` included. Operator's call whether it is worth it | `tools/bench/README.md`; engineering log, 2026-11-12 |
 | 4 | **The at-gate sequence and the proposed live soak**, with no input board (D92), and the at-gate checks above | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |

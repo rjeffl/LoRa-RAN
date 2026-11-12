@@ -28,7 +28,8 @@ Continue from docs/ha/HANDOFF.md: task H10, step 6.
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10's
 steps 2 to 5 ran on production on 2026-11-02. Step 6 waits for GL8 at the gate, and step 7 for the
-operator. Production has the email, press-flash and dry-run switch changes.
+operator. Production has the email, press-flash and dry-run switch changes. Both installs run the
+`input_mask` change for D92 (GateLink PRD R-3.5l, D90), ported to production on 2026-11-11.
 
 | Task | Read |
 |---|---|
@@ -40,6 +41,21 @@ pushing and opening the PR. Merge it once the operator accepts it, then rewrite 
 section and *The next job*.
 
 ## The next job, in one place
+
+**The *Inputs and display* controls are on production (2026-11-11), and none has written a value
+yet.** LRAN Configuration's GateLink view has a switch per `input_mask` bit and a `display_mode`
+select (plan §8.2). They read the mask's 15 and the mode's 2 correctly. The first press is the test
+that a write reaches GateLink, and it sends `config/set`.
+
+**The `input_mask` change is on production (2026-11-11).** Four template mirrors of IN3 to IN6 read unavailable while `number.gatelink_input_mask` names their input,
+and `sensor.lran_gatelink_inputs_not_sensed` lists the masked inputs (plan §7.4). The Events view's
+*Gate inputs* card reads them. With GateLink's `input_mask` at 15, production's mirrors read
+`unavailable` and the text sensor `IN3, IN4, IN5, IN6`. The card has not been seen rendered:
+production has no screenshot engine, and the sandbox's screenshot showed HA's home page, not the
+view. When input board v2.0 arrives and the mask returns to 0, the mirrors follow the raw inputs.
+
+**Before deployment the operator turns off `lran_1_fire` and `lran_1_hard_shutdown`** (Decision
+Register §3.20, D92). That is the operator's step, not this layer's.
 
 **One leftover from the dry-run switch.** `binary_sensor.gatelink_relay_dry_run` stays on production
 until an empty retained publish to `homeassistant/binary_sensor/lran_gatelink_dry_run/config` clears
@@ -54,8 +70,8 @@ at the gate. Step 7 turns on `input_boolean.lran_email_enabled`, whose scripts t
 entities. The scripts have sent real email, but `lran_notify` has not driven them there. The second
 recipient's phone has no Companion app yet, so `lran_additional_devices` waits for it.
 
-**Check the target before every write.** `/Volumes/config` and `ha-sandbox` are the sandbox.
-`/Volumes/config-1` and `ha-prod` are production (*The dev flow*).
+**Check the target before every write.** `ha-sandbox` is the sandbox and `ha-prod` is production.
+A Samba mount is told apart by its host, not its `/Volumes` name (*The dev flow*).
 
 **Gate commands are live on production.** GateLink's `dry_run` read false on 2026-11-02, and the Gate
 dashboard's tiles have no confirmation. Turn on `switch.gatelink_relay_dry_run` before pressing one, and check what the
@@ -64,8 +80,9 @@ relays are wired to.
 **Alerts reach real devices now**: `notify.mobile_app_jbook16_m5` and
 `notify.mobile_app_jliphone16`. This has not been checked alert by alert.
 
-**A change to a package or dashboard now reaches production only by a copy**, after the sandbox has
-run it (*The dev flow*).
+**A change goes straight to production while the operator is its only user** (plan §12.1,
+2026-11-11). It must not break the interfaces production's devices use. Upgrades still go to the
+sandbox first (*The dev flow*).
 
 ## What the last session established
 
@@ -230,22 +247,42 @@ python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads
 
 ### The dev flow: files over Samba, everything else through ha-mcp
 
-**From 2026-10-26 the sandbox is worked through two channels, and production is worked the same
-way.** The commands below name the sandbox's mount; production's is `/Volumes/config-1`. Files go over the Samba mount, because the repository is their source and
-the port to production is a file copy (plan §12). Everything that asks HA something or tells
+**From 2026-11-11, while the operator is production's only user, a change goes straight to
+production** (plan §12.1). Development is still active, so displays and notifications may change.
+Three things must not break: the LRAN entity IDs and MQTT topics, production's other integrations
+and devices, and the notify targets the alerts reach. Touch nothing outside `packages/lran/`,
+`dashboards/lran/`, `www/lran/` and plan §6's blocks. The repository and HA backups are the way
+back: copy `main`'s file to undo a copy, and take a backup with `ha_manage_backup` before a restart
+or a `configuration.yaml` change. The sandbox still comes first for an HA, Fluvy or ha-mcp upgrade.
+
+**When other users join production, this rule ends**, and changes return to the sandbox first.
+
+**Both installs are worked through two channels.** Files go over the Samba mount, because the
+repository is their source and an install takes a file copy (plan §12). Everything that asks HA something or tells
 it to act goes through the ha-mcp server (app 8.7.0 on the sandbox), not the REST API with a
 token. The REST flow before then needed `~/.lran_ha_token`, which only one machine had.
 
+**Find the mount by its host before every copy.** macOS names the mounts in the order they were
+made, so `/Volumes/config` is production whenever production was mounted first. On 2026-11-11 only
+production was mounted, and a copy meant for the sandbox reached it (engineering log, 2026-11-11).
+The operator keeps only production mounted on the Mac, so ask for the sandbox's mount when a task
+needs it. Production's host is 192.168.2.24 and the sandbox's is 192.168.2.52. Before a copy,
+compare the target's file with `main`'s: a difference is either a change not yet copied or an edit
+made on the install, and only the first is safe to overwrite. `cp -X` skips the extended attributes the share refuses.
+
 ```bash
-cd ha/packages/lran && cp core.yaml templates.yaml alerts.yaml reminders.yaml reports.yaml messages.yml /Volumes/config/packages/lran/ && cd -
-cp ha/dashboards/*.yaml /Volumes/config/dashboards/lran/      # a YAML dashboard reloads with the page
-cp ha/www/press-flash.js /Volumes/config/www/lran/            # raise ?v= on its resource, or browsers keep the old one
+mount | grep 192.168.2.                      # set M to the path on the line with the host you mean
+M=/Volumes/config-N
+cd ha/packages/lran && cp -X core.yaml templates.yaml alerts.yaml reminders.yaml reports.yaml messages.yml "$M/packages/lran/" && cd -
+cp -X ha/dashboards/*.yaml "$M/dashboards/lran/"      # a YAML dashboard reloads with the page
+cp -X ha/www/press-flash.js "$M/www/lran/"            # raise ?v= on its resource, or browsers keep the old one
 ```
 
 Then, through ha-mcp:
 
 | Step | Tool |
 |---|---|
+| Back up production before a restart or a `configuration.yaml` change | `ha_manage_backup` |
 | Check the configuration before any reload or restart | `ha_get_system_health(include="config_check")`; read `config_check.is_valid` and `errors` |
 | Reload a package's templates, automations or scripts | `ha_reload_core(target=…)`, then `ha_get_state` on its sensors: none may be `restored: true` (*Traps*) |
 | Restart, when a reload does not cover the change | `ha_restart(confirm=True)`, which runs the config check itself first |
@@ -279,11 +316,11 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
 | Home Assistant OS VM at 192.168.2.52, with Mosquitto | the sandbox | its address, and `/config/packages/lran/site.yaml`, which is on no other install | HA 2026.10.4 | `/config` holds the installed packages and the sandbox's own `site.yaml`, the only copy of it | running. GateLink's relay dry-run is off |
-| The sandbox's `/config`, shared over Samba | the mount | mounted at `/Volumes/config` as `ha-samba-user` | — | — | mounted on the macOS machine |
+| The sandbox's `/config`, shared over Samba | the mount | its host, 192.168.2.52, in `mount`. Mounted as `ha-samba-user`, at whichever `/Volumes/config` name macOS gives it | — | — | mounted on request only |
 | The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | beta flags on: beta features and dashboard screenshots, set in its web UI's *Server Settings* | running; its config check read `valid` on 2026-10-26 |
 | The Puppet app on the sandbox | Puppet | app slug `0f1cc410_puppet`, port 10000 | Puppet 2.6.0 | a long-lived token in its `access_token` option | running; renders for ha-mcp's screenshots. **Port 10000 takes no authentication** |
 | Home Assistant at 192.168.2.24, with Mosquitto | production | its address | HA 2026.10.4, Fluvy v1.11.3 | `/config/packages/lran/site.yaml` is the only copy of production's. Backup `02cb9704` predates the port | running, with other devices on it |
-| Production's `/config`, shared over Samba | the production mount | mounted at `/Volumes/config-1` as `ha-samba-user` | — | — | mounted on the macOS machine |
+| Production's `/config`, shared over Samba | the production mount | its host, 192.168.2.24, in `mount`. Mounted as `ha-samba-user`, at whichever `/Volumes/config` name macOS gives it | — | — | usually mounted on the macOS machine |
 | The ha-mcp app on production | ha-mcp | port 9584 and a secret path, registered as `ha-prod` | — | screenshot flag off, no Puppet | running |
 | GateLink on the operator's bench | the StamPLC | `firmware/gatelink -e gatelink-sandbox` | see the GateLink handoff | — | **Inputs wired to their inactive state for live testing** (operator, 2026-11-02), on the pack and the MPPT, with USB attached at `/dev/cu.usbmodem1101`. PV connected and a 4+ A load on the MPPT's load output when last reported. **Its gate relays pulse on a command unless dry-run is on** |
 | The bridge | the bridge board | `firmware/bridge -e heltec-sandbox` | see the bridge handoff | — | **On USB** at `/dev/cu.usbserial-0001` (2026-11-02). `lran/bridge/version` gives its commit |
@@ -308,6 +345,11 @@ those two targets changed, which plan §7.3 names.
 
 ## Traps that cost real time here
 
+- **`/Volumes/config` is not always the sandbox.** The name follows mount order, and on 2026-11-11
+  it was production. Read the host in `mount` before every copy (*The dev flow*).
+- **A template sensor that renders `None` reads `unknown`.** HA parses the rendered text, so a
+  word meant for display must not be `None`. `sensor.lran_gatelink_inputs_not_sensed` says
+  `No input` for that reason (2026-11-11).
 - **The MPPT's load output reads dead on a meter alone.** Its MOSFET needs a real load to turn on
   (operator, 2026-11-02), so no voltage across Load+ and Load- with `load_on` true is not a fault.
 - **After a Fluvy install, an open client shows configuration errors on almost every page** until

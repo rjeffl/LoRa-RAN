@@ -138,6 +138,24 @@ views:
             title: GateLink configuration
             grid_options:
               columns: full
+          # D92's controls by name. The switches and the select write input_mask and
+          # display_mode through their number entities (templates.yaml). On masks an input:
+          # GateLink then treats it as not sensed (GateLink PRD R-3.5l, D90).
+          - type: custom:fluvy-helpers-card
+            title: Inputs and display
+            rows:
+              - entity: switch.lran_gatelink_in3_masked
+                name: Mask IN3, safety loop
+              - entity: switch.lran_gatelink_in4_masked
+                name: Mask IN4, exit wand
+              - entity: switch.lran_gatelink_in5_masked
+                name: Mask IN5, FIRE
+              - entity: switch.lran_gatelink_in6_masked
+                name: Mask IN6, ALARM
+              - entity: number.gatelink_input_mask
+                name: Input mask (bits 0-3 are IN3 to IN6)
+              - entity: select.lran_gatelink_display_mode
+                name: Display
           - type: custom:fluvy-helpers-card
             title: Link
             rows:
@@ -157,8 +175,6 @@ views:
                 name: Watchdog timeout
               - entity: number.gatelink_display_timeout_s
                 name: Display timeout
-              - entity: number.gatelink_display_mode
-                name: Display mode (0 off, 1 on, 2 button)
           - type: custom:fluvy-helpers-card
             title: Gate and relay
             rows:
@@ -182,8 +198,6 @@ views:
                 name: Input poll
               - entity: number.gatelink_input_debounce_samples
                 name: Input debounce samples
-              - entity: number.gatelink_input_mask
-                name: Input mask (IN3 to IN6)
               - entity: number.gatelink_held_open_alert_repeat_s
                 name: Held-open alert repeat
               - entity: number.gatelink_inject_spacing_ms
