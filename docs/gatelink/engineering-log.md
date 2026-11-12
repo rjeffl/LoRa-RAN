@@ -2079,3 +2079,23 @@ later.
 records `boot cause=7 ver=0.1.0 git=572717b`, and the console read `cfg: card mounted; 2 restored, 0 refused`. HA
 shows `sensor.lran_gatelink_inputs_not_sensed` as IN3, IN4, IN5, IN6 and FIRE `off`, so `input_mask` 15 survived the
 reflash. The first BMS window, at about 13:10 EST, read in 1587 ms.
+
+## 2026-11-12 — The temporary deployment's plan
+
+**The operator set out the deployment's plan before the merge.**
+
+- **IN1 and IN2 cannot be tested on the bench.** The gate's wiring harness was installed at the gate on 2026-11-11,
+  so they are checked once the gate runs with the full system. A new mating harness for the bench is built before
+  the v2.0 work.
+- **The deployment is temporary, about two weeks.** Its goal is to test basic gate control and monitoring with the
+  1050 and to collect meaningful field data.
+- **When the v2.0 input and expansion boards are ready**, GateLink is pulled for the retrofit and retested on the
+  bench before it is redeployed.
+- **After this session** the bridge is powered down and moved to its final operating location, and the pack, the
+  MPPT and GateLink are powered down and disconnected for transport. GateLink is next online at the gate.
+- **HA logs the MQTT traffic**, and a separate logger on an always-on machine, the HA host Mac, is an option if
+  monitoring MQTT on its own has value.
+
+**The operator asked whether to run a live soak at the gate, and the session proposed one**: the first days at the
+gate, on the bench soak's pass criteria plus charging, IN1 and IN2 and the gate commands, since none of the three
+could run on the bench. That is not yet decided.
