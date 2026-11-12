@@ -2030,3 +2030,33 @@ showing the 00:49 and 05:30 windows read.
 Claude app before moving the Mac, and `[Errno 65] No route to host` fits a machine leaving its network. The operator
 has no explanation for the two missed BMS windows; `/bms.log` is still the record that could give one. Charging
 waits until GateLink is at the gate.
+
+## 2026-11-12 — The card read: both missed BMS windows failed to connect, and a failed connect gets no retry
+
+**The operator plugged USB in at the bench, and `bench.py attach` read the card with no reset.** The `alive` counters
+kept climbing across the reads, and `/log/fault.txt`'s last boot is the soak's power-on (`cause=1`, `git=155a054`),
+with no boot after it. Every hourly `counts` line on that boot reads `i2c=0 cmd=0 rel=0 push=0 drain=0 drop=0 fail=0`.
+The files and the RAM `bms` line are in `~/lran-soak/2026-11-11-power/card/`.
+
+**`/bms.log` explains both misses.** On the soak's boot it holds 270 windows: 263 `end=read`, 5 `end=aborted` and 2
+`end=connect`. Every aborted window read on its retry 6 or 7 s later. The two `end=connect` windows are the misses:
+
+| `uptime_s` | EST | Line |
+|---|---|---|
+| 36509 | 00:49:29 | `end=connect ms=957 scan=331 conn=611 hs=0`. Next window 302 s later, read |
+| 53399 | 05:30:59 | `end=connect ms=1002 scan=391 conn=596 hs=0`. Next window 300 s later aborted at `scan=31`, and its retry read 7 s after that |
+
+**A failed connect waits the full `bms_poll_s`, as the firmware is written.** `bms_retry_next()` returns true only for
+`BmsEnd::Aborted` (`firmware/gatelink/src/bms_link.cpp:126`), so `BmsEnd::ConnectFailed` is not retried. At 05:30:59
+the connect failed, and the next window aborted, so the reading came about 610 s after the last one. That carried
+`age_s` past the bridge's `bms_stale_s`, and the battery went unavailable for a minute.
+
+**G2's `0x8D` request cost each window 190 ms at the median**, `alm=` 0 to 215 ms over the 270 windows, and no
+window ended `cap`. The longest window took 3072 ms, with a 2149 ms connect. This answers the 2026-11-11 falsifier
+on the bench, not yet at the gate. `/bms8d.log` holds one record, at `uptime_s=302`.
+
+**`/ved.log` agrees with MQTT.** 1,338 rows, one a minute, `age_ms` at most 999 after the first, `err=0`, `cs=0` (off)
+and `inhibited=0` throughout, PV at most 3 cV.
+
+**Falsified by:** an `end=connect` window followed by a window under `bms_retry_s` later, which would mean failed
+connects are retried after all.
