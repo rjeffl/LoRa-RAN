@@ -833,7 +833,9 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   controller, release the interlock. That BMS read is retried once, `bms_retry_s` later
   (`0x1046`, default 5 s), and a retry aborted in turn waits for the next `bms_poll_s`.
   The poll's own reply aborts a window about every 3.6 h, and a whole period's wait after
-  it let `age_s` reach the bridge's `bms_stale_s` (engineering log, 2026-10-26). An unsolicited `STATUS` or `EVENT` waits for the window to end.
+  it let `age_s` reach the bridge's `bms_stale_s` (engineering log, 2026-10-26). A window
+  whose BLE connect failed gets the same one retry, since two such windows missed in the
+  2026-11-11 soak (engineering log, 2026-11-12). An unsolicited `STATUS` or `EVENT` waits for the window to end.
   `bms_window_max_ms` caps the window for a NimBLE stack that hangs, so the interlock is
   never held until the watchdog fires. Preemption alone could not do that, and a cap alone
   would make every command in a window wait. **GL5 measured both on the bench

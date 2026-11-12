@@ -1949,3 +1949,153 @@ and IN1 and IN2 with the harness powered are still owed. `EXCOM_COM` was not met
 
 **Falsified by:** a `/bms.log` line at the gate whose `end=cap` follows `ans=` and a nonzero `alm=`, which would say
 the `0x8D` request pushed a window past `bms_window_max_ms`.
+
+## 2026-11-11 — The power-chain soak starts, and the mask survives a true power cycle
+
+**The operator started the overnight power-chain soak** with the MPPT and the pack on the bench, no PV, USB off the
+StamPLC, and the bridge on its own supply. GateLink powered up at 14:41 EST after a full power-down, USB and 12 V
+both off, while the operator wired the production power harness. That boot is the mask's true power cycle.
+
+**The harness logs MQTT alone.** The bridge's USB port is not on this Mac, and the operator approved an MQTT-only
+run on this laptop, detached from any session so it runs unattended. The log is
+`~/lran-soak/2026-11-11-power/bench.log`, started at 14:43:26 EST:
+
+```bash
+D=~/lran-soak/2026-11-11-power; mkdir -p "$D"
+nohup ~/.platformio/penv/bin/python tools/bench/bench.py --dir "$D" run --mqtt > "$D/run.out" 2>&1 &
+```
+
+**The mask held across the power cycle, on MQTT and HA evidence.** HA's `binary_sensor.gatelink_fire_input` went
+from `unavailable` to `off` at 14:40:49 EST and was not `on` afterwards. The bridge's config mirror reads
+`input_mask` 15, source `override`. The earlier boot with `input_mask` 0 put `event/fire_asserted` on the
+production broker, so a lost mask would have shown. The console's `cfg: 1 restored` line was not read, because no
+console was attached.
+
+**The soak's starting state, 14:43 to 14:47 EST:**
+
+| Topic | State |
+|---|---|
+| Link | Both available. RSSI −53 dBm, SNR 11 dB, `missed_polls` 0, `deployed` 1 |
+| `node/state` | `uptime_s` 119, `boot_time` 19:41:00Z, `node_mv` 13604, `boot_count` null |
+| `solar/state` | Available. `batt_mv` 13600, `batt_ma` −10, `pv_mv` 30, charger `off`, no error, `charge_inhibited` false |
+| `battery/state` | First window read at +200 s: SOC 98 %, `pack_mv` 13630, `pack_ma` 0, cells 3402 to 3410 mV at 17 to 21 °C, BLE RSSI −62 dBm |
+| `gate/state` | `closed`, `input_bits` 0 |
+
+**What the MQTT-only log cannot show.** It has no `BOOT` line, so a reset reads as `uptime_s` falling or a new
+`boot_time`. `boot_count` is null and cannot count them. The card's `/ved.log`, `/bms.log`, `/bms8d.log` and
+`/log/fault.txt` cover the rest once USB goes back in.
+
+**Falsified by:** a `node/state` in the log whose `boot_time` is later than 19:41:00Z, or `/log/fault.txt` showing a
+boot during the soak.
+
+## 2026-11-12 — The power-chain soak closes: no reset, and two BMS windows missed outright
+
+**GateLink ran 21.4 h through the power chain without a reset**, from its 14:41 EST boot on 2026-11-11 to
+12:05 EST on 2026-11-12. Every one of the log's 924 `node/state` messages carries `boot_time` 19:41:00Z, and
+`uptime_s` never fell. HA's `sensor.gatelink_last_boot` still read 19:41:00Z at 12:10 EST, after the log ended.
+
+**`bench.py` lost the broker at 12:05 EST, and GateLink did not.** It timed out and then logged
+`[Errno 65] No route to host` every 5 s, although the Mac could ping 192.168.2.52 at 12:10. HA kept receiving
+GateLink's states, with `missed_polls` 0. The session stopped `bench.py` at 12:10 EST.
+
+**Against the pass criteria in the handoff:**
+
+| Criterion | Result |
+|---|---|
+| No reset after the first boot | Met. One `boot_time` throughout |
+| No missed polls | Met. `missed_polls` 0 in all 1,281 `gatelink/diag/state` messages; `last_seen_s` at most 60; RSSI −60 to −43 dBm |
+| VE.Direct never stale | Met. `solar/state` `available` in all 126 messages, error `no_error` |
+| BMS windows reading, an aborted one on its retry | **Not met.** Two windows produced no reading, below |
+| No input events | Met. No `event/` topic, `gate/state` `closed` with `input_bits` 0 throughout, and HA's `binary_sensor.gatelink_fire_input` never `on` |
+
+**Two BMS windows produced no reading.** Reading times, taken as each message's time less its `age_s`, are 300 s
+apart except at two gaps of 600 s and 609 s: the windows due about 00:49 and 05:30 EST. At 05:35:47 `age_s` reached
+601 and `battery/state` went `available: false` for one minute, until the next reading at about 05:35:54. That
+reading came about 6 s after the window was due, which is consistent with an aborted window read on its retry. The
+MQTT log cannot say whether either missed window aborted or ran its retry; `/bms.log` on the card can. The
+2026-10-27 soak had no such miss: all seven aborts read on their retry.
+
+**Charging was not tested.** The panel was not connected, `pv_mv` stayed at or below 30 and the charger stayed
+`off`, so these images have still not charged. The pack held SOC 98 % and `pack_ma` 0; `batt_mv` fell from 13600
+to 13290 and `node_mv` from 13604 to 13291 over the run. Cells read 17 to 21 °C.
+
+**Still owed before GateLink leaves the bench:** the card's `/bms.log`, `/bms8d.log`, `/ved.log` and
+`/log/fault.txt`, read with USB in, which may explain the two missed windows; and IN1 and IN2 with the gate's power
+harness powered.
+
+**Falsified by:** a `/log/fault.txt` boot between 19:41:00Z on 2026-11-11 and the card read, or `/bms.log` entries
+showing the 00:49 and 05:30 windows read.
+
+**Operator notes, 2026-11-12.** The broker loss at 12:05 EST may have been the operator's: they tried to close the
+Claude app before moving the Mac, and `[Errno 65] No route to host` fits a machine leaving its network. The operator
+has no explanation for the two missed BMS windows; `/bms.log` is still the record that could give one. Charging
+waits until GateLink is at the gate.
+
+## 2026-11-12 — The card read: both missed BMS windows failed to connect, and a failed connect gets no retry
+
+**The operator plugged USB in at the bench, and `bench.py attach` read the card with no reset.** The `alive` counters
+kept climbing across the reads, and `/log/fault.txt`'s last boot is the soak's power-on (`cause=1`, `git=155a054`),
+with no boot after it. Every hourly `counts` line on that boot reads `i2c=0 cmd=0 rel=0 push=0 drain=0 drop=0 fail=0`.
+The files and the RAM `bms` line are in `~/lran-soak/2026-11-11-power/card/`.
+
+**`/bms.log` explains both misses.** On the soak's boot it holds 270 windows: 263 `end=read`, 5 `end=aborted` and 2
+`end=connect`. Every aborted window read on its retry 6 or 7 s later. The two `end=connect` windows are the misses:
+
+| `uptime_s` | EST | Line |
+|---|---|---|
+| 36509 | 00:49:29 | `end=connect ms=957 scan=331 conn=611 hs=0`. Next window 302 s later, read |
+| 53399 | 05:30:59 | `end=connect ms=1002 scan=391 conn=596 hs=0`. Next window 300 s later aborted at `scan=31`, and its retry read 7 s after that |
+
+**A failed connect waits the full `bms_poll_s`, as the firmware is written.** `bms_retry_next()` returns true only for
+`BmsEnd::Aborted` (`firmware/gatelink/src/bms_link.cpp:126`), so `BmsEnd::ConnectFailed` is not retried. At 05:30:59
+the connect failed, and the next window aborted, so the reading came about 610 s after the last one. That carried
+`age_s` past the bridge's `bms_stale_s`, and the battery went unavailable for a minute.
+
+**G2's `0x8D` request cost each window 190 ms at the median**, `alm=` 0 to 215 ms over the 270 windows, and no
+window ended `cap`. The longest window took 3072 ms, with a 2149 ms connect. This answers the 2026-11-11 falsifier
+on the bench, not yet at the gate. `/bms8d.log` holds one record, at `uptime_s=302`.
+
+**`/ved.log` agrees with MQTT.** 1,338 rows, one a minute, `age_ms` at most 999 after the first, `err=0`, `cs=0` (off)
+and `inhibited=0` throughout, PV at most 3 cV.
+
+**Falsified by:** an `end=connect` window followed by a window under `bms_retry_s` later, which would mean failed
+connects are retried after all.
+
+## 2026-11-12 — A failed BMS connect is retried once, by operator decision
+
+**The operator decided to retry a failed connect before deployment**, after the card read showed both of the
+soak's missed windows ended `end=connect`. `bms_retry_next()` now returns true for `BmsEnd::ConnectFailed` as well as
+`BmsEnd::Aborted`, so such a window is tried again `bms_retry_s` later, default 5 s. A retry that ends either way
+still waits the full `bms_poll_s`. The other failures, `not_found`, `handshake`, `subscribe`, `request`,
+`no_answer` and `init`, are unchanged; none appeared in the soak.
+
+`test_a_failed_connect_is_retried_once` covers it, and `bms_retry_s`'s description in `lran-config`'s table now names
+both cases.
+
+**Falsified by:** an `end=connect` line in `/bms.log` on the new image whose next window is not about `bms_retry_s`
+later.
+
+**Flashed 2026-11-12 at 13:05 EST**, the production image of `572717b` over USB from a clean tree. `/log/fault.txt`
+records `boot cause=7 ver=0.1.0 git=572717b`, and the console read `cfg: card mounted; 2 restored, 0 refused`. HA
+shows `sensor.lran_gatelink_inputs_not_sensed` as IN3, IN4, IN5, IN6 and FIRE `off`, so `input_mask` 15 survived the
+reflash. The first BMS window, at about 13:10 EST, read in 1587 ms.
+
+## 2026-11-12 — The temporary deployment's plan
+
+**The operator set out the deployment's plan before the merge.**
+
+- **IN1 and IN2 cannot be tested on the bench.** The gate's wiring harness was installed at the gate on 2026-11-11,
+  so they are checked once the gate runs with the full system. A new mating harness for the bench is built before
+  the v2.0 work.
+- **The deployment is temporary, about two weeks.** Its goal is to test basic gate control and monitoring with the
+  1050 and to collect meaningful field data.
+- **When the v2.0 input and expansion boards are ready**, GateLink is pulled for the retrofit and retested on the
+  bench before it is redeployed.
+- **After this session** the bridge is powered down and moved to its final operating location, and the pack, the
+  MPPT and GateLink are powered down and disconnected for transport. GateLink is next online at the gate.
+- **HA logs the MQTT traffic**, and a separate logger on an always-on machine, the HA host Mac, is an option if
+  monitoring MQTT on its own has value.
+
+**The operator asked whether to run a live soak at the gate, and the session proposed one**: the first days at the
+gate, on the bench soak's pass criteria plus charging, IN1 and IN2 and the gate commands, since none of the three
+could run on the bench. That is not yet decided.

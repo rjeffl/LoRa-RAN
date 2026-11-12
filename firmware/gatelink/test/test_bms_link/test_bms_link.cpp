@@ -228,6 +228,14 @@ void test_an_aborted_window_is_retried_once() {
   TEST_ASSERT_FALSE(gatelink::bms_retry_next(gatelink::BmsEnd::Cap, false));
 }
 
+// The 2026-11-11 soak: both missed windows ended end=connect, and neither was retried.
+void test_a_failed_connect_is_retried_once() {
+  TEST_ASSERT_TRUE(gatelink::bms_retry_next(gatelink::BmsEnd::ConnectFailed, false));
+  TEST_ASSERT_FALSE(gatelink::bms_retry_next(gatelink::BmsEnd::ConnectFailed, true));
+  TEST_ASSERT_FALSE(gatelink::bms_retry_next(gatelink::BmsEnd::Handshake, false));
+  TEST_ASSERT_FALSE(gatelink::bms_retry_next(gatelink::BmsEnd::InitFailed, false));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_no_read_sends_sentinels);
@@ -239,7 +247,8 @@ int main(int, char**) {
   RUN_TEST(test_unmeasured_rssi_reads_no_link);
   RUN_TEST(test_awaited_replies);
   RUN_TEST(test_tx_gate);
-RUN_TEST(test_an_aborted_window_is_retried_once);
+  RUN_TEST(test_an_aborted_window_is_retried_once);
+  RUN_TEST(test_a_failed_connect_is_retried_once);
   RUN_TEST(test_log_line_names_the_end_and_its_stages);
   RUN_TEST(test_log_line_too_long_returns_zero);
   RUN_TEST(test_alarms_line_and_change);

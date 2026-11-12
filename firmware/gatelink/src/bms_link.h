@@ -96,8 +96,10 @@ const char* bms_end_name(BmsEnd e);
 // Whether the next window is a retry, bms_retry_s away rather than bms_poll_s. A window a
 // reply aborted gets one: bms_task waits bms_poll_s after a window ends, so the window's
 // phase walks past the bridge's 60 s poll about every 3.6 h, and a whole period's wait
-// after that abort let age_s reach the bridge's bms_stale_s (log, 2026-10-26). A retry
-// that is aborted too waits the full period, so a burst of replies cannot hold BLE busy.
+// after that abort let age_s reach the bridge's bms_stale_s (log, 2026-10-26). A window
+// whose connect failed gets one too: two did in the 2026-11-11 soak, and the second, with
+// an abort after it, took the battery stale (log, 2026-11-12). A retry that ends either
+// way waits the full period, so a burst of replies cannot hold BLE busy.
 bool bms_retry_next(BmsEnd end, bool was_retry);
 
 // How long each step took, in ms. A step that did not run reads 0.

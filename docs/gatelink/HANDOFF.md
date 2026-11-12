@@ -90,6 +90,18 @@ repository (engineering log, 2026-11-04). The PCB is not designed, and this chan
 session built D90's `input_mask`, PRD R-4.7's display with `display_mode`, the panel's status lines, G2's `0x8D` record,
 `/ved.log` and the bridge's B2, flashed both boards and started a soak (engineering log, 2026-11-11).
 
+**Updated 2026-11-11 by the soak-start session.** The overnight power-chain soak is running, logged over MQTT
+alone, and the mask held across a true power cycle (engineering log, 2026-11-11, *The power-chain soak starts*). It
+changed no firmware.
+
+**Updated 2026-11-12 by the soak-close session.** The power-chain soak closed at 21.4 h with no reset, no missed
+poll and VE.Direct never stale, but two BMS windows produced no reading, and one took the battery unavailable for a
+minute (engineering log, 2026-11-12). The card read then found both were failed BLE connects, which the firmware
+did not retry (engineering log, 2026-11-12, *The card read*). By operator decision, `572717b` retries a failed connect
+once, and GateLink runs it, flashed over USB.
+The operator then set out the deployment's plan (engineering log, 2026-11-12, *The temporary deployment's plan*):
+the bridge, the pack, the MPPT and GateLink are powered down for the move, and GateLink is next online at the gate.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -109,45 +121,42 @@ amending D89 for that period, so the charge-inhibit close-out runs through the f
 the arrangement per D91, and GateLink's firmware for v2.0 follows once the boards are ready to install and test.
 [`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) still orders the at-gate sequence.
 
-**Both boards run production images of `155a054` (GateLink) and `ba13ffd` (bridge)**, flashed over USB from a
-clean tree (engineering log, 2026-11-11). The new images replace `cb1be00`. **`input_mask` is 15 on GateLink's
-card**, persisted and restored across a software reset. A first soak ran 14 min with USB attached and no MPPT or
-pack, then stopped by operator decision for a power-chain soak.
+**GateLink runs the production image of `572717b`, and the bridge `ba13ffd`**, both flashed over USB from a clean
+tree (engineering log, 2026-11-11 and 2026-11-12). `572717b` is `155a054` with a failed BMS connect retried once.
+**`input_mask` is 15 on GateLink's card**, persisted and restored across a software reset, a true power cycle and a
+reflash.
 
-**The operator plans deployment for 2026-11-12, after an overnight power-chain soak.** It follows
-*The soak's setup* below: the MPPT and the pack back on the bench, **USB off the StamPLC**, the bridge on its own
-supply. Log it with only the bridge's port, so GateLink's power comes through the chain alone:
+**The power-chain soak closed at 21.4 h with no reset and the BMS criterion not met** (engineering log, 2026-11-12).
+Two windows ended `end=connect`, which `155a054` did not retry, and one of them took the battery unavailable for a
+minute. `572717b` retries a failed connect once, and that retry has not yet met a real failed connect. Charging has
+never run on these images; no panel was connected.
 
-```bash
-D=~/lran-soak/2026-11-11-power; mkdir -p "$D"
-nohup ~/.platformio/penv/bin/python tools/bench/bench.py --dir "$D" run --port BRG=/dev/cu.usbserial-0001 --mqtt > "$D/run.out" 2>&1 &
-```
+**The deployment is temporary, about two weeks** (operator, 2026-11-12). Its goal is basic gate control and
+monitoring with the 1050, and meaningful field data. **Proposed, not decided: the first days at the gate are a live
+soak**, on the bench soak's pass criteria plus charging, IN1 and IN2, and the gate commands. When the v2.0 input and expansion boards are
+ready, GateLink comes off the gate for the retrofit and a bench retest before it goes back.
 
-**The soak passes with** no `BOOT` after the first, no missed polls, VE.Direct never stale, BMS windows
-reading (an aborted one read on its retry), and no input events. Charging, if there is sun, is the first on these
-images. The operator records the result in the engineering log before deployment.
+**Before deployment, the operator:**
 
-**Before GateLink leaves the bench, the operator:**
-
-1. Stops the soak (`bench.py --dir "$D" send quit`), plugs USB in, and reads `/ved.log`, `/bms.log`,
-   `/bms8d.log` and `/log/fault.txt` with `bench.py attach`. `/bms.log`'s `alm=` is what G2's `0x8D` request costs
-   a window, and its first measurement (engineering log, 2026-11-11, falsifier).
-2. Confirms the soak's first `BOOT`, after a power-up with USB and 12 V both off, shows `cfg: 1 restored` and no
-   `FIRE_ASSERTED`. That is the mask's true power cycle.
-3. Powers the harness and confirms IN1 and IN2 follow the gate, which also answers whether `EXCOM_COM` reaches the
-   StamPLC without the input board (D92's falsifier).
-4. Turns off the HA automations `lran_1_fire` and `lran_1_hard_shutdown` for the period (D92).
-5. Confirms that the drives holding the production master are encrypted (the brief's *The production
+1. Turns off the HA automations `lran_1_fire` and `lran_1_hard_shutdown` for the period (D92).
+2. Confirms that the drives holding the production master are encrypted (the brief's *The production
    `secrets.h`*).
 
-**At the gate, read the first BMS windows' `/bms.log` lines.** G2's `0x8D` request has never met the pack, and its
-`alm=` field is what it costs the window (engineering log, 2026-11-11, falsifier).
+**At the gate, after the at-gate sequence:**
+
+1. **Confirm IN1 and IN2 follow the gate.** The gate's wiring harness went in on 2026-11-11, so the bench cannot
+   test them; this also answers whether `EXCOM_COM` reaches the StamPLC without the input board (D92's falsifier).
+   A mating harness for the bench comes before the v2.0 work.
+2. **Read the first BMS windows' `/bms.log` lines.** G2's `0x8D` request cost 190 ms at the median on the bench
+   and has not met the pack at the gate (engineering log, 2026-11-12, *The card read*). An `end=connect` line shows
+   whether the retry reads on its second try.
+3. **Read `switch.gatelink_relay_dry_run`** before pressing anything, as below.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **The overnight power-chain soak and the bench checks** above: the card files, the power cycle, IN1 and IN2 with the harness powered. Operator, with a session for the reading if wanted | Engineering log, 2026-11-11; Decision Register §3.20; *The soak's setup* |
 | 3 | **HA reads `input_mask`**: built, and on production since 2026-11-11. IN3 to IN6 read unavailable while masked (PRD R-3.5l's exception, D90) | `docs/ha/HANDOFF.md`, *The next job* |
-| 4 | **The at-gate sequence**, with no input board (D92) | brief, *At-gate sequence*; Decision Register §3.20 |
+| 3 | **An MQTT logger on an always-on machine**, the HA host Mac: `bench.py run --mqtt` through the live soak. HA's recorder keeps entity states for about 10 days; the log keeps every message, `rxlog` and `boot_time` included. Operator's call whether it is worth it | `tools/bench/README.md`; engineering log, 2026-11-12 |
+| 4 | **The at-gate sequence and the proposed live soak**, with no input board (D92), and the at-gate checks above | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |
 | Parallel | **Input board v2.0 (D91)**: fabrication is underway. GateLink's images for it follow once the boards are in | v2.0 brief; Impl Plan §3.2 |
 
@@ -222,6 +231,8 @@ panic of 2026-10-26 is fixed in `5fd1509`, and the timer-task panic may share it
 not checked (engineering log, 2026-10-26, *The NimBLE abort panic*). `/bms.log` explained the BMS misses: each was a window the poll's reply
 aborted (engineering log, 2026-10-26, *`/bms.log` read*). In the final soak `bms_retry_s`
 read each such window 6 or 7 s later (engineering log, 2026-10-27, *The final soak*).
+The 2026-11-11 power-chain soak on the D92 images ran 21.4 h without a reset, but two windows produced no reading at
+all: each was a failed connect, which gets no retry (engineering log, 2026-11-12, *The card read*).
 
 **The MPPT's battery harness is fixed, and B1 is closed with no measurement** (operator,
 2026-11-02). The new harness is a DIN splice block with wire sized for the loads and integrated
