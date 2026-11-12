@@ -1987,3 +1987,41 @@ console was attached.
 
 **Falsified by:** a `node/state` in the log whose `boot_time` is later than 19:41:00Z, or `/log/fault.txt` showing a
 boot during the soak.
+
+## 2026-11-12 — The power-chain soak closes: no reset, and two BMS windows missed outright
+
+**GateLink ran 21.4 h through the power chain without a reset**, from its 14:41 EST boot on 2026-11-11 to
+12:05 EST on 2026-11-12. Every one of the log's 924 `node/state` messages carries `boot_time` 19:41:00Z, and
+`uptime_s` never fell. HA's `sensor.gatelink_last_boot` still read 19:41:00Z at 12:10 EST, after the log ended.
+
+**`bench.py` lost the broker at 12:05 EST, and GateLink did not.** It timed out and then logged
+`[Errno 65] No route to host` every 5 s, although the Mac could ping 192.168.2.52 at 12:10. HA kept receiving
+GateLink's states, with `missed_polls` 0. The session stopped `bench.py` at 12:10 EST.
+
+**Against the pass criteria in the handoff:**
+
+| Criterion | Result |
+|---|---|
+| No reset after the first boot | Met. One `boot_time` throughout |
+| No missed polls | Met. `missed_polls` 0 in all 1,281 `gatelink/diag/state` messages; `last_seen_s` at most 60; RSSI −60 to −43 dBm |
+| VE.Direct never stale | Met. `solar/state` `available` in all 126 messages, error `no_error` |
+| BMS windows reading, an aborted one on its retry | **Not met.** Two windows produced no reading, below |
+| No input events | Met. No `event/` topic, `gate/state` `closed` with `input_bits` 0 throughout, and HA's `binary_sensor.gatelink_fire_input` never `on` |
+
+**Two BMS windows produced no reading.** Reading times, taken as each message's time less its `age_s`, are 300 s
+apart except at two gaps of 600 s and 609 s: the windows due about 00:49 and 05:30 EST. At 05:35:47 `age_s` reached
+601 and `battery/state` went `available: false` for one minute, until the next reading at about 05:35:54. That
+reading came about 6 s after the window was due, which is consistent with an aborted window read on its retry. The
+MQTT log cannot say whether either missed window aborted or ran its retry; `/bms.log` on the card can. The
+2026-10-27 soak had no such miss: all seven aborts read on their retry.
+
+**Charging was not tested.** The panel was not connected, `pv_mv` stayed at or below 30 and the charger stayed
+`off`, so these images have still not charged. The pack held SOC 98 % and `pack_ma` 0; `batt_mv` fell from 13600
+to 13290 and `node_mv` from 13604 to 13291 over the run. Cells read 17 to 21 °C.
+
+**Still owed before GateLink leaves the bench:** the card's `/bms.log`, `/bms8d.log`, `/ved.log` and
+`/log/fault.txt`, read with USB in, which may explain the two missed windows; and IN1 and IN2 with the gate's power
+harness powered.
+
+**Falsified by:** a `/log/fault.txt` boot between 19:41:00Z on 2026-11-11 and the card read, or `/bms.log` entries
+showing the 00:49 and 05:30 windows read.
