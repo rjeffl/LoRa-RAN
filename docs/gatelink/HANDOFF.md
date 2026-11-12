@@ -102,6 +102,11 @@ once, and GateLink runs it, flashed over USB.
 The operator then set out the deployment's plan (engineering log, 2026-11-12, *The temporary deployment's plan*):
 the bridge, the pack, the MPPT and GateLink are powered down for the move, and GateLink is next online at the gate.
 
+**Updated 2026-11-12 by the at-gate session.** GateLink is at the gate and online since 14:38 EST. HA's gate state is wrong
+for two reasons: IN1 and IN2 are wired to the relays' NC contacts, which inverts them against the firmware, and the
+1050's OUT1 function is disabled after it lost part of its programming, with one programming button dead (engineering
+log, 2026-11-12, *At the gate*). The operator chose to rewire to NO. The FIRE and hard-shutdown automations are off.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -136,21 +141,24 @@ monitoring with the 1050, and meaningful field data. **Proposed, not decided: th
 soak**, on the bench soak's pass criteria plus charging, IN1 and IN2, and the gate commands. When the v2.0 input and expansion boards are
 ready, GateLink comes off the gate for the retrofit and a bench retest before it goes back.
 
-**Before deployment, the operator:**
+**Done 2026-11-12:** `automation.lran_1_fire_asserted` and `automation.lran_1_gatelink_hard_shutdown` are off (D92).
+IN2 follows the gate, so `EXCOM_COM` reaches the StamPLC and D92's falsifier is not met. **Still owed:** confirming the
+drives holding the production master are encrypted.
 
-1. Turns off the HA automations `lran_1_fire` and `lran_1_hard_shutdown` for the period (D92).
-2. Confirms that the drives holding the production master are encrypted (the brief's *The production
-   `secrets.h`*).
+**Next visit to the gate, in daylight:**
 
-**At the gate, after the at-gate sequence:**
+1. **Move IN1 and IN2 from the relays' NC to NO**, common on GND and `EXCOM_COM` on +12 V (Impl Plan §3.2). Then a
+   closed, idle gate reads `closed`, and a full cycle reads `moving` while OUT2 is energized.
+2. **Restore OUT1 as OPEN on the 1050**, which needs the dead programming button repaired or the board replaced. Until
+   then IN1 reads 0, so a gate counting down reads `moving` and **a held-open gate reads `closed`**.
+3. **Read the first BMS windows' `/bms.log` lines.** An `end=connect` line shows whether `572717b`'s retry reads on
+   its second try, and the windows show what `0x8D` costs against the pack.
+4. **Read `switch.gatelink_relay_dry_run`** before pressing anything, as below.
 
-1. **Confirm IN1 and IN2 follow the gate.** The gate's wiring harness went in on 2026-11-11, so the bench cannot
-   test them; this also answers whether `EXCOM_COM` reaches the StamPLC without the input board (D92's falsifier).
-   A mating harness for the bench comes before the v2.0 work.
-2. **Read the first BMS windows' `/bms.log` lines.** G2's `0x8D` request cost 190 ms at the median on the bench
-   and has not met the pack at the gate (engineering log, 2026-11-12, *The card read*). An `end=connect` line shows
-   whether the retry reads on its second try.
-3. **Read `switch.gatelink_relay_dry_run`** before pressing anything, as below.
+**The MQTT logger runs on the HA host Mac** from its own iTerm window under `caffeinate -i`, since 17:48 EST 2026-11-12:
+`~/lran-soak/2026-11-12-gate/bench.log`, stopped with `bench.py --dir ~/lran-soak/2026-11-12-gate send quit`. On that
+Mac, production ha-mcp is registered only for the `mc-home-assistant` project, so a LoRa-RAN session calls it
+over HTTP or registers `ha-prod` at user scope first.
 
 | Tier | Task | Read |
 |---|---|---|

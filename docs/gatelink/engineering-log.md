@@ -2099,3 +2099,40 @@ reflash. The first BMS window, at about 13:10 EST, read in 1587 ms.
 **The operator asked whether to run a live soak at the gate, and the session proposed one**: the first days at the
 gate, on the bench soak's pass criteria plus charging, IN1 and IN2 and the gate commands, since none of the three
 could run on the bench. That is not yet decided.
+
+## 2026-11-12 — At the gate: IN1 and IN2 are wired to NC, and the 1050's OUT1 is disabled
+
+**GateLink booted at the gate at 14:38 EST** (`last_boot` 19:38 UTC) on `572717b`, with `input_mask` 15. Production
+HA's history from then shows `sensor.gatelink_gate` only ever `open_countdown`, `open_held` or, once, `closed` (15:23:34
+to 15:24:22), never `moving` or `closed` at rest. It has read `open_countdown` since 15:24, while the gate stands open.
+
+**The operator's at-gate checks:**
+
+- **IN2 follows the gate; IN1 does not.** `EXCOM_COM` reaches the StamPLC without the input board, so D92's falsifier
+  is not met.
+- **The 1050 has lost part of its programming, and OUT1's function is disabled.** One of the board's programming
+  buttons no longer works, so OUT1 cannot be reprogrammed to OPEN in place.
+- **IN1 and IN2 are wired to the relays' NC contacts**, relay common to GND and `EXCOM_COM` at +12 V, so each input
+  is energized while its relay is idle. The operator wired NC for an inverted sense.
+- **Gate commands were sent from HA** (`hold_source` read `lran` at 14:53:30 and 15:30:49), with
+  `switch.gatelink_relay_dry_run` off.
+- **The first BMS windows' `/bms.log` lines are not read yet.**
+
+**The NC wiring inverts IN1 and IN2 against the firmware and the plan.** Implementation Plan §3.2 says *Use NO*, with
+IN1 and IN2 asserted when energized, and `kInputsActiveLow` (`gate_io.h`) inverts only IN3 to IN5. On NC, a closed,
+idle gate reads 1/1, `open_countdown`, and a held-open gate reads 0/1, `moving`. With OUT1 dead, IN1 reads 1
+throughout, so GateLink reports IN2's inverse as `open_countdown` (gate idle, open or closed) and `open_held` (moving or
+counting down). The history fits: each `open_held` lasted 16 to 57 s, the length of a movement, and the gate open now
+with no countdown reads `open_countdown`. **HA's gate state, cover and hold alerts are wrong while both conditions
+hold**, and fixing either alone does not make them right.
+
+**The operator decided to rewire IN1 and IN2 to the relays' NO contacts**, as the plan specifies, rather than invert
+them in firmware. Common stays on GND and `EXCOM_COM` on +12 V. OUT1 still needs its function restored on the 1050
+before IN1 means anything: on NO with OUT1 dead, IN1 reads 0, and a held-open gate reads `closed`.
+
+**HA changes, by operator decision:** `automation.lran_1_fire_asserted` and `automation.lran_1_gatelink_hard_shutdown`
+turned off at 17:41 EST through production's ha-mcp (D92's pre-deployment step 1). The production master's drives are
+not yet confirmed encrypted.
+
+**Falsified by:** IN1 and IN2 reading 0/0 with the gate closed and idle once the inputs are on NO, or a meter showing
+OUT1's NC contact open with the gate closed.
