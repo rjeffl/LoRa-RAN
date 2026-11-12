@@ -1579,9 +1579,9 @@ void app_task(void*) {
 
 // GL5 - one BMS read per bms_poll_s, under the LoRa/BLE interlock (PRD R-3.4a, R-4.3h).
 // R-3.4d: a failed window costs this task alone, and the next poll tries again. A window a
-// reply aborted is retried sooner, once (bms_retry_next()).
+// reply aborted, or whose connect failed, is retried sooner, once (bms_retry_next()).
 void bms_task(void*) {
-  bool retry = false;  // the next window is the one retry of an aborted window
+  bool retry = false;  // the next window is the one retry of an aborted or unconnected window
   for (;;) {
     count(TaskId::Bms);
     const bool     is_retry = retry;

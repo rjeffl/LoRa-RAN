@@ -243,8 +243,9 @@ inline constexpr ParamDef kGateLinkParams[] = {
     // A poll's reply aborts a window about every 3.6 h, and waiting a whole bms_poll_s
     // after one let age_s reach the bridge's bms_stale_s (GateLink log, 2026-10-26). The
     // floor leaves the reply its backoff and airtime before the retry takes the interlock.
+    // A failed connect is retried the same way since 2026-11-12 (GateLink log).
     {0x1046, "bms_retry_s", Owner::Node, Access::ReadWrite, PType::U16, 2, 60, 5, "s",
-     "Retry after a window a reply aborted, Impl Plan 5.2"},
+     "Retry after a window a reply aborted or a connect failed, Impl Plan 5.2"},
 
     // Panel and bench. The buzzer has no requirement yet, so it starts silent.
     {0x1050, "display_timeout_s", Owner::Node, Access::ReadWrite, PType::U16, 10, 3600, 60,

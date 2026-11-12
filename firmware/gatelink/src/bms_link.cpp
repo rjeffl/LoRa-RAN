@@ -124,7 +124,8 @@ const char* bms_end_name(BmsEnd e) {
 }
 
 bool bms_retry_next(BmsEnd end, bool was_retry) {
-  return end == BmsEnd::Aborted && !was_retry;
+  // The 2026-11-11 soak's two missed windows were failed connects (GateLink log, 2026-11-12).
+  return (end == BmsEnd::Aborted || end == BmsEnd::ConnectFailed) && !was_retry;
 }
 
 bool bms_alarms_differ(const BmsAlarmsRaw& a, const BmsAlarmsRaw& b) {

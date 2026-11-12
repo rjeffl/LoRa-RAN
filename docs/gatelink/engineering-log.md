@@ -2060,3 +2060,17 @@ and `inhibited=0` throughout, PV at most 3 cV.
 
 **Falsified by:** an `end=connect` window followed by a window under `bms_retry_s` later, which would mean failed
 connects are retried after all.
+
+## 2026-11-12 — A failed BMS connect is retried once, by operator decision
+
+**The operator decided to retry a failed connect before deployment**, after the card read showed both of the
+soak's missed windows ended `end=connect`. `bms_retry_next()` now returns true for `BmsEnd::ConnectFailed` as well as
+`BmsEnd::Aborted`, so such a window is tried again `bms_retry_s` later, default 5 s. A retry that ends either way
+still waits the full `bms_poll_s`. The other failures, `not_found`, `handshake`, `subscribe`, `request`,
+`no_answer` and `init`, are unchanged; none appeared in the soak.
+
+`test_a_failed_connect_is_retried_once` covers it, and `bms_retry_s`'s description in `lran-config`'s table now names
+both cases.
+
+**Falsified by:** an `end=connect` line in `/bms.log` on the new image whose next window is not about `bms_retry_s`
+later.
