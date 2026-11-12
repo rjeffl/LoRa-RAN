@@ -97,7 +97,8 @@ changed no firmware.
 **Updated 2026-11-12 by the soak-close session.** The power-chain soak closed at 21.4 h with no reset, no missed
 poll and VE.Direct never stale, but two BMS windows produced no reading, and one took the battery unavailable for a
 minute (engineering log, 2026-11-12). The card read then found both were failed BLE connects, which the firmware
-does not retry (engineering log, 2026-11-12, *The card read*). It changed no firmware.
+did not retry (engineering log, 2026-11-12, *The card read*). By operator decision, `572717b` retries a failed connect
+once, and GateLink runs it, flashed over USB.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -118,9 +119,9 @@ amending D89 for that period, so the charge-inhibit close-out runs through the f
 the arrangement per D91, and GateLink's firmware for v2.0 follows once the boards are ready to install and test.
 [`LRAN-GateLink-Deployment-Brief`](../shared/LRAN-GateLink-Deployment-Brief.md) still orders the at-gate sequence.
 
-**Both boards run production images of `155a054` (GateLink) and `ba13ffd` (bridge)**, flashed over USB from a
-clean tree (engineering log, 2026-11-11). The new images replace `cb1be00`. **`input_mask` is 15 on GateLink's
-card**, persisted and restored across a software reset. A first soak ran 14 min with USB attached and no MPPT or
+**GateLink runs the production image of `572717b`, and the bridge `ba13ffd`**, both flashed over USB from a clean
+tree (engineering log, 2026-11-11 and 2026-11-12). `572717b` is `155a054` with a failed BMS connect retried once.
+**`input_mask` is 15 on GateLink's card**, persisted and restored across a software reset and a reflash. A first soak ran 14 min with USB attached and no MPPT or
 pack, then stopped by operator decision for a power-chain soak.
 
 **The power-chain soak is over: 21.4 h with no reset, and the BMS criterion not met** (engineering log,
@@ -128,8 +129,9 @@ pack, then stopped by operator decision for a power-chain soak.
 battery went unavailable for one minute. The MQTT log ends at 12:05 EST, where `bench.py` lost the broker; HA showed
 GateLink still on its 19:41:00Z boot afterwards; the operator may have caused that loss by moving the Mac. Charging
 was not tested, because no panel was connected, and waits until GateLink is at the gate. **`/bms.log` says why: both windows ended `end=connect`**, and `bms_retry_next()` retries only
-`end=aborted` windows, so each waited the full `bms_poll_s` (engineering log, 2026-11-12, *The card read*). **Whether to
-retry a failed connect before deployment is the operator's call**; it is a reflash, cheap now and not at the gate.
+`end=aborted` windows, so each waited the full `bms_poll_s` (engineering log, 2026-11-12, *The card read*). **`572717b`
+now retries a failed connect once**, by operator decision (engineering log, 2026-11-12, *A failed BMS connect is retried
+once*). The power-chain soak ran on `155a054`, so the retry has not met a failed connect yet.
 
 **Before GateLink leaves the bench, the operator:**
 
@@ -149,7 +151,7 @@ retry a failed connect before deployment is the operator's call**; it is a refla
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **The bench checks** above: IN1 and IN2 with the harness powered, and the operator's call on retrying a failed BMS connect. Operator, with a session for the reading if wanted | Engineering log, 2026-11-11 and 2026-11-12; Decision Register §3.20; *The soak's setup* |
+| 3 | **The bench checks** above: IN1 and IN2 with the harness powered. Operator, with a session for the reading if wanted | Engineering log, 2026-11-11 and 2026-11-12; Decision Register §3.20; *The soak's setup* |
 | 3 | **HA reads `input_mask`** to show IN3 to IN6 as not sensed rather than clear (PRD R-3.5l's exception, D90). An HA package change; no firmware | PRD R-3.5l; `docs/ha/HANDOFF.md`, *The next job* |
 | 4 | **The at-gate sequence**, with no input board (D92) | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |

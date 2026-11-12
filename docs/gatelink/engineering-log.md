@@ -2074,3 +2074,8 @@ both cases.
 
 **Falsified by:** an `end=connect` line in `/bms.log` on the new image whose next window is not about `bms_retry_s`
 later.
+
+**Flashed 2026-11-12 at 13:05 EST**, the production image of `572717b` over USB from a clean tree. `/log/fault.txt`
+records `boot cause=7 ver=0.1.0 git=572717b`, and the console read `cfg: card mounted; 2 restored, 0 refused`. HA
+shows `sensor.lran_gatelink_inputs_not_sensed` as IN3, IN4, IN5, IN6 and FIRE `off`, so `input_mask` 15 survived the
+reflash. The first BMS window, at about 13:10 EST, read in 1587 ms.
