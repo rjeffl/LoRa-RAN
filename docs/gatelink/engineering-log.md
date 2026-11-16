@@ -2136,3 +2136,43 @@ not yet confirmed encrypted.
 
 **Falsified by:** IN1 and IN2 reading 0/0 with the gate closed and idle once the inputs are on NO, or a meter showing
 OUT1's NC contact open with the gate closed.
+
+## 2026-11-16 — Charge inhibit should stop the MPPT, not rely on the BMS
+
+**The firmware observes low-temperature charge inhibit and enforces nothing**, as PRD §6.4 specifies: the BMS
+blocks the charge, and GateLink reports it. `charge_inhibit.cpp` sets spec 7.2.6 bit 3 and sends `CHARGE_INHIBITED`.
+No GateLink code path stops the charger, and `switch.gatelink_mppt_write_enable` is off.
+
+**Production HA at about 09:00 EST, the BMS read 125 s old:**
+
+- Pack sensors at 30.2 to 35.6 °F, coldest 30.2 °F. `binary_sensor.gatelink_charging_inhibited` on since 06:32,
+  decided by the BMS path. It was also on from 04:59 to 10:30 on 2026-11-15.
+- The MPPT in absorption at 14.21 V and 70 mA, with PV at 20.26 V.
+- The BMS reading the pack at 13.29 V and 0 mA.
+
+The 0.92 V between the MPPT's battery terminal and the pack fits an open charge FET. That is not confirmed, and it
+bears on the *Open* item that R-6.4b has not seen a BMS refuse charge.
+
+**The MPPT's own cut-off is not acting.** `sensor.gatelink_low_temperature_charge_cut_off` reads 5.0 °C, yet the
+charger was in absorption with the pack below 0 °C. `sensor.gatelink_mppt_temperature` reads unknown, so the
+charger probably has no battery temperature to compare. That is not established.
+
+**The operator decided that GateLink's charge inhibit must control the MPPT directly.** Community input is that
+relying on the BMS for charge inhibit can be inaccurate, and that a BMS opening its charge FET during real PV
+charging can damage the MPPT. The operator rates that risk as low. The control could live in GateLink's firmware or
+in HA. Neither is chosen, and no decision number is assigned yet.
+
+**HA's draw figure may be overstated while charging is inhibited.** `sensor.lran_gatelink_draw_current` is MPPT
+battery current minus pack current. The charger's 70 mA that the pack does not take counts as draw, which feeds
+`sensor.lran_gatelink_draw_7d` (12.3 Ah) and the autonomy estimate. The overstatement is not checked.
+
+**The MQTT logger on the HA host Mac is not logging.** `bench.log` shows `[Errno 65] No route to host; reconnecting
+in 5 s` every 5 s from at least 08:54 to 09:10 EST, while production HA still receives GateLink's traffic. When it
+started, and why the Mac has no route to `MQTT_HOST`, are not established. The sandbox host, 192.168.2.52, was also
+unreachable from this session's ha-sandbox server.
+
+**GateLink itself is healthy.** It has not reset since it booted at the gate at 14:38 EST on 2026-11-12. Missed polls
+read 0, RSSI about −96 dBm, SNR 11 dB, SOC 91 to 99 % over four days, and cell spread 3 mV.
+
+**Falsified by:** the MPPT staying in bulk or absorption below 0 °C after the MPPT control is in, or a meter at the
+pack terminals reading the MPPT's voltage while `charging_inhibited` is on.

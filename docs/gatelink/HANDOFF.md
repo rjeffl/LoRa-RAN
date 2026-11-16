@@ -400,6 +400,8 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **Charge inhibit must stop the MPPT directly, by operator decision of 2026-11-16**, not rely on the BMS opening its charge FET. Firmware or HA is not chosen, and the MPPT's own 5 °C cut-off is not acting (engineering log, 2026-11-16).
+- **The MQTT logger on the HA host Mac has no route to the broker** since at least 08:54 EST on 2026-11-16, while HA still receives GateLink. Find when it started in `bench.log` and restart it (engineering log, 2026-11-16).
 - **Both v2.0 boards are being fabricated** (D91; Gerbers checked, 2026-11-08; operator, 2026-11-11). Each brief's *Gerbers, 2026-11-08* has the check: [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md).
 - **The input board differs from Impl Plan §3.2, and Q1's and Q3's gates leak.** The plan needs reconciling with what is built (engineering log, 2026-11-03, *The input board's netlist* and *The B3 soak closes*). v2.0 follows the plan's Q1 to Q3 stage.
 - **A SET of more than 32 one-byte entries loses its results past the 32nd.** One `CONFIG_ACK` holds 32 at u8, and lran-node does not split a SET's answer as spec §7.4.1 splits a readback. The simnode's store reached 32 with D92's rows, which exposed it; nothing sends such a SET today.
