@@ -43,20 +43,11 @@ views:
           - type: custom:fluvy-scenes-card
             columns: 1
             scenes:
-              - entity: cover.gatelink_gate
-                name: Open - AutoClose
-                icon: mdi:gate-open
-                subtitle: Opens, then closes on its own
-                tap_action:
-                  action: perform-action
-                  perform_action: cover.open_cover
-                  target:
-                    entity_id: cover.gatelink_gate
               # GateLink PRD 7.1: on opens and locks.
               - entity: switch.gatelink_hold_gate_open
                 name: Open - Hold
                 icon: mdi:lock
-                subtitle: Opens and stays open
+                subtitle: Opens gate and locks in the open position
                 tap_action:
                   action: perform-action
                   perform_action: switch.turn_on
@@ -66,10 +57,20 @@ views:
               - entity: cover.gatelink_gate
                 name: Close
                 icon: mdi:gate
-                subtitle: Unlocks and closes
+                subtitle: Closes gate from the locked-open state
                 tap_action:
                   action: perform-action
                   perform_action: cover.close_cover
+                  target:
+                    entity_id: cover.gatelink_gate
+              # Last: RF remotes and the exit wand cover this opening (plan 8.1).
+              - entity: cover.gatelink_gate
+                name: Open - AutoClose
+                icon: mdi:gate-open
+                subtitle: Gate opens, then automatically closes (same as remote)
+                tap_action:
+                  action: perform-action
+                  perform_action: cover.open_cover
                   target:
                     entity_id: cover.gatelink_gate
             grid_options:

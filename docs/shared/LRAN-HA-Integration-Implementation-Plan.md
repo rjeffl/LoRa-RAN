@@ -1,7 +1,7 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.27
+**Version:** 0.28
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
@@ -463,9 +463,13 @@ status, and nothing else. From top to bottom:
 
    | Action | Service | What the gate does (GateLink PRD §7.1) |
    |---|---|---|
-   | **Open - AutoClose** | `cover.open_cover` | Opens, then auto-close closes it. On a held gate it pulses and the hold stays (operator, 2026-11-01) |
    | **Open - Hold** | `switch.turn_on` on the hold switch | Opens and locks |
    | **Close** | `cover.close_cover` | Releases any hold, then closes at once |
+   | **Open - AutoClose** | `cover.open_cover` | Opens, then auto-close closes it. On a held gate it pulses and the hold stays (operator, 2026-11-01) |
+
+   **Open - AutoClose is last** (operator, 2026-11-21). The dashboard is mostly for holding
+   the gate open and closing it later. Residents' cars open it with RF remotes on the way
+   in, and the exit wand opens it on the way out.
 
 3. **Link status.** An icon and words, centred beneath the actions, in a second `text_only`
    markdown card. The icon is green for good, orange for marginal or poor, and gray for no
@@ -878,6 +882,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.28 | 2026-11-21 | §8.1: the Gate dashboard's actions run Open - Hold, Close, Open - AutoClose, by operator choice. RF remotes and the exit wand cover the auto-close opening |
 | 0.27 | 2026-11-11 | §12.1, new: while the operator is production's only user, a change goes straight to production, by operator choice. It must not break the interfaces production's devices use, and the repository and HA backups are the way back. Upgrades still go to the sandbox first. The rule ends when other users join. The banner and §6 change to match |
 | 0.26 | 2026-11-11 | §8.2: the GateLink view's *Inputs and display* card sets `input_mask` a bit at a time and `display_mode` by name, by operator choice. §7.4: IN3 to IN6 read `unavailable` while `input_mask` names them, through template mirrors, and a sensor names the masked inputs. GateLink deploys with `input_mask` 15 under D92, and R-3.5l's exception (D90) leaves the masked inputs reading clear. `input_mask`, `display_mode` and `ved_log_s` need nothing more here: discovery already generates them, and the Maintenance dashboard shows them. Every config-table row has a dashboard row |
 | 0.25 | 2026-11-02 | §4: relay dry-run is a discovery switch, not a read-only sensor, by operator choice. It was settable only by an MQTT publish |

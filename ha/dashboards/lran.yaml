@@ -89,9 +89,9 @@ views:
           - type: custom:fluvy-entities-card
             rows:
               - entity: sensor.lran_gatelink_pack_voltage_v
-                name: Pack voltage
+                name: LiFePO4 Pack voltage
               - entity: sensor.gatelink_pack_current
-                name: Pack current
+                name: LiFePO4 Pack current
               - entity: sensor.lran_gatelink_net_power
                 name: Net power
               - entity: sensor.gatelink_battery_cycles
@@ -103,7 +103,7 @@ views:
               - entity: sensor.gatelink_bms_reading_age
                 name: BMS reading age
           - type: custom:fluvy-entities-card
-            title: Cells
+            title: LiFePO4 Cell Voltage
             rows:
               - entity: sensor.gatelink_cell_1_voltage
                 name: Cell 1
@@ -118,7 +118,7 @@ views:
           # Both charge-inhibit flags: GateLink's derived indication (R-6.4a), which the
           # Gate dashboard's banner reads, and the BMS's own.
           - type: custom:fluvy-entities-card
-            title: Protection
+            title: GateLink Battery Protection
             rows:
               - entity: binary_sensor.gatelink_battery_protection
                 name: Battery protection
@@ -130,7 +130,7 @@ views:
       - type: grid
         cards:
           - type: custom:fluvy-heading-card
-            title: Solar
+            title: MPPT Solar Charger
             grid_options:
               columns: full
           - type: custom:fluvy-entities-card
@@ -170,7 +170,7 @@ views:
             grid_options:
               columns: 12
           - type: custom:fluvy-entities-card
-            title: Consumption
+            title: GateLink Power Consumption
             rows:
               - entity: sensor.gatelink_node_supply_voltage
                 name: Node supply voltage
@@ -188,7 +188,7 @@ views:
         column_span: 3
         cards:
           - type: custom:fluvy-heading-card
-            title: Last 24 hours and 7 days
+            title: Battery SOC Last 24 hours and 7 days
             grid_options:
               columns: full
           - type: custom:fluvy-chart-card
@@ -232,7 +232,7 @@ views:
         column_span: 3
         cards:
           - type: custom:fluvy-heading-card
-            title: Long term
+            title: Long Term SOC and Solar Yield
             grid_options:
               columns: full
           - type: custom:fluvy-chart-card
@@ -295,7 +295,7 @@ views:
       - type: grid
         cards:
           - type: custom:fluvy-heading-card
-            title: Enclosure and charger
+            title: GateLink Enclosure and MPPT
             grid_options:
               columns: full
           - type: custom:fluvy-entities-card
@@ -312,24 +312,24 @@ views:
       - type: grid
         cards:
           - type: custom:fluvy-heading-card
-            title: Pack
+            title: Battery
             grid_options:
               columns: full
           - type: custom:fluvy-entities-card
             rows:
-              # R-4.5b's third source. Numbered, because which BMS sensor is which is
-              # unconfirmed (bms-protocol 10).
+              # R-4.5b's third source. The names are the probable mapping, not a confirmed
+              # one, and the two BMS names carry a "?" until the test in bms-protocol 10.
               - entity: sensor.gatelink_pack_temperature_1
-                name: Pack 1
+                name: BMS Primary Load MOSFET Heatsink?
               - entity: sensor.gatelink_pack_temperature_2
-                name: Pack 2
+                name: BMS Board?
               - entity: sensor.gatelink_pack_temperature_3
-                name: Pack 3
+                name: LiFePO4 Cell Temp 1
               - entity: sensor.gatelink_pack_temperature_4
-                name: Pack 4
+                name: LiFePO4 Cell Temp 2
               # GateLink inhibits charging on the lowest of the four (R-6.4a).
               - entity: sensor.lran_gatelink_lowest_pack_temperature
-                name: Lowest
+                name: Lowest Battery Temp Value
               - entity: number.gatelink_charge_inhibit_temp_c
                 name: Charge inhibit below
 
@@ -337,7 +337,7 @@ views:
         column_span: 2
         cards:
           - type: custom:fluvy-heading-card
-            title: History
+            title: Temperature History
             grid_options:
               columns: full
           - type: custom:fluvy-chart-card
