@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# The Gate Schedule dashboard (HA Integration Implementation Plan 8.5): for everyone, as
+# the Gate dashboard is, which links here. YAML mode, so this file is the source (plan 6);
+# install it as /config/dashboards/lran/gate-schedule.yaml.
+#
+# People who are not technical use it, so it has the list and nothing else (operator,
+# 2026-11-21). The master switch and the retry settings are on LRAN Configuration's Gate
+# Schedule view, which is admin only. The card is ha/www/gate-schedule-card.js; the rules
+# each event follows are in packages/lran/schedule.yaml (plan 9.6).
+
+title: Gate Schedule
+views:
+  - title: Gate Schedule
+    path: schedule
+    icon: mdi:calendar-clock
+    type: sections
+    max_columns: 1
+    sections:
+      - type: grid
+        cards:
+          - type: custom:lran-gate-schedule-card
+            grid_options:
+              columns: 12

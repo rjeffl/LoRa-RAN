@@ -1,0 +1,262 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# Scheduled gate events (HA Integration Implementation Plan 9.6): open-hold or close at a
+# set time, once or daily.
+#
+# The Scheduler component and card (nielsfaber, HACS) keep the list, the times and the
+# repeats, so their schedules are runtime data in HA's storage and not in this repository.
+# Each schedule runs one of the two wrapper scripts below and nothing else. The gate rules
+# live here instead: the master switch, the check that the event is needed, the wait for
+# GateLink, the retry and the alert. Those are the parts a third-party update must not be
+# able to change.
+#
+# As in alerts.yaml, no wording lives here. Each outcome has a selector below and an entry
+# in messages.yml (plan 7.5).
+
+input_boolean:
+  # The master switch. Off, every scheduled event is skipped and logged as skipped. It
+  # starts off on a new install, so nothing moves the gate until someone turns it on.
+  lran_gate_schedule_enabled:
+    name: Gate schedule enabled
+    icon: mdi:calendar-clock
+  # Set by lran_0_seed_gate_schedule. Its own flag, because lran_defaults_seeded is
+  # already on at every install this package reaches. Turn it off to reapply the defaults.
+  lran_gate_schedule_seeded:
+    name: Gate schedule defaults seeded
+    icon: mdi:sprout-outline
+
+# No `initial:` here, for core.yaml's reason: it would undo a value tuned in the UI at
+# every start. lran_0_seed_gate_schedule sets the defaults once.
+input_number:
+  # How long an event keeps trying, from the moment it fires: waiting for GateLink to be
+  # online and for its confirmation, across every attempt.
+  lran_gate_schedule_window_min:
+    name: Gate schedule retry window
+    min: 1
+    max: 60
+    step: 1
+    unit_of_measurement: min
+    mode: box
+  # How long one attempt waits for GateLink to report the result. A LoRa round trip and
+  # the next status report fit well inside the default.
+  lran_gate_schedule_confirm_s:
+    name: Gate schedule confirmation wait
+    min: 10
+    max: 600
+    step: 5
+    unit_of_measurement: s
+    mode: box
+  lran_gate_schedule_attempts:
+    name: Gate schedule attempts
+    min: 1
+    max: 5
+    step: 1
+    mode: box
+
+input_text:
+  # The last event's outcome in one line, for the Gate Schedule dashboard.
+  lran_gate_schedule_last:
+    name: Last scheduled gate event
+    icon: mdi:history
+    max: 255
+
+input_select:
+  lran_alert_gate_schedule_ran:
+    name: Scheduled gate event ran
+    icon: mdi:calendar-check
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_gate_schedule_skipped:
+    name: Scheduled gate event skipped
+    icon: mdi:calendar-remove
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_gate_schedule_failed:
+    name: Scheduled gate event failed
+    icon: mdi:calendar-alert
+    options: ["Off", Low, Normal, High, Critical]
+
+automation:
+  # Plan 9.6. The defaults, once. A selector added after lran_0_seed_alert_levels ran
+  # starts at Off (plan 7.5), so this sets the three above to their messages.yml levels
+  # too, without touching any other alert's level.
+  - id: lran_0_seed_gate_schedule
+    alias: "LRAN 0 - seed gate schedule defaults"
+    mode: single
+    triggers:
+      - trigger: homeassistant
+        event: start
+      - trigger: state
+        entity_id: input_boolean.lran_gate_schedule_seeded
+        to: "off"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.lran_gate_schedule_seeded
+        state: "off"
+    variables:
+      catalog: !include messages.yml
+    actions:
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_gate_schedule_window_min }
+        data: { value: 10 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_gate_schedule_confirm_s }
+        data: { value: 90 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_gate_schedule_attempts }
+        data: { value: 2 }
+      - repeat:
+          for_each: [gate_schedule_ran, gate_schedule_skipped, gate_schedule_failed]
+          sequence:
+            - action: input_select.select_option
+              target: { entity_id: "input_select.lran_alert_{{ repeat.item }}" }
+              data: { option: "{{ catalog[repeat.item].level }}" }
+      - action: input_boolean.turn_on
+        target: { entity_id: input_boolean.lran_gate_schedule_seeded }
+
+script:
+  # What a schedule runs. Two scripts with no fields, rather than one with an `action`
+  # field, so the Scheduler card offers each as a plain "run" and needs no custom action
+  # configuration that a card release could rename.
+  lran_gate_schedule_open_hold:
+    alias: Scheduled gate Open - Hold
+    icon: mdi:lock
+    mode: parallel
+    sequence:
+      - action: script.lran_gate_schedule_run
+        data: { action: open_hold }
+  lran_gate_schedule_close:
+    alias: Scheduled gate Close
+    icon: mdi:gate
+    mode: parallel
+    sequence:
+      - action: script.lran_gate_schedule_run
+        data: { action: close }
+
+  # One scheduled event, end to end (plan 9.6).
+  #
+  # `restart`, so a newer event replaces one still retrying: at 07:00 an Open - Hold
+  # still waiting for GateLink gives way to a Close scheduled for 07:05, which is what
+  # the person who set both meant.
+  #
+  # A retry is a new command, not a resend of the old one: HA has no access to the
+  # command's seq. So it is sent only when the last one cannot be in progress, with the
+  # gate idle and its result not reached. A second Close or Open - Hold while the gate is
+  # moving could be a second relay pulse (GateLink PRD S-8), so none is sent while the
+  # cover reads opening or closing.
+  lran_gate_schedule_run:
+    alias: LRAN gate schedule - run one event
+    icon: mdi:calendar-clock
+    mode: restart
+    fields:
+      action:
+        description: open_hold or close.
+        required: true
+        selector:
+          select:
+            options: [open_hold, close]
+    variables:
+      deadline: >-
+        {{ (now() + timedelta(minutes=states('input_number.lran_gate_schedule_window_min')
+            | float(10))).isoformat() }}
+      confirm_s: "{{ states('input_number.lran_gate_schedule_confirm_s') | int(90) }}"
+      attempts: "{{ states('input_number.lran_gate_schedule_attempts') | int(2) }}"
+      # The gate already where the event would put it. Open - Hold is done once GateLink
+      # reports the hold, whether the gate was closed or open on its auto-close timer: in
+      # both cases the event's purpose is a gate that stays open. Close is done once the
+      # gate is closed or closing, with no hold.
+      done_open_hold: >-
+        {{ is_state('switch.gatelink_hold_gate_open', 'on') }}
+      done_close: >-
+        {{ is_state('switch.gatelink_hold_gate_open', 'off')
+           and is_state('cover.gatelink_gate', ['closed', 'closing']) }}
+      outcome: >-
+        {% if is_state('input_boolean.lran_gate_schedule_enabled', 'off') %}disabled
+        {%- elif (done_open_hold if action == 'open_hold' else done_close) | bool %}not_needed
+        {%- else %}run{% endif %}
+    sequence:
+      - if:
+          - condition: template
+            value_template: "{{ outcome == 'run' }}"
+        then:
+          - repeat:
+              sequence:
+                # GateLink online, and a gate state a command can act on. fault, unknown
+                # and unavailable wait here until the window closes.
+                - wait_template: >-
+                    {{ is_state('binary_sensor.lran_gatelink_online', 'on')
+                       and is_state('sensor.gatelink_gate',
+                                    ['closed', 'moving', 'open_countdown', 'open_held']) }}
+                  timeout: >-
+                    {{ [0, (as_datetime(deadline) - now()).total_seconds()] | max | int }}
+                - if:
+                    - condition: template
+                      value_template: >-
+                        {{ wait.completed
+                           and not is_state('cover.gatelink_gate', ['opening', 'closing']) }}
+                    - condition: template
+                      value_template: >-
+                        {{ not (is_state('switch.gatelink_hold_gate_open', 'on')
+                                if action == 'open_hold' else
+                                is_state('switch.gatelink_hold_gate_open', 'off')
+                                and is_state('cover.gatelink_gate', ['closed', 'closing'])) }}
+                  then:
+                    - if:
+                        - condition: template
+                          value_template: "{{ action == 'open_hold' }}"
+                      then:
+                        # GateLink PRD 7.1: on opens and locks.
+                        - action: switch.turn_on
+                          target: { entity_id: switch.gatelink_hold_gate_open }
+                      else:
+                        # GateLink PRD 7.1: releases any hold, then closes at once.
+                        - action: cover.close_cover
+                          target: { entity_id: cover.gatelink_gate }
+                - wait_template: >-
+                    {{ is_state('switch.gatelink_hold_gate_open', 'on')
+                       if action == 'open_hold' else
+                       is_state('switch.gatelink_hold_gate_open', 'off')
+                       and is_state('cover.gatelink_gate', ['closed', 'closing']) }}
+                  timeout: >-
+                    {{ [0, [confirm_s, (as_datetime(deadline) - now()).total_seconds()]
+                        | min] | max | int }}
+              until:
+                - condition: template
+                  value_template: >-
+                    {{ (is_state('switch.gatelink_hold_gate_open', 'on')
+                        if action == 'open_hold' else
+                        is_state('switch.gatelink_hold_gate_open', 'off')
+                        and is_state('cover.gatelink_gate', ['closed', 'closing']))
+                       or repeat.index >= attempts
+                       or now() >= as_datetime(deadline) }}
+
+      # Read after the attempts, at the top level, so it sees the gate as it is now.
+      - variables:
+          result: >-
+            {% if outcome != 'run' %}{{ outcome }}
+            {%- elif (is_state('switch.gatelink_hold_gate_open', 'on')
+                      if action == 'open_hold' else
+                      is_state('switch.gatelink_hold_gate_open', 'off')
+                      and is_state('cover.gatelink_gate', ['closed', 'closing'])) %}done
+            {%- elif is_state('binary_sensor.lran_gatelink_online', 'on') %}unconfirmed
+            {%- else %}offline{% endif %}
+          status: "{{ states('sensor.lran_gatelink_gate_status') }}"
+          label: "{{ {'open_hold': 'Open - Hold', 'close': 'Close'}[action] }}"
+      - action: script.lran_notify
+        data:
+          alert: >-
+            {{ {'done': 'gate_schedule_ran', 'disabled': 'gate_schedule_skipped',
+                'not_needed': 'gate_schedule_skipped'}.get(result, 'gate_schedule_failed') }}
+          fields:
+            action: "{{ action }}"
+            reason: "{{ result }}"
+            status: "{{ status }}"
+          tag: gatelink:schedule
+          url: /lran-gate-schedule
+      - action: input_text.set_value
+        target: { entity_id: input_text.lran_gate_schedule_last }
+        data:
+          value: >-
+            {{ now().strftime('%a %-d %b %H:%M') }} {{ label }}:
+            {{ {'done': 'done', 'disabled': 'skipped, scheduling off',
+                'not_needed': 'skipped, not needed', 'unconfirmed': 'FAILED, not confirmed',
+                'offline': 'FAILED, GateLink offline'}[result] }} ({{ status }})

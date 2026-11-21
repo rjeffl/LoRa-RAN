@@ -1316,3 +1316,82 @@ nothing else, so the copy lost nothing. Every other LRAN package and dashboard f
 matched the repository. After the config check and template reload, the four mask switches read
 `on` against `input_mask` 15, and the select read *Button* against `display_mode` 2. Nothing was
 pressed.
+
+## 2026-11-21 — Scheduled gate events, on the Scheduler component
+
+**The operator asked for Open - Hold and Close at set times, once or daily, under a master
+switch.** The first plan was HA's Local Calendar. It fails two of the operator's requirements.
+`calendar.create_event` takes no repeat rule, so a dashboard form cannot create a daily event.
+`calendar.get_events` returns no event ID, so a button cannot suspend or delete a chosen one. Both
+facts are from HA's service documentation: no install here had a calendar to check them on. Both
+would have needed HA's own calendar dialog, with the action typed as the event's title. The
+operator then weighed helper slots built here against the Scheduler component and card
+(`nielsfaber`, HACS) and chose the component, with the gate rules kept in an LRAN script (plan
+§9.6).
+
+**Production's Marketplace refused ha-mcp's install.** HA 2026.11's built-in Marketplace accepts
+its first-run warning per user, and ha-mcp's account had not accepted it. The operator installed
+both on the sandbox by hand. Production needs the same, plus a restart, before §8.5 can go there.
+
+**The morning report lists alert titles unfilled.** The first catalog titles were
+`Scheduled {action} skipped`, and `input_text.lran_report_alerts` recorded that text as written.
+`lran_notify` fills placeholders in the push and the logbook entry, not in the report note, by
+design (§7.3). The titles now carry none.
+
+**Tested on the sandbox, which has no bridge.** Each path ran once: master off, nothing needed,
+GateLink unavailable for a 1-minute window, two unconfirmed attempts 10 s apart, and a confirmed
+Open - Hold and Close with the hold switch forced through the REST API. A one-time schedule
+created with `scheduler.add` fired at 13:10 and logged a skip, the gate being closed, and then
+read `triggered`. After the Marketplace install the Scheduler card rendered only once the Puppet
+app restarted, as Fluvy's had. Its icons stayed a lightning bolt through three customizations,
+which may be Puppet's cache. The test schedules were removed and the master switch left off.
+
+**Later the same day: the card's script action, from its source.** The operator saw the add
+dialog offer *action: execute*. scheduler-card v4.0.20 runs a script by calling `script.<name>`
+as a service with no target, labelled *execute*. A customized action replaces a standard one only
+when its service matches. Ours named `turn_on`, which the card prefixes to `script.turn_on`, with
+no target, so choosing it would have run nothing. It now names the script's own service. A
+schedule shaped as the card makes one, with a one-day period on 2026-11-25, listed as *Close*,
+next run *Wednesday at 7:00 AM*, and was removed.
+
+## 2026-11-21 — Gate Schedule after the operator's review: an LRAN card replaces the Scheduler card
+
+**The operator reviewed Gate Schedule on the sandbox in the Companion app and asked for a page that
+people who are not technical can use.** The review asked for:
+
+- a *Gate Event* dialog with a date and a time, defaulting to tomorrow at 9:00 AM
+- *Once* or *Daily*
+- *Open* or *Close* as side-by-side buttons
+- a list headed *Event* and *Enabled*, with *Add* at the top
+- the settings moved to an admin-only page
+
+**The Scheduler card could not meet it.** It has no setting for its dialog's title, default date
+or time, or action buttons, and its gear, scheme and day-and-night views cannot be hidden. The
+operator chose an LRAN card over configuring what the Scheduler card allows. The card is
+`ha/www/gate-schedule-card.js`. It keeps the Scheduler component as the store and the timer, and
+calls the component's own services and websocket list (component v3.3.9's source). Plan §8.5 has
+the layout and the shape of a once and a daily event.
+
+**The operator also chose three details.** Gate Schedule shows one line while the master switch is
+off. The edit dialog has a *Delete* button that asks first. A daily event is one row, showing its
+next run.
+
+**A one-time event is now `repeat_type: single` with the start and end date on its day.** The
+component deletes a `single` schedule once its last timeslot has ended and its end date is not in
+the future (`switch.py`, `async_timer_updated`). That deletion makes the event leave the list after
+it runs, as the review asked. The card also hides a one-time event whose time has passed, for the
+minute before the component deletes it. Checked on the sandbox: a one-time schedule of that shape,
+with a `logbook.log` action in place of a gate script because the master switch was on, read
+`triggered` at 18:51 and returned 404 at 18:52.
+
+**Seen in the operator's review:** the card rendered in the Companion app. An event made with
+*+ Add* reached the component as `switch.schedule_gate_open`, a one-time Open on 2026-11-25 at
+09:00. An edit changed an existing event's action from Close to Open. The operator's one remaining
+finding was the header on LRAN Configuration's settings card, *Helpers* over *4 helpers*. Fluvy's
+helpers card always draws a header, and without a title it fills in those two
+(Fluvy 1.24.0's source). The card now takes the view's title, *Gate schedule*, with an empty
+subtitle, in place of a separate heading card.
+
+**The screenshot engine could not show any of it.** Gate Schedule rendered as an empty error card,
+and LRAN Configuration redirected to HA's home page, because the engine's account is not an admin.
+The Companion app was the only check.
