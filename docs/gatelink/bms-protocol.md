@@ -1,14 +1,14 @@
 # TDT smart BMS protocol over BLE
 
 **Document:** `bms-protocol`
-**Version:** 0.3
+**Version:** 0.4
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Confirmed on hardware for one pack, at rest, on charge and under load. §10
 lists what is not verified.
 **Implementation:** [`lib/bms-ble/`](../../lib/bms-ble/)
 **Source:** [`wattcycle-reader-poc_3`](../../wattcycle-reader/docs/wattcycle-reader-poc_3.md)
 §4–§5 and §10.3, lifted out by GateLink task L2
-**Last updated:** 2026-10-10
+**Last updated:** 2026-11-21
 
 > **This document covers the BLE link between GateLink and the battery's BMS.** It is not
 > part of the LRAN protocol. How GateLink carries BMS values over LoRa is the Protocol
@@ -265,9 +265,18 @@ names.
   but does not decode it, because a guessed bit map would raise confident and wrong
   alarms. The PoC proposed treating any nonzero byte in the alarm region as "raise it to
   HA". The status schema's `bms_alarms` passes the field through unmodified (spec §7.2.3).
-- **Which temperature sensor is which.** The ambient, MOSFET and cell labels in §9 are
-  `aiobmsble`'s. Nothing on this pack has confirmed them, so `BmsData::max_temp_dc()`
-  reports the hottest sensor rather than a named one.
+- **Which temperature sensor is which.** Two mappings fit what has been seen, and neither
+  is confirmed. `aiobmsble`'s labels, in §9, are ambient, MOSFET, cell, cell. Research the
+  operator found on 2026-11-21 gives MOSFET heatsink, BMS board, cell, cell, and cites no
+  source. At the gate, sensor 2 reads highest whether the pack is charging or discharging.
+  Sensor 1 tracks sensors 3 and 4 overnight. While charging by day it reads above them and
+  below sensor 2. Sensors 3 and 4 read lowest in the enclosure. Sun on the enclosure would
+  warm an ambient sensor by day too, so these readings do not choose between the mappings.
+  The HA dashboards use the second as the probable one and mark its two BMS names with a
+  `?`. `BmsData::max_temp_dc()` still reports the hottest sensor rather than a named one.
+  **Falsified by:** sensor 2, not sensor 1, rising first during a heavy charge or discharge
+  at night, with no sun on the enclosure. The MOSFETs carry the current, so their sensor
+  should lead.
 - **BLE RSSI at the mounting position: measurement M23**, which supersedes M5 (D28). The
   PoC's desk readings were −77 to −88 dBm, and −80 to −84 dBm at close range. It read −60
   to −65 dBm at the approximate mounting position. A Heltec V3
@@ -319,6 +328,10 @@ every BLE call `aiobmsble` makes, with its arguments and timing, and is how §3 
 `scan.py` lists every advertiser in range with its RSSI and service UUIDs.
 
 ## Changelog
+
+- **v0.4** (2026-11-21) — §10's temperature item records a second candidate mapping, the
+  operator's readings at the gate, and the night load test that would decide it. Nothing
+  is confirmed, and `lib/bms-ble/` is unchanged.
 
 - **v0.3** (2026-10-10) — M7 measured the current field under charge and under load. §6
   now reads the sign from bit 15 and the magnitude in 0.1 A, and records the capture. §10

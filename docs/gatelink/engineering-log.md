@@ -2176,3 +2176,24 @@ read 0, RSSI about −96 dBm, SNR 11 dB, SOC 91 to 99 % over four days, and cell
 
 **Falsified by:** the MPPT staying in bulk or absorption below 0 °C after the MPPT control is in, or a meter at the
 pack terminals reading the MPPT's voltage while `charging_inhibited` is on.
+
+## 2026-11-21 — Pack temperature names: a probable mapping, not a confirmed one
+
+**The LRAN Status dashboard now names the four BMS temperatures** MOSFET heatsink, BMS
+board, cell 1 and cell 2, where it read Pack 1 to Pack 4. The operator chose the names
+from research that cites no source. The two BMS names carry a `?`.
+
+**The operator's readings at the gate:** sensor 2 reads highest whether charging or
+discharging. Sensor 1 tracks sensors 3 and 4 overnight, and while charging by day it reads
+above them and below sensor 2. Sensors 3 and 4 read lowest in the enclosure. §9's idle
+capture agrees: 21.5, 24.2, 21.2, 21.1 °C.
+
+**`aiobmsble`'s order fits the same readings.** It labels sensor 1 ambient and sensor 2
+MOSFET, and sun on the enclosure would warm an ambient sensor by day as well. The operator
+may have sensors 1 and 2 reversed. bms-protocol §10 records both mappings.
+
+**Nothing protective depends on the names.** R-6.4a's charge inhibit reads the lowest of
+the four, and `max_temp_dc()` the hottest.
+
+**Falsified by:** sensor 2, not sensor 1, rising first during a heavy charge or discharge
+at night, with no sun on the enclosure.
