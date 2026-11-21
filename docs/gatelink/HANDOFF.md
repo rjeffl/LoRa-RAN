@@ -401,6 +401,7 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **Which BMS temperature sensor is which is probable, not confirmed** (operator, 2026-11-21). A heavy charge or discharge at night decides it: bms-protocol §10.
 - **Charge inhibit must stop the MPPT directly, by operator decision of 2026-11-16**, not rely on the BMS opening its charge FET. Firmware or HA is not chosen, and the MPPT's own 5 °C cut-off is not acting (engineering log, 2026-11-16).
 - **The MQTT logger on the HA host Mac has no route to the broker** since at least 08:54 EST on 2026-11-16, while HA still receives GateLink. The operator stopped it the same day. Find in `bench.log` when the outage started before restarting it (engineering log, 2026-11-16).
 - **Both v2.0 boards are being fabricated** (D91; Gerbers checked, 2026-11-08; operator, 2026-11-11). Each brief's *Gerbers, 2026-11-08* has the check: [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), [`LRAN-Input-Board-v2.0-Brief`](./LRAN-Input-Board-v2.0-Brief.md).
