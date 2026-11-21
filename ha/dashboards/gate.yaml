@@ -85,7 +85,7 @@ views:
               - entity: input_boolean.lran_gate_schedule_enabled
                 name: Schedule
                 icon: mdi:calendar-clock
-                subtitle: Scheduled Open - Hold and Close events
+                subtitle: Scheduled gate events
                 tap_action:
                   action: navigate
                   navigation_path: /lran-gate-schedule/schedule

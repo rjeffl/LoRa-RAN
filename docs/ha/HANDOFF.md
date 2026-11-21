@@ -8,7 +8,7 @@ end of H4b, on 2026-10-28 after the bench checks, on 2026-10-30 after the operat
 chose Fluvy (task H11), on 2026-10-30 at the end of H11, on 2026-10-30 after the
 Fluvy port review, on 2026-11-01 at the end of the dashboard rework (task H12), and on 2026-11-01 after
 LRAN Configuration's views and the additional recipients, and on 2026-11-02 after R-6.4c's morning
-read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5, on 2026-11-02 after the email and press-flash cleanup, and on 2026-11-02 for the dry-run switch, and on 2026-11-02 after it reached production, and on 2026-11-21 for the scheduled gate events' sandbox review.**
+read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02 when tier 5 was parked, on 2026-11-02 for the boots chart, and on 2026-11-02 at the end of H10's steps 2 to 5, on 2026-11-02 after the email and press-flash cleanup, and on 2026-11-02 for the dry-run switch, and on 2026-11-02 after it reached production, and on 2026-11-21 for the scheduled gate events' sandbox review, and again after it.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -22,7 +22,7 @@ read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: gate schedule, sandbox review.
+Continue from docs/ha/HANDOFF.md: gate schedule to production.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
@@ -35,7 +35,6 @@ operator. Production has the email, press-flash and dry-run switch changes. Both
 |---|---|
 | **H10, step 6** Verify tier 1 on production, as part of GL8 | *The next job* here; plan §12 and §9.1; the deployment brief's GL8 row |
 | **H10, step 7** Turn on email, when the operator is ready | *The next job* here; plan §7.3 |
-| **Gate schedule, sandbox review** The operator reviews it on the sandbox; the session makes the changes that review asks for | *The next job* here; plan §8.5 and §9.6 |
 | **Gate schedule to production**, after the review | *The next job* here; plan §8.5, §9.6 and §6 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -44,50 +43,42 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**Scheduled gate events are built and on the sandbox, waiting for the operator's review
-(2026-11-21).** The work is on branch `ha-gate-schedule`, draft PR rjeffl/LoRa-RAN#265, so read
-this file there. Plan §9.6 says what the run script does and §8.5 what the dashboard shows. The
-engineering log's two 2026-11-21 entries record the tests and the card's script-action fix. A
-change the review asks for goes on the same branch, is copied to the sandbox and is checked there
-before the PR leaves draft.
+**Scheduled gate events passed the operator's sandbox review (2026-11-21) and wait to be ported to
+production.** The work is on branch `ha-gate-schedule`, draft PR rjeffl/LoRa-RAN#265, so read this
+file there. Plan §9.6 says what the run script does and §8.5 what the page shows. The engineering
+log's three 2026-11-21 entries record the tests, the card's script-action fix and the review.
 
-**What the sandbox has.** The operator installed *Scheduler component* v3.3.9 and *Scheduler
-Card* v4.0.20 (`nielsfaber`) through its Marketplace. Its `configuration.yaml` has §6's
-`lran-gate-schedule` block. `schedule.yaml`, `messages.yml` and the `gate`, `gate-schedule`,
-`lran-maintenance` and `lran` dashboards are the branch's copies. The sandbox's `gate.yaml` and
-`lran.yaml` were older than `main` and were overwritten. The master switch is off, the helpers and
-selectors are at their seeded defaults, and no schedule exists.
+**The review replaced the Scheduler card with an LRAN card**, `ha/www/gate-schedule-card.js`,
+registered on the sandbox as `/local/lran/gate-schedule-card.js?v=1`. The master switch, the retry
+settings and the last event moved to LRAN Configuration's *Gate Schedule* view. The Scheduler
+component stays; the HACS Scheduler Card is no longer used and can be removed from both installs.
+Raise the resource's `?v=` with each change to the card, or the Companion app keeps the old one.
 
-**The sandbox has no bridge, so a scheduled event there can only skip or fail.** GateLink's
-online sensor reads `unavailable`. A success path needs forced states through
-`~/.local/bin/ha-sandbox post states/<entity>`: `binary_sensor.lran_gatelink_online` on, then
-`switch.gatelink_hold_gate_open` on or off while the script waits. Restore them afterwards.
+**What the sandbox has.** The Scheduler component v3.3.9, §6's `lran-gate-schedule` block, and the
+branch's `schedule.yaml`, `messages.yml`, card and `gate`, `gate-schedule`, `lran-maintenance` and
+`lran` dashboards. The operator turned the master switch on. Four schedules are left from the
+review: a daily Close at 00:00, *Monday open* (`repeat_type: pause`), and two one-time Opens on
+2026-11-25 at 09:00. The sandbox has no bridge, so each Close or Open there waits out its window
+and pushes a High failure. Delete them, or turn the master switch off, if that push is unwanted.
 
-**Not yet seen in a real client, and the review's checklist.**
+**The sandbox has no bridge, so a scheduled event there can only skip or fail.** A success path
+needs forced states through `~/.local/bin/ha-sandbox post states/<entity>`:
+`binary_sensor.lran_gatelink_online` on, then `switch.gatelink_hold_gate_open` on or off while the
+script waits. Restore them afterwards.
 
-1. The add dialog lists only *Open - Hold* and *Close*, and the action reads that name, not
-   *execute*. The fix for *execute* is on the sandbox, and nobody has opened the dialog since.
-2. A specific date through *Period*, and *Once* through the behaviour after completion.
-3. Tapping a row edits or deletes it, and its toggle suspends it.
-4. The list's icons. Puppet's screenshots show the card's default script icon, not `mdi:lock` and
-   `mdi:gate`.
-5. The Gate dashboard's *Schedule* tile opens Gate Schedule.
-6. The three outcome selectors on LRAN Configuration's Notification view.
-
-**Choices made without the operator, open to the review.** Open - Hold acts on a gate open on its
-auto-close timer, not only on a closed one. A newer event replaces one still retrying. The
+**Choices made without the operator, not raised in the review.** Open - Hold acts on a gate open on
+its auto-close timer, not only on a closed one. A newer event replaces one still retrying. The
 defaults are a 10 min window, 90 s confirmation wait and 2 attempts. Ran and skipped log only, and
-a failure pushes at High. Gate Schedule is for everyone, so everyone can change the retry
-settings.
+a failure pushes at High.
 
 **Seen in passing, not part of this work.** In the sandbox's screenshot of the Gate dashboard,
 *Open - AutoClose* showed no subtitle. Production was not checked.
 
-**Then, to port to production.** The operator installs the same two packages in production's
+**Then, to port to production.** The operator installs the Scheduler component in production's
 Marketplace, because ha-mcp's account there has not accepted its first-run warning. Then back up,
-add §6's block to `configuration.yaml`, copy `schedule.yaml`, `messages.yml` and the `gate`,
-`gate-schedule` and `lran-maintenance` dashboards, and restart. The master
-switch starts off.
+add §6's block to `configuration.yaml`, copy `schedule.yaml`, `messages.yml`, the `gate`,
+`gate-schedule` and `lran-maintenance` dashboards and `gate-schedule-card.js` to `www/lran/`,
+register the card as a dashboard resource, and restart. The master switch starts off.
 
 **The *Inputs and display* controls are on production (2026-11-11), and none has written a value
 yet.** LRAN Configuration's GateLink view has a switch per `input_mask` bit and a `display_mode`

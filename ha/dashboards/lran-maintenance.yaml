@@ -332,6 +332,44 @@ views:
               - entity: switch.lora_bridge_simnode_diag_enable
                 name: Simnode diagnostics
 
+  # The scheduled events' settings, off Gate Schedule because that page is for everyone and
+  # these are not (operator, 2026-11-21). Their outcome selectors stay on Notification with
+  # the other alerts.
+  - title: Gate Schedule
+    path: gate-schedule
+    icon: mdi:calendar-clock
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          # Off, every event is skipped and logged. Gate Schedule says so in one line, since
+          # its list does not show it (plan 8.5). Fluvy's helpers card always draws a header,
+          # and without a title it reads "Helpers" over a helper count, so the card's title is
+          # the view's heading and the empty subtitle drops the count (Fluvy 1.24.0's source;
+          # operator, 2026-11-21).
+          - type: custom:fluvy-helpers-card
+            title: Gate schedule
+            subtitle: ""
+            icon: mdi:calendar-clock
+            show_icon: false
+            rows:
+              - entity: input_boolean.lran_gate_schedule_enabled
+                name: Run scheduled events
+              - entity: input_number.lran_gate_schedule_window_min
+                name: Keep trying for
+              - entity: input_number.lran_gate_schedule_confirm_s
+                name: Wait for confirmation
+              - entity: input_number.lran_gate_schedule_attempts
+                name: Attempts
+          # As text, not as its input_text row, which would offer it for editing and cut it
+          # to the row's width.
+          - type: markdown
+            text_only: true
+            content: >-
+              **Last event:** {{ states('input_text.lran_gate_schedule_last')
+                 if has_value('input_text.lran_gate_schedule_last') else 'none yet' }}
+
   - title: Notification
     path: notification
     icon: mdi:bell-outline

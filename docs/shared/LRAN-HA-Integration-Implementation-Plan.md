@@ -5,7 +5,7 @@
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02; H10 steps 2 to 5 done on production 2026-11-02; scheduled gate events built and tested on the sandbox 2026-11-21
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02; H10 steps 2 to 5 done on production 2026-11-02; scheduled gate events built, tested and reviewed on the sandbox 2026-11-21
 **Last updated:** 2026-11-21
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -62,7 +62,7 @@ together with the entities. The bridge handoff asked for this plan before GL8.
 | Dashboard source | **YAML-mode files in the repository, unchanged** (§6). Fluvy's card editors cannot save to a YAML dashboard, so its cards are written from its documentation |
 | Gate command confirmation | **Not required** (operator, 2026-10-30). The Gate dashboard's three actions send with no confirmation dialog (§8.1). The gate's own controls have never asked for one |
 | Gate control entity | **Fix it in the bridge.** Discovery publishes the D8 `cover` and hold `switch` (§5, task F1). F1 was built 2026-10-28, and the dashboards use the cover and the switch in place of the four command buttons |
-| Gate scheduling | **The Scheduler component and card** (`nielsfaber`, HACS) keep the list, the times and the repeats, and an LRAN script holds the gate rules (operator, 2026-11-21; §9.6). HA's Local Calendar was set aside because its services cannot create a repeating event or act on one chosen event. Helper slots built here were set aside as reinventing a maintained component |
+| Gate scheduling | **The Scheduler component** (`nielsfaber`, HACS) keeps the list, the times and the repeats, an LRAN script holds the gate rules (operator, 2026-11-21; §9.6), and an LRAN card edits the events (operator's review, 2026-11-21; §8.5). The Scheduler card was set aside at that review, because it cannot be made simple enough. HA's Local Calendar was set aside because its services cannot create a repeating event or act on one chosen event. Helper slots built here were set aside as reinventing a maintained component |
 | Automation tiers | **All five:** alerts, health, reminders, reports, convenience (§9). Tier 5 is parked, and production does not need it (§9.5) |
 | Notification channels | **Companion-app push now; SMTP email later, behind a switch.** Email is built and tested, then held off by `input_boolean.lran_email_enabled` until the operator turns it on. **No SMS:** push replaces it |
 | Units | **The bridge keeps publishing mV and mA**, GateLink's native units on the wire. LRAN Status shows pack voltage in V through HA-side conversion (§7.4), and mV and mA otherwise |
@@ -165,6 +165,7 @@ ha/
     gate-schedule.yaml  Gate Schedule (§8.5)
   www/
     press-flash.js      the Gate tiles' press feedback (§8.3)
+    gate-schedule-card.js  Gate Schedule's list and dialog (§8.5)
 tools/ha/
   check_entities.py     every entity ID the YAML names exists in a live HA (H9)
 ```
@@ -646,35 +647,45 @@ It marks the latest entry held and takes over its key, so the follow-up still fi
 
 ### 8.5 Gate Schedule (for everyone)
 
-Open - Hold or Close at a set time, once or daily (operator, 2026-11-21). The Gate dashboard's
-*Schedule* tile opens it. From the top, it has:
+Open or Close at a set time, once or daily (operator, 2026-11-21). *Open* runs Open - Hold. The
+Gate dashboard's *Schedule* tile opens the page. People who are not technical use it, so it shows
+the events and nothing else (operator's review, 2026-11-21). The page has one card,
+`custom:lran-gate-schedule-card`, from `ha/www/gate-schedule-card.js`:
 
-- **The master switch**, `input_boolean.lran_gate_schedule_enabled`, labelled *Run scheduled
-  events*. Off, every event is skipped and logged, and an orange line says so, because the list
-  itself does not show it. It starts off on a new install.
-- **The last event's outcome**, from `input_text.lran_gate_schedule_last`, as text rather than an
-  editable row.
-- **The Scheduler card**, limited to the two scripts in §9.6. It lists the events by time to the
-  next run, with each one's time, days and a toggle that suspends it. Tapping an event edits or
-  deletes it, and *Add* creates one. *Once* is set in the card's options panel, under behaviour
-  after completion. A one-time event made with `repeat_type: single` stays in the list after it
-  fires, reading `triggered`, and does not run again. `discover_existing` is off, so a
-  schedule made elsewhere for another entity does not appear.
-- **Retry settings**: the window, the confirmation wait and the number of attempts (§9.6).
+- **The title, *Scheduled Gate Events*, with *+ Add* beside it**, so Add does not scroll away.
+- **One line, *Scheduled events are turned off*, while the master switch is off**, because the list
+  does not show it. Nothing appears while the switch is on.
+- **The list, under the headings *Event* and *Enabled*.** A row gives the action, *Open* or
+  *Close*, then the day, date and time, *Sat, Nov 22, 9:00 AM*. A daily event reads *Daily · next*
+  and its next run. The rows are in order of the next run, and about ten fit before the list
+  scrolls. The switch suspends an event. A one-time event leaves the list once it has run.
+- **The *Gate Event* dialog**, from *+ Add* or a tap on a row. It has the day, defaulting to
+  tomorrow, the time, defaulting to 9:00 AM, and two pairs of buttons: *Once* or *Daily*, and
+  *Open* or *Close*. *Save* stays off until an action is chosen. A one-time event cannot be saved
+  for a time already past. Editing adds *Delete*, which asks first.
 
-The three outcome selectors are on LRAN Configuration's Notification view, with the reminders.
+The day, the time and the past-time check use HA's time zone, so a phone elsewhere agrees with
+the server that fires the event.
 
-**A specific date is the options panel's *Period*.** It is the card's last step, after the days
-and the time. A start and end date on the same day runs the event that day only, and the list
-then gives the next run by weekday, *Wednesday at 7:00 AM*. The card has no setting that moves
-the date onto its first page.
+**The master switch, the retry settings and the last event's outcome are on LRAN Configuration's
+*Gate Schedule* view**, which is admin only. The three outcome selectors are on its Notification
+view, with the reminders.
 
-**The card runs a script as a service of its own, `script.<name>`, with no target, and names that
-action *execute*.** Each customized action names the same service, so it replaces *execute* with
-*Open - Hold* or *Close* (scheduler-card v4.0.20's source). The first version named `turn_on`,
-which the card would have sent as `script.turn_on` with no target, running nothing. In the
-sandbox's screenshots the list shows the card's own script icon, not `mdi:lock` or `mdi:gate`.
-That may be the screenshot browser's cached frontend, so check the add dialog in a real client.
+**The Scheduler component stores and fires the events; the card only edits them.** The card
+calls the component's `scheduler.add`, `scheduler.edit` and `scheduler.remove` services and its
+`scheduler` websocket list, and redraws on `scheduler_updated` (component v3.3.9's source). It
+shows only schedules whose action is one of §9.6's two scripts. Each event is one timeslot whose
+action is the script's own service, `script.<name>`, with no target:
+
+| Event | `weekdays` | `start_date` | `end_date` | `repeat_type` |
+|---|---|---|---|---|
+| Once | `daily` | the day | the day | `single`, so the component deletes it after it fires |
+| Daily | `daily` | the first day | none | `repeat` |
+
+**The Scheduler card from HACS is no longer used.** It could not meet the operator's review: it
+has no setting for its dialog's title, defaults or action buttons, and its gear, scheme and
+day-and-night views cannot be hidden. The component stays. `gate-schedule-card.js` is copied to
+`www/lran/` and registered as a dashboard resource, as `press-flash.js` is (§8.3).
 
 ## 9. Automations
 
@@ -864,8 +875,10 @@ The titles carry no placeholder, because §9.4's report lists titles unfilled.
 skipped with no command. GateLink unavailable waited out a 1-minute window and sent nothing. With
 the online sensor forced on, two unconfirmed attempts each sent `switch.turn_on`, 10 s apart, then
 failed. Forced hold states confirmed an Open - Hold and a Close. A one-time schedule made through
-`scheduler.add` fired at its minute and ran the script. Not yet verified: a real gate's
-confirmation times, a schedule created by tapping *Add*, and production.
+`scheduler.add` fired at its minute and ran the script. After the operator's review, a one-time
+event shaped as §8.5's card makes it read `triggered` at 18:51 and was deleted by 18:52. The
+operator created and edited events through the card in the Companion app. Not yet verified: a real
+gate's confirmation times, and production.
 
 ## 10. History and the recorder
 
@@ -975,7 +988,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
-| 0.29 | 2026-11-21 | §9.6 and §8.5, new: scheduled Open - Hold and Close events, by operator choice, through the Scheduler component and card from HACS, with the gate rules in `schedule.yaml`. §2 records the choice and what was set aside. §6 adds the files and the dashboard block |
+| 0.29 | 2026-11-21 | §9.6 and §8.5, new: scheduled Open - Hold and Close events, by operator choice, through the Scheduler component and card from HACS, with the gate rules in `schedule.yaml`. §2 records the choice and what was set aside. §6 adds the files and the dashboard block. After the operator's sandbox review, §8.5 replaces the Scheduler card with `gate-schedule-card.js` and moves the settings to LRAN Configuration |
 | 0.28 | 2026-11-21 | §8.1: the Gate dashboard's actions run Open - Hold, Close, Open - AutoClose, by operator choice. RF remotes and the exit wand cover the auto-close opening |
 | 0.27 | 2026-11-11 | §12.1, new: while the operator is production's only user, a change goes straight to production, by operator choice. It must not break the interfaces production's devices use, and the repository and HA backups are the way back. Upgrades still go to the sandbox first. The rule ends when other users join. The banner and §6 change to match |
 | 0.26 | 2026-11-11 | §8.2: the GateLink view's *Inputs and display* card sets `input_mask` a bit at a time and `display_mode` by name, by operator choice. §7.4: IN3 to IN6 read `unavailable` while `input_mask` names them, through template mirrors, and a sensor names the masked inputs. GateLink deploys with `input_mask` 15 under D92, and R-3.5l's exception (D90) leaves the masked inputs reading clear. `input_mask`, `display_mode` and `ved_log_s` need nothing more here: discovery already generates them, and the Maintenance dashboard shows them. Every config-table row has a dashboard row |
