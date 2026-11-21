@@ -2,9 +2,9 @@
 # Copyright (c) 2026 Robert J. Lee
 #
 # The Gate dashboard (HA Integration Implementation Plan 8.1): for everyone, and for
-# operation only. It has the gate's three actions, its status and the link. Everything else
-# is on LRAN Status, which is admin only. YAML mode, so this file is the source (plan 6);
-# install it as /config/dashboards/lran/gate.yaml.
+# operation only. It has the gate's three actions, its status, the link and the way to Gate
+# Schedule (plan 8.5). Everything else is on LRAN Status, which is admin only. YAML mode,
+# so this file is the source (plan 6); install it as /config/dashboards/lran/gate.yaml.
 #
 # Fluvy's cards throughout (plan 2, task H11), written from its documentation: its card
 # editors cannot save to a YAML dashboard.
@@ -73,6 +73,22 @@ views:
                   perform_action: cover.open_cover
                   target:
                     entity_id: cover.gatelink_gate
+            grid_options:
+              columns: 12
+
+          # The way to Gate Schedule (plan 8.5). Apart from the three tiles above, because it
+          # navigates and sends nothing to the gate. The subtitle is fixed text: Fluvy's
+          # documentation does not say the scenes card renders a template there.
+          - type: custom:fluvy-scenes-card
+            columns: 1
+            scenes:
+              - entity: input_boolean.lran_gate_schedule_enabled
+                name: Schedule
+                icon: mdi:calendar-clock
+                subtitle: Scheduled Open - Hold and Close events
+                tap_action:
+                  action: navigate
+                  navigation_path: /lran-gate-schedule/schedule
             grid_options:
               columns: 12
 

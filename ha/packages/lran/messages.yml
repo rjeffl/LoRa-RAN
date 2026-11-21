@@ -241,3 +241,33 @@ weekly_battery:
     Battery {soc_min} to {soc_max}. Cycles added {cycles}. Worst cell spread {spread}. BMS
     link RSSI {rssi} on average, {rssi_change} on the week before. MPPT time in bulk
     {mppt_bulk}, absorption {mppt_absorption}, float {mppt_float}, off {mppt_off}.
+
+# --- Scheduled gate events (plan 9.6) ---
+# reason is the run script's outcome. The titles carry no placeholder, because the
+# morning report lists titles unfilled (plan 9.4). Ran and skipped default to the logbook only; a
+# failure pushes, because it means the gate is not where its schedule says it is.
+gate_schedule_ran:
+  level: Low
+  title: Scheduled gate event ran
+  message: "The scheduled {action} ran. The gate is {status}."
+  action: &schedule_actions
+    open_hold: Open - Hold
+    close: Close
+
+gate_schedule_skipped:
+  level: Low
+  title: Scheduled gate event skipped
+  message: "The scheduled {action} did not run: {reason}. The gate is {status}."
+  action: *schedule_actions
+  reason:
+    disabled: gate scheduling is turned off
+    not_needed: the gate was already in that state
+
+gate_schedule_failed:
+  level: High
+  title: Scheduled gate event failed
+  message: "The scheduled {action} did not complete: {reason}. The gate is {status}."
+  action: *schedule_actions
+  reason:
+    offline: GateLink was offline or reporting a fault for the whole retry window
+    unconfirmed: GateLink did not confirm the command after every attempt
