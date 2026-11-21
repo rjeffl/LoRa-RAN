@@ -664,10 +664,17 @@ Open - Hold or Close at a set time, once or daily (operator, 2026-11-21). The Ga
 
 The three outcome selectors are on LRAN Configuration's Notification view, with the reminders.
 
-**The card's icons render as a lightning bolt, not the configured `mdi:lock` and `mdi:gate`.**
-Customizing the entity, the action and the icon prefix changed nothing in the sandbox's
-screenshots on 2026-11-21. That may be the screenshot browser's cached frontend, so check it in a
-real client before changing more.
+**A specific date is the options panel's *Period*.** It is the card's last step, after the days
+and the time. A start and end date on the same day runs the event that day only, and the list
+then gives the next run by weekday, *Wednesday at 7:00 AM*. The card has no setting that moves
+the date onto its first page.
+
+**The card runs a script as a service of its own, `script.<name>`, with no target, and names that
+action *execute*.** Each customized action names the same service, so it replaces *execute* with
+*Open - Hold* or *Close* (scheduler-card v4.0.20's source). The first version named `turn_on`,
+which the card would have sent as `script.turn_on` with no target, running nothing. In the
+sandbox's screenshots the list shows the card's own script icon, not `mdi:lock` or `mdi:gate`.
+That may be the screenshot browser's cached frontend, so check the add dialog in a real client.
 
 ## 9. Automations
 

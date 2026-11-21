@@ -47,8 +47,11 @@ views:
           # does not appear here. Each row's toggle suspends it; tapping it edits or
           # deletes it. "Once" is set in the options panel, under behaviour after completion.
           # Sorted by the time to the next run, which makes the list the pending events in
-          # order. The actions are customized so the add dialog names them; their icons
-          # render as the default lightning bolt in the sandbox's screenshots (plan 8.5).
+          # order. The card runs a script by calling it as a service, script.<name>, with
+          # no target, and names that action "execute". Each customized action below names
+          # that same service, so it replaces "execute" rather than adding a second action.
+          # A service of turn_on would have become script.turn_on with no target, which
+          # runs nothing (scheduler-card v4.0.20's source).
           - type: custom:scheduler-card
             title: Scheduled events
             discover_existing: false
@@ -60,14 +63,14 @@ views:
                 name: Open - Hold
                 icon: mdi:lock
                 actions:
-                  - service: turn_on
+                  - service: script.lran_gate_schedule_open_hold
                     name: Open - Hold
                     icon: mdi:lock
               script.lran_gate_schedule_close:
                 name: Close
                 icon: mdi:gate
                 actions:
-                  - service: turn_on
+                  - service: script.lran_gate_schedule_close
                     name: Close
                     icon: mdi:gate
             time_step: 5

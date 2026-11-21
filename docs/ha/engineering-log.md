@@ -1345,3 +1345,11 @@ created with `scheduler.add` fired at 13:10 and logged a skip, the gate being cl
 read `triggered`. After the Marketplace install the Scheduler card rendered only once the Puppet
 app restarted, as Fluvy's had. Its icons stayed a lightning bolt through three customizations,
 which may be Puppet's cache. The test schedules were removed and the master switch left off.
+
+**Later the same day: the card's script action, from its source.** The operator saw the add
+dialog offer *action: execute*. scheduler-card v4.0.20 runs a script by calling `script.<name>`
+as a service with no target, labelled *execute*. A customized action replaces a standard one only
+when its service matches. Ours named `turn_on`, which the card prefixes to `script.turn_on`, with
+no target, so choosing it would have run nothing. It now names the script's own service. A
+schedule shaped as the card makes one, with a one-day period on 2026-11-25, listed as *Close*,
+next run *Wednesday at 7:00 AM*, and was removed.
