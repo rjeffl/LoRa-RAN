@@ -1316,3 +1316,32 @@ nothing else, so the copy lost nothing. Every other LRAN package and dashboard f
 matched the repository. After the config check and template reload, the four mask switches read
 `on` against `input_mask` 15, and the select read *Button* against `display_mode` 2. Nothing was
 pressed.
+
+## 2026-11-21 — Scheduled gate events, on the Scheduler component
+
+**The operator asked for Open - Hold and Close at set times, once or daily, under a master
+switch.** The first plan was HA's Local Calendar. It fails two of the operator's requirements.
+`calendar.create_event` takes no repeat rule, so a dashboard form cannot create a daily event.
+`calendar.get_events` returns no event ID, so a button cannot suspend or delete a chosen one. Both
+facts are from HA's service documentation: no install here had a calendar to check them on. Both
+would have needed HA's own calendar dialog, with the action typed as the event's title. The
+operator then weighed helper slots built here against the Scheduler component and card
+(`nielsfaber`, HACS) and chose the component, with the gate rules kept in an LRAN script (plan
+§9.6).
+
+**Production's Marketplace refused ha-mcp's install.** HA 2026.11's built-in Marketplace accepts
+its first-run warning per user, and ha-mcp's account had not accepted it. The operator installed
+both on the sandbox by hand. Production needs the same, plus a restart, before §8.5 can go there.
+
+**The morning report lists alert titles unfilled.** The first catalog titles were
+`Scheduled {action} skipped`, and `input_text.lran_report_alerts` recorded that text as written.
+`lran_notify` fills placeholders in the push and the logbook entry, not in the report note, by
+design (§7.3). The titles now carry none.
+
+**Tested on the sandbox, which has no bridge.** Each path ran once: master off, nothing needed,
+GateLink unavailable for a 1-minute window, two unconfirmed attempts 10 s apart, and a confirmed
+Open - Hold and Close with the hold switch forced through the REST API. A one-time schedule
+created with `scheduler.add` fired at 13:10 and logged a skip, the gate being closed, and then
+read `triggered`. After the Marketplace install the Scheduler card rendered only once the Puppet
+app restarted, as Fluvy's had. Its icons stayed a lightning bolt through three customizations,
+which may be Puppet's cache. The test schedules were removed and the master switch left off.

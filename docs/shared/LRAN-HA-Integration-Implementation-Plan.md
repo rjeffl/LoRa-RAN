@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.28
+**Version:** 0.29
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02; H10 steps 2 to 5 done on production 2026-11-02
-**Last updated:** 2026-11-11
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02; H10 steps 2 to 5 done on production 2026-11-02; scheduled gate events built and tested on the sandbox 2026-11-21
+**Last updated:** 2026-11-21
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side lives in this repository and reaches an install as files.** While the
@@ -55,13 +55,14 @@ together with the entities. The bridge handoff asked for this plan before GL8.
 
 | Question | Choice |
 |---|---|
-| Dashboard layout | **Four dashboards** (operator, 2026-11-01). *Gate* and *Vehicles* are for everyone. *LRAN Status* and *LRAN Configuration* are admin only (§8). Until then there were *Gate*, *LRAN* and an admin-only *LRAN maintenance* |
+| Dashboard layout | **Four dashboards** (operator, 2026-11-01). *Gate* and *Vehicles* are for everyone. *LRAN Status* and *LRAN Configuration* are admin only (§8). Until then there were *Gate*, *LRAN* and an admin-only *LRAN maintenance*. *Gate Schedule*, for everyone, was added 2026-11-21 (§8.5) |
 | Card set | ~~**Core cards only.** Nothing to install on production, and no HACS dependency to keep current~~ **Superseded 2026-10-30:** the operator chose Fluvy (`acosta290/fluvy`) for production, theme and cards, for one look across HA. The LRAN dashboards use Fluvy's cards wherever Fluvy has one (task H11) |
 | Fluvy version | **Pinned at v1.11.3**, the latest release on 2026-10-30. Three releases came out on 2026-10-28, so an update is taken deliberately, once the sandbox has run it |
 | Fluvy scope | **Everywhere.** Fluvy's *Scope* setting restyles the sidebar and HA's own pages as well as the dashboards, on the sandbox as on production |
 | Dashboard source | **YAML-mode files in the repository, unchanged** (§6). Fluvy's card editors cannot save to a YAML dashboard, so its cards are written from its documentation |
 | Gate command confirmation | **Not required** (operator, 2026-10-30). The Gate dashboard's three actions send with no confirmation dialog (§8.1). The gate's own controls have never asked for one |
 | Gate control entity | **Fix it in the bridge.** Discovery publishes the D8 `cover` and hold `switch` (§5, task F1). F1 was built 2026-10-28, and the dashboards use the cover and the switch in place of the four command buttons |
+| Gate scheduling | **The Scheduler component and card** (`nielsfaber`, HACS) keep the list, the times and the repeats, and an LRAN script holds the gate rules (operator, 2026-11-21; §9.6). HA's Local Calendar was set aside because its services cannot create a repeating event or act on one chosen event. Helper slots built here were set aside as reinventing a maintained component |
 | Automation tiers | **All five:** alerts, health, reminders, reports, convenience (§9). Tier 5 is parked, and production does not need it (§9.5) |
 | Notification channels | **Companion-app push now; SMTP email later, behind a switch.** Email is built and tested, then held off by `input_boolean.lran_email_enabled` until the operator turns it on. **No SMS:** push replaces it |
 | Units | **The bridge keeps publishing mV and mA**, GateLink's native units on the wire. LRAN Status shows pack voltage in V through HA-side conversion (§7.4), and mV and mA otherwise |
@@ -154,12 +155,14 @@ ha/
     messages.yml        the text of every push, email and logbook entry (§7.5)
     reminders.yaml      tier 3 (§9.3)
     reports.yaml        tier 4 (§9.4)
+    schedule.yaml       scheduled gate events (§9.6)
     site.yaml.example   the per-install values: push and email scripts, recorder
   dashboards/
     gate.yaml           the Gate dashboard (§8.1)
     vehicles.yaml       the Vehicles dashboard (§8.4)
     lran.yaml           LRAN Status: Power, Temperature, Network, Events, admin only (§8.2)
     lran-maintenance.yaml  LRAN Configuration, admin only (§8.2)
+    gate-schedule.yaml  Gate Schedule (§8.5)
   www/
     press-flash.js      the Gate tiles' press feedback (§8.3)
 tools/ha/
@@ -203,6 +206,12 @@ lovelace:
       icon: mdi:tune-variant
       show_in_sidebar: true
       require_admin: true
+    lran-gate-schedule:
+      mode: yaml
+      filename: dashboards/lran/gate-schedule.yaml
+      title: Gate Schedule
+      icon: mdi:calendar-clock
+      show_in_sidebar: true
 ```
 
 **YAML-mode dashboards, so the repository is the source.** A dashboard edited in the UI on
@@ -635,6 +644,31 @@ It marks the latest entry held and takes over its key, so the follow-up still fi
 **The log holds today only, up to 200 entries.** Repeated events change nothing, and
 `synthetic: true` events are ignored. An entry whose follow-up is lost stays `pending`.
 
+### 8.5 Gate Schedule (for everyone)
+
+Open - Hold or Close at a set time, once or daily (operator, 2026-11-21). The Gate dashboard's
+*Schedule* tile opens it. From the top, it has:
+
+- **The master switch**, `input_boolean.lran_gate_schedule_enabled`, labelled *Run scheduled
+  events*. Off, every event is skipped and logged, and an orange line says so, because the list
+  itself does not show it. It starts off on a new install.
+- **The last event's outcome**, from `input_text.lran_gate_schedule_last`, as text rather than an
+  editable row.
+- **The Scheduler card**, limited to the two scripts in §9.6. It lists the events by time to the
+  next run, with each one's time, days and a toggle that suspends it. Tapping an event edits or
+  deletes it, and *Add* creates one. *Once* is set in the card's options panel, under behaviour
+  after completion. A one-time event made with `repeat_type: single` stays in the list after it
+  fires, reading `triggered`, and does not run again. `discover_existing` is off, so a
+  schedule made elsewhere for another entity does not appear.
+- **Retry settings**: the window, the confirmation wait and the number of attempts (§9.6).
+
+The three outcome selectors are on LRAN Configuration's Notification view, with the reminders.
+
+**The card's icons render as a lightning bolt, not the configured `mdi:lock` and `mdi:gate`.**
+Customizing the entity, the action and the icon prefix changed nothing in the sandbox's
+screenshots on 2026-11-21. That may be the screenshot browser's cached frontend, so check it in a
+real client before changing more.
+
 ## 9. Automations
 
 Every automation has an ID of the form `lran_<tier>_<name>`, so production's automation
@@ -774,6 +808,58 @@ LTE/5G connectivity is poor until close to the house, so the operator is not sur
 at this time. No one has measured the coverage: before reopening this, check where on the drive a
 phone's zone entry first reaches HA, and whether a push gets back to the phone from there.
 
+### 9.6 Scheduled gate events
+
+**The Scheduler component keeps when; `schedule.yaml` keeps what happens.** A schedule runs
+`script.lran_gate_schedule_open_hold` or `script.lran_gate_schedule_close`, and both call
+`script.lran_gate_schedule_run`. The master switch, the check that the event is needed, the retry
+and the alert are in that script, in this repository, so a Scheduler update cannot change them.
+The schedules themselves are runtime data in HA's storage, as entities named `switch.schedule_*`.
+
+**An event runs only when it is needed.** Open - Hold is done once
+`switch.gatelink_hold_gate_open` reads `on`, whether the gate was closed or open on its
+auto-close timer: in both cases the event's purpose is a gate that stays open. Close is done once
+the hold is off and the cover reads `closed` or `closing`. An event already done is skipped.
+
+**It waits for GateLink, then retries within a window.** The script waits until
+`binary_sensor.lran_gatelink_online` is on and `sensor.gatelink_gate` reads a state a command can
+act on, not `fault`. It then sends the command and waits for the result. It sends again, up to the
+number of attempts, only while the result is not reached. Everything ends at the window.
+
+| Helper | Default | What it bounds |
+|---|---|---|
+| `input_number.lran_gate_schedule_window_min` | 10 min | The whole event, from the moment it fires |
+| `input_number.lran_gate_schedule_confirm_s` | 90 s | One attempt's wait for GateLink's result |
+| `input_number.lran_gate_schedule_attempts` | 2 | Commands sent |
+
+`lran_0_seed_gate_schedule` sets these and the three selectors once, with its own flag,
+`input_boolean.lran_gate_schedule_seeded`. `lran_defaults_seeded` is already on at every install
+this package reaches.
+
+**A retry is a new command, so none is sent while the gate moves.** HA has no access to a
+command's `seq`, so the retry cannot be the bridge's deduplicated resend. A second Close or
+Open - Hold while the cover reads `opening` or `closing` could be a second relay pulse (GateLink
+PRD S-8). The script waits through movement instead.
+
+**A newer event replaces one still retrying.** The run script's mode is `restart`. An Open - Hold
+still waiting for GateLink gives way to a Close scheduled after it, which is what the person who
+set both meant.
+
+| Outcome | Message | Default level |
+|---|---|---|
+| Done | `gate_schedule_ran` | Low |
+| Master off, or nothing needed | `gate_schedule_skipped` | Low |
+| Offline or fault for the whole window, or not confirmed after every attempt | `gate_schedule_failed` | High |
+
+The titles carry no placeholder, because §9.4's report lists titles unfilled.
+
+**Tested on the sandbox on 2026-11-21**, which has no bridge. Master off and nothing needed
+skipped with no command. GateLink unavailable waited out a 1-minute window and sent nothing. With
+the online sensor forced on, two unconfirmed attempts each sent `switch.turn_on`, 10 s apart, then
+failed. Forced hold states confirmed an Open - Hold and a Close. A one-time schedule made through
+`scheduler.add` fired at its minute and ran the script. Not yet verified: a real gate's
+confirmation times, a schedule created by tapping *Add*, and production.
+
 ## 10. History and the recorder
 
 **The detail graphs beyond 10 days come from long-term statistics, not the recorder's
@@ -882,6 +968,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.29 | 2026-11-21 | §9.6 and §8.5, new: scheduled Open - Hold and Close events, by operator choice, through the Scheduler component and card from HACS, with the gate rules in `schedule.yaml`. §2 records the choice and what was set aside. §6 adds the files and the dashboard block |
 | 0.28 | 2026-11-21 | §8.1: the Gate dashboard's actions run Open - Hold, Close, Open - AutoClose, by operator choice. RF remotes and the exit wand cover the auto-close opening |
 | 0.27 | 2026-11-11 | §12.1, new: while the operator is production's only user, a change goes straight to production, by operator choice. It must not break the interfaces production's devices use, and the repository and HA backups are the way back. Upgrades still go to the sandbox first. The rule ends when other users join. The banner and §6 change to match |
 | 0.26 | 2026-11-11 | §8.2: the GateLink view's *Inputs and display* card sets `input_mask` a bit at a time and `display_mode` by name, by operator choice. §7.4: IN3 to IN6 read `unavailable` while `input_mask` names them, through template mirrors, and a sensor names the masked inputs. GateLink deploys with `input_mask` 15 under D92, and R-3.5l's exception (D90) leaves the masked inputs reading clear. `input_mask`, `display_mode` and `ved_log_s` need nothing more here: discovery already generates them, and the Maintenance dashboard shows them. Every config-table row has a dashboard row |

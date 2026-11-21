@@ -35,12 +35,22 @@ operator. Production has the email, press-flash and dry-run switch changes. Both
 |---|---|
 | **H10, step 6** Verify tier 1 on production, as part of GL8 | *The next job* here; plan §12 and §9.1; the deployment brief's GL8 row |
 | **H10, step 7** Turn on email, when the operator is ready | *The next job* here; plan §7.3 |
+| **Gate schedule to production** Install the Scheduler component and card, add the dashboard block, copy, restart | *The next job* here; plan §8.5, §9.6 and §6 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
 section and *The next job*.
 
 ## The next job, in one place
+
+**Scheduled gate events run on the sandbox, not on production (2026-11-21).** Plan §9.6 and §8.5
+describe them, and the engineering log's 2026-11-21 entry records the tests. To port: the operator
+installs *Scheduler component* and *Scheduler Card* (`nielsfaber`) in production's Marketplace,
+because ha-mcp's account there has not accepted its first-run warning. Then back up, add §6's
+`lran-gate-schedule` block to `configuration.yaml`, copy `schedule.yaml`, `messages.yml` and the
+`gate`, `gate-schedule` and `lran-maintenance` dashboards, and restart. The master switch starts
+off. Check the card in a real client, because its icons rendered as a lightning bolt in Puppet's
+screenshots.
 
 **The *Inputs and display* controls are on production (2026-11-11), and none has written a value
 yet.** LRAN Configuration's GateLink view has a switch per `input_mask` bit and a `display_mode`
