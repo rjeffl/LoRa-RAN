@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.29
+**Version:** 0.30
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02; H10 steps 2 to 5 done on production 2026-11-02; scheduled gate events built, tested and reviewed on the sandbox 2026-11-21
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28; bridge tasks F1–F4 built 2026-10-28; Fluvy chosen and H11 done 2026-10-30; H12 built 2026-11-01; LRAN Configuration's views and the additional recipients built 2026-11-01; tier 5 parked 2026-11-02; H10 steps 2 to 5 done on production 2026-11-02; scheduled gate events built, tested and reviewed on the sandbox 2026-11-21, and ported to production 2026-11-21
 **Last updated:** 2026-11-21
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -877,8 +877,9 @@ the online sensor forced on, two unconfirmed attempts each sent `switch.turn_on`
 failed. Forced hold states confirmed an Open - Hold and a Close. A one-time schedule made through
 `scheduler.add` fired at its minute and ran the script. After the operator's review, a one-time
 event shaped as §8.5's card makes it read `triggered` at 18:51 and was deleted by 18:52. The
-operator created and edited events through the card in the Companion app. Not yet verified: a real
-gate's confirmation times, and production.
+operator created and edited events through the card in the Companion app. **Ported to production
+on 2026-11-21** with the master switch off, so no event has run there. Not yet verified: a real
+gate's confirmation times, and the card rendered on production.
 
 ## 10. History and the recorder
 
@@ -988,6 +989,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
+| 0.30 | 2026-11-21 | §9.6 and the status: scheduled gate events ported to production, master switch off. No event has run there |
 | 0.29 | 2026-11-21 | §9.6 and §8.5, new: scheduled Open - Hold and Close events, by operator choice, through the Scheduler component and card from HACS, with the gate rules in `schedule.yaml`. §2 records the choice and what was set aside. §6 adds the files and the dashboard block. After the operator's sandbox review, §8.5 replaces the Scheduler card with `gate-schedule-card.js` and moves the settings to LRAN Configuration |
 | 0.28 | 2026-11-21 | §8.1: the Gate dashboard's actions run Open - Hold, Close, Open - AutoClose, by operator choice. RF remotes and the exit wand cover the auto-close opening |
 | 0.27 | 2026-11-11 | §12.1, new: while the operator is production's only user, a change goes straight to production, by operator choice. It must not break the interfaces production's devices use, and the repository and HA backups are the way back. Upgrades still go to the sandbox first. The rule ends when other users join. The banner and §6 change to match |

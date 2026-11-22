@@ -1395,3 +1395,30 @@ subtitle, in place of a separate heading card.
 **The screenshot engine could not show any of it.** Gate Schedule rendered as an empty error card,
 and LRAN Configuration redirected to HA's home page, because the engine's account is not an admin.
 The Companion app was the only check.
+
+## 2026-11-21 — Gate Schedule ported to production, and a copy that left an empty file
+
+**Production runs scheduled gate events, with the master switch off.** The Scheduler component
+v3.3.9 was already installed and loaded there, so the operator's Marketplace step was done. Backup
+`9c9b996e` came first. Then `schedule.yaml`, `messages.yml`, the `gate`, `gate-schedule` and
+`lran-maintenance` dashboards and `gate-schedule-card.js` were copied over the share to host
+192.168.2.24. `configuration.yaml` gained plan §6's `lran-gate-schedule` entry and nothing else,
+and the card was registered as `/local/lran/gate-schedule-card.js?v=1`. The config check passed
+and HA restarted. Before the copy, each production file that differed from `main` matched `main`
+as it stood before PR #265, so none held an edit made on the install.
+
+**After the restart, all 13 entities in `schedule.yaml` exist.** The seed set the window to 10 min,
+the confirmation wait to 90 s, the attempts to 2 and the selectors to Low, Low and High.
+`input_boolean.lran_gate_schedule_enabled` reads `off`. The Gate Schedule dashboard resolves, and
+`/local/lran/gate-schedule-card.js?v=1` serves 16046 bytes, the repository's size. The system log
+had no new error. No event has run on production, and the card has not been seen rendered there:
+production has no screenshot engine.
+
+**A multi-file `cp -X` to the share failed and left a 0-byte `packages/lran/schedule.yaml`.** It
+reported `ha/packages/lran/schedule.yaml: Is a directory`, about a local file that is plain text.
+The `&&` chain then stopped, so the dashboards were not copied, and a listing showed their old
+sizes. Removing the empty file and copying one file at a time worked. Compare every copy with
+`cmp` afterwards: a failed copy can leave a file that HA reads as an empty package.
+
+**The HACS Scheduler Card is still installed on production**, with its resource registered.
+Nothing uses it. Removing it is the operator's choice.
