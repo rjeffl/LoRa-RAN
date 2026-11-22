@@ -22,20 +22,21 @@ read, for H12's post-soak checks, on 2026-11-02 at the end of H12, on 2026-11-02
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: gate schedule to production.
+Continue from docs/ha/HANDOFF.md: H10 step 6.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
 cited below as *plan*. H4, H4b, H5, H6, H7, H9, H11 and H12 are done. H8 is parked (plan §9.5). H10's
 steps 2 to 5 ran on production on 2026-11-02. Step 6 waits for GL8 at the gate, and step 7 for the
-operator. Production has the email, press-flash and dry-run switch changes. Both installs run the
+operator. Production has the email, press-flash and dry-run switch changes, and scheduled gate
+events since 2026-11-21. Both installs run the
 `input_mask` change for D92 (GateLink PRD R-3.5l, D90), ported to production on 2026-11-11.
 
 | Task | Read |
 |---|---|
 | **H10, step 6** Verify tier 1 on production, as part of GL8 | *The next job* here; plan §12 and §9.1; the deployment brief's GL8 row |
 | **H10, step 7** Turn on email, when the operator is ready | *The next job* here; plan §7.3 |
-| **Gate schedule to production**, after the review | *The next job* here; plan §8.5, §9.6 and §6 |
+| **First scheduled event on production**, when the operator turns the master switch on | *The next job* here; plan §9.6 and §8.5 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -43,26 +44,24 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**Scheduled gate events passed the operator's sandbox review (2026-11-21) and wait to be ported to
-production.** The work is on branch `ha-gate-schedule`, draft PR rjeffl/LoRa-RAN#265, so read this
-file there. Plan §9.6 says what the run script does and §8.5 what the page shows. The engineering
-log's three 2026-11-21 entries record the tests, the card's script-action fix and the review.
+**Scheduled gate events are on production (2026-11-21), with the master switch off.** No event
+has run there. The operator checked the card in the Mac and iPhone Companion apps. The
+engineering log's last two 2026-11-21 entries record the port and the Mac app's crash on the time
+field, which the card's three time dropdowns fixed. Both installs serve the card at `?v=2`. Plan §9.6 says what the run script does
+and §8.5 what the page shows. To check it, the operator opens Gate Schedule in the Companion app,
+turns the master switch on in LRAN Configuration's *Gate Schedule* view, and adds a one-time event
+a few minutes ahead. A Close with the gate already closed skips without sending a command, so it
+is the safe first event. Raise the resource's `?v=` with each change to the card, or the
+Companion app keeps the old one.
 
-**The review replaced the Scheduler card with an LRAN card**, `ha/www/gate-schedule-card.js`,
-registered on the sandbox as `/local/lran/gate-schedule-card.js?v=1`. The master switch, the retry
-settings and the last event moved to LRAN Configuration's *Gate Schedule* view. The Scheduler
-component stays; the HACS Scheduler Card is no longer used and can be removed from both installs.
-Raise the resource's `?v=` with each change to the card, or the Companion app keeps the old one.
+**The HACS Scheduler Card is no longer used** and can be removed from both installs. It is still
+installed and registered on production. That is the operator's choice.
 
-**What the sandbox has.** The Scheduler component v3.3.9, §6's `lran-gate-schedule` block, and the
-branch's `schedule.yaml`, `messages.yml`, card and `gate`, `gate-schedule`, `lran-maintenance` and
-`lran` dashboards. The operator turned the master switch on. Four schedules are left from the
-review: a daily Close at 00:00, *Monday open* (`repeat_type: pause`), and two one-time Opens on
-2026-11-25 at 09:00. The sandbox has no bridge, so each Close or Open there waits out its window
-and pushes a High failure. Delete them, or turn the master switch off, if that push is unwanted.
-
-**The sandbox has no bridge, so a scheduled event there can only skip or fail.** A success path
-needs forced states through `~/.local/bin/ha-sandbox post states/<entity>`:
+**The sandbox has the same set** and four schedules left from the review: a daily Close at 00:00,
+*Monday open* (`repeat_type: pause`), and two one-time Opens on 2026-11-25 at 09:00. The sandbox has
+no bridge, so each Close or Open there waits out its window and pushes a High failure. Delete them,
+or turn the sandbox's master switch off, if that push is unwanted. A success path there needs
+forced states through `~/.local/bin/ha-sandbox post states/<entity>`:
 `binary_sensor.lran_gatelink_online` on, then `switch.gatelink_hold_gate_open` on or off while the
 script waits. Restore them afterwards.
 
@@ -73,12 +72,6 @@ a failure pushes at High.
 
 **Seen in passing, not part of this work.** In the sandbox's screenshot of the Gate dashboard,
 *Open - AutoClose* showed no subtitle. Production was not checked.
-
-**Then, to port to production.** The operator installs the Scheduler component in production's
-Marketplace, because ha-mcp's account there has not accepted its first-run warning. Then back up,
-add §6's block to `configuration.yaml`, copy `schedule.yaml`, `messages.yml`, the `gate`,
-`gate-schedule` and `lran-maintenance` dashboards and `gate-schedule-card.js` to `www/lran/`,
-register the card as a dashboard resource, and restart. The master switch starts off.
 
 **The *Inputs and display* controls are on production (2026-11-11), and none has written a value
 yet.** LRAN Configuration's GateLink view has a switch per `input_mask` bit and a `display_mode`
@@ -385,6 +378,8 @@ those two targets changed, which plan §7.3 names.
 
 - **`/Volumes/config` is not always the sandbox.** The name follows mount order, and on 2026-11-11
   it was production. Read the host in `mount` before every copy (*The dev flow*).
+- **A copy to the share can fail and leave an empty file.** On 2026-11-21 a multi-file `cp -X`
+  left a 0-byte `schedule.yaml` on production. Copy one file at a time and `cmp` each afterwards.
 - **A template sensor that renders `None` reads `unknown`.** HA parses the rendered text, so a
   word meant for display must not be `None`. `sensor.lran_gatelink_inputs_not_sensed` says
   `No input` for that reason (2026-11-11).

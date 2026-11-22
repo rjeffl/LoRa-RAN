@@ -1395,3 +1395,51 @@ subtitle, in place of a separate heading card.
 **The screenshot engine could not show any of it.** Gate Schedule rendered as an empty error card,
 and LRAN Configuration redirected to HA's home page, because the engine's account is not an admin.
 The Companion app was the only check.
+
+## 2026-11-21 — Gate Schedule ported to production, and a copy that left an empty file
+
+**Production runs scheduled gate events, with the master switch off.** The Scheduler component
+v3.3.9 was already installed and loaded there, so the operator's Marketplace step was done. Backup
+`9c9b996e` came first. Then `schedule.yaml`, `messages.yml`, the `gate`, `gate-schedule` and
+`lran-maintenance` dashboards and `gate-schedule-card.js` were copied over the share to host
+192.168.2.24. `configuration.yaml` gained plan §6's `lran-gate-schedule` entry and nothing else,
+and the card was registered as `/local/lran/gate-schedule-card.js?v=1`. The config check passed
+and HA restarted. Before the copy, each production file that differed from `main` matched `main`
+as it stood before PR #265, so none held an edit made on the install.
+
+**After the restart, all 13 entities in `schedule.yaml` exist.** The seed set the window to 10 min,
+the confirmation wait to 90 s, the attempts to 2 and the selectors to Low, Low and High.
+`input_boolean.lran_gate_schedule_enabled` reads `off`. The Gate Schedule dashboard resolves, and
+`/local/lran/gate-schedule-card.js?v=1` serves 16046 bytes, the repository's size. The system log
+had no new error. No event has run on production, and the card has not been seen rendered there:
+production has no screenshot engine.
+
+**A multi-file `cp -X` to the share failed and left a 0-byte `packages/lran/schedule.yaml`.** It
+reported `ha/packages/lran/schedule.yaml: Is a directory`, about a local file that is plain text.
+The `&&` chain then stopped, so the dashboards were not copied, and a listing showed their old
+sizes. Removing the empty file and copying one file at a time worked. Compare every copy with
+`cmp` afterwards: a failed copy can leave a file that HA reads as an empty package.
+
+**The HACS Scheduler Card is still installed on production**, with its resource registered.
+Nothing uses it. Removing it is the operator's choice.
+
+## 2026-11-21 — The Mac Companion app quits on the card's time field
+
+**The operator's check found it.** Gate Schedule rendered in a browser and in the Companion apps.
+In the Mac app, version 2026.10.3 on macOS 27.2.1, a click on the hour of the dialog's time field
+quit the app, every time. The browser and the iPhone app were fine.
+
+**The crash is the app's, not the card's or HA's.** Four reports in
+`~/Library/Logs/DiagnosticReports/` show the same main-thread exception, `EXC_BREAKPOINT`, from
+`-[UIView(UICatalystMacIdiomUnsupported_Internal) _throwForUnsupportedNonMacIdiomBehaviorWithReason:]`
+inside `-[UIPickerView _didMoveFromWindow:toWindow:]`. The Mac app is a Catalyst build. Its web
+view gives `<input type="time">` iOS's wheel picker, `UIPickerView`, and Catalyst's Mac idiom
+throws when that view joins a window. The date field opens a different picker, which the Mac app
+allows.
+
+**The card's time is now three `<select>`s, hour 1 to 12, minute 00 to 59 and AM/PM**, at
+`?v=2` on both installs. The operator chose them over plain number fields to keep the wheel on the
+iPhone, where the card is used most. The card still keeps 24-hour `HH:MM`, so nothing the
+Scheduler component reads changed. The conversion returned every value it was given, run in
+JavaScriptCore for 00:00, 00:05, 09:30, 11:59, 12:00, 12:45, 13:07 and 23:59. The operator then
+checked the dropdowns in both apps: the iPhone shows the wheel, and the Mac app no longer quits.
