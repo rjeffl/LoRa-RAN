@@ -45,8 +45,9 @@ section and *The next job*.
 ## The next job, in one place
 
 **Scheduled gate events are on production (2026-11-21), with the master switch off.** No event
-has run there, and the card has not been seen rendered: production has no screenshot engine. The
-engineering log's last 2026-11-21 entry records the port. Plan §9.6 says what the run script does
+has run there. The operator checked the card in the Mac and iPhone Companion apps. The
+engineering log's last two 2026-11-21 entries record the port and the Mac app's crash on the time
+field, which the card's three time dropdowns fixed. Both installs serve the card at `?v=2`. Plan §9.6 says what the run script does
 and §8.5 what the page shows. To check it, the operator opens Gate Schedule in the Companion app,
 turns the master switch on in LRAN Configuration's *Gate Schedule* view, and adds a one-time event
 a few minutes ahead. A Close with the gate already closed skips without sending a command, so it

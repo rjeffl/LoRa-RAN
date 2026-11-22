@@ -261,7 +261,7 @@ class LranGateScheduleCard extends HTMLElement {
         <div class="dialog" role="dialog" aria-label="Gate Event">
           <div class="dtitle">Gate Event</div>
           <label>Day<input type="date" name="date" value="${d.date}" min="${this._now().date}"></label>
-          <label>Time<input type="time" name="time" value="${d.time}"></label>
+          <div class="field">Time${time_selects(d.time)}</div>
           <div class="field">Repeat
             <div class="segs">${seg("repeat", "once", "Once", !d.daily)}${seg("repeat", "daily", "Daily", d.daily)}</div>
           </div>
@@ -279,7 +279,9 @@ class LranGateScheduleCard extends HTMLElement {
     const d = this._dialog;
     // Keep what was typed when a button press redraws the dialog.
     root.querySelector('input[name="date"]').addEventListener("change", (ev) => (d.date = ev.target.value));
-    root.querySelector('input[name="time"]').addEventListener("change", (ev) => (d.time = ev.target.value));
+    root.querySelectorAll("select[data-time]").forEach((sel) =>
+      sel.addEventListener("change", () => (d.time = time_from_selects(root))),
+    );
     root.querySelectorAll("[data-repeat]").forEach((b) =>
       b.addEventListener("click", () => {
         d.daily = b.dataset.repeat === "daily";
@@ -372,8 +374,10 @@ const kStyle = `
             display: flex; flex-direction: column; gap: 14px; }
   .dtitle { font-size: 1.3rem; font-weight: 500; }
   label, .field { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; color: var(--secondary-text-color); }
-  input { font: inherit; font-size: 1rem; padding: 10px; border-radius: 8px; color: var(--primary-text-color);
+  input, select { font: inherit; font-size: 1rem; padding: 10px; border-radius: 8px; color: var(--primary-text-color);
           background: var(--secondary-background-color, transparent); border: 1px solid var(--divider-color); }
+  .time { display: flex; align-items: center; gap: 6px; color: var(--primary-text-color); }
+  .time select { flex: 1; }
   .segs { display: flex; gap: 8px; }
   .seg { flex: 1; padding: 12px; font-size: 1rem; background: transparent; color: var(--primary-text-color);
          border: 1px solid var(--divider-color); }
@@ -387,6 +391,33 @@ const kStyle = `
   .primary[disabled] { opacity: 0.4; cursor: default; }
   .danger { border: none; background: var(--error-color, #db4437); color: #fff; padding: 8px 18px; }
 `;
+
+// Time is three selects, hour, minute and AM/PM, not <input type="time">. In the Mac Companion
+// app (2026.10.3, a Catalyst build) that input opens UIKit's UIPickerView, which Catalyst's Mac
+// idiom refuses with an exception, and the app quits (crash reports, 2026-11-21). A select opens
+// the wheel on the iPhone, which the operator wants kept, and a menu on the Mac.
+function time_selects(hhmm) {
+  const [h24, min] = hhmm.split(":").map(Number);
+  const h12 = h24 % 12 || 12;
+  const opt = (value, label, on) => `<option value="${value}" ${on ? "selected" : ""}>${label}</option>`;
+  const hours = Array.from({ length: 12 }, (_, i) => opt(i + 1, i + 1, i + 1 === h12)).join("");
+  const mins = Array.from({ length: 60 }, (_, i) => opt(i, String(i).padStart(2, "0"), i === min)).join("");
+  const ampm = opt("am", "AM", h24 < 12) + opt("pm", "PM", h24 >= 12);
+  return `<div class="time">
+      <select data-time="hour" aria-label="Hour">${hours}</select>
+      <span>:</span>
+      <select data-time="minute" aria-label="Minute">${mins}</select>
+      <select data-time="ampm" aria-label="AM or PM">${ampm}</select>
+    </div>`;
+}
+
+// The Scheduler component takes 24-hour HH:MM, so the dialog keeps d.time in that form.
+function time_from_selects(root) {
+  const get = (name) => root.querySelector(`select[data-time="${name}"]`).value;
+  const h12 = Number(get("hour")) % 12;
+  const h24 = get("ampm") === "pm" ? h12 + 12 : h12;
+  return `${String(h24).padStart(2, "0")}:${String(Number(get("minute"))).padStart(2, "0")}`;
+}
 
 customElements.define("lran-gate-schedule-card", LranGateScheduleCard);
 window.customCards = window.customCards || [];

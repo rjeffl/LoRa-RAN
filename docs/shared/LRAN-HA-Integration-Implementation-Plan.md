@@ -664,6 +664,11 @@ the events and nothing else (operator's review, 2026-11-21). The page has one ca
   *Open* or *Close*. *Save* stays off until an action is chosen. A one-time event cannot be saved
   for a time already past. Editing adds *Delete*, which asks first.
 
+**The time is three dropdowns, hour, minute and AM/PM, not the browser's time field.** In the Mac
+Companion app, a tap on that field's hour quit the app: the field opens iOS's wheel picker, which
+the Mac version of the app refuses. A dropdown opens the wheel on the iPhone, which the operator
+keeps, and the Mac app no longer quits. Both apps were checked on 2026-11-21.
+
 The day, the time and the past-time check use HA's time zone, so a phone elsewhere agrees with
 the server that fires the event.
 
@@ -989,7 +994,7 @@ None. The approach zone's question was answered on 2026-11-02: the prompt is par
 
 | Version | Date | Change |
 |---|---|---|
-| 0.30 | 2026-11-21 | §9.6 and the status: scheduled gate events ported to production, master switch off. No event has run there |
+| 0.30 | 2026-11-21 | §9.6 and the status: scheduled gate events ported to production, master switch off. No event has run there. §8.5: the dialog's time is three dropdowns, after the Mac Companion app quit on the time field |
 | 0.29 | 2026-11-21 | §9.6 and §8.5, new: scheduled Open - Hold and Close events, by operator choice, through the Scheduler component and card from HACS, with the gate rules in `schedule.yaml`. §2 records the choice and what was set aside. §6 adds the files and the dashboard block. After the operator's sandbox review, §8.5 replaces the Scheduler card with `gate-schedule-card.js` and moves the settings to LRAN Configuration |
 | 0.28 | 2026-11-21 | §8.1: the Gate dashboard's actions run Open - Hold, Close, Open - AutoClose, by operator choice. RF remotes and the exit wand cover the auto-close opening |
 | 0.27 | 2026-11-11 | §12.1, new: while the operator is production's only user, a change goes straight to production, by operator choice. It must not break the interfaces production's devices use, and the repository and HA backups are the way back. Upgrades still go to the sandbox first. The rule ends when other users join. The banner and §6 change to match |

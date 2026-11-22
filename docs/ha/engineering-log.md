@@ -1422,3 +1422,24 @@ sizes. Removing the empty file and copying one file at a time worked. Compare ev
 
 **The HACS Scheduler Card is still installed on production**, with its resource registered.
 Nothing uses it. Removing it is the operator's choice.
+
+## 2026-11-21 — The Mac Companion app quits on the card's time field
+
+**The operator's check found it.** Gate Schedule rendered in a browser and in the Companion apps.
+In the Mac app, version 2026.10.3 on macOS 27.2.1, a click on the hour of the dialog's time field
+quit the app, every time. The browser and the iPhone app were fine.
+
+**The crash is the app's, not the card's or HA's.** Four reports in
+`~/Library/Logs/DiagnosticReports/` show the same main-thread exception, `EXC_BREAKPOINT`, from
+`-[UIView(UICatalystMacIdiomUnsupported_Internal) _throwForUnsupportedNonMacIdiomBehaviorWithReason:]`
+inside `-[UIPickerView _didMoveFromWindow:toWindow:]`. The Mac app is a Catalyst build. Its web
+view gives `<input type="time">` iOS's wheel picker, `UIPickerView`, and Catalyst's Mac idiom
+throws when that view joins a window. The date field opens a different picker, which the Mac app
+allows.
+
+**The card's time is now three `<select>`s, hour 1 to 12, minute 00 to 59 and AM/PM**, at
+`?v=2` on both installs. The operator chose them over plain number fields to keep the wheel on the
+iPhone, where the card is used most. The card still keeps 24-hour `HH:MM`, so nothing the
+Scheduler component reads changed. The conversion returned every value it was given, run in
+JavaScriptCore for 00:00, 00:05, 09:30, 11:59, 12:00, 12:45, 13:07 and 23:59. The operator then
+checked the dropdowns in both apps: the iPhone shows the wheel, and the Mac app no longer quits.
