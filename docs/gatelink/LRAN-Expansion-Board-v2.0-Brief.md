@@ -1,7 +1,7 @@
 # LRAN — GateLink expansion board v2.0 brief
 
 **Document:** `LRAN-Expansion-Board-v2.0-Brief`
-**Version:** 0.6
+**Version:** 0.7
 **Status:** The first board is built. With no Wio or level shifter fitted, its rails read about 4.96 V and 3.26 V from
 a 13.4 V supply (*Bench bring-up*). No other value here has been measured on a v2.0 board.
 **Last updated:** 2026-11-24
@@ -310,10 +310,11 @@ retest the GateLink handoff calls for before it goes back to the gate.
   gate and battery state into production HA, whichever key the unit holds. The 2026-11-24 version of this brief
   said each bridge would discard the other unit's frames as authentication failures. That holds for `COMMAND`
   and `CONFIG` only.
-- **Phase 2 runs on its own frequency.** The production bridge is powered down while the sandbox pair is on
-  917.4 MHz, and powered up again only after the pair has committed a move to another channel. LoRa does not
-  decode a signal offset by more than about a quarter of its bandwidth, so neither production radio hears the
-  pair on a channel some MHz away.
+- **Phase 2 runs on its own frequency.** `heltec-sandbox` and `gatelink-sandbox` boot on 915.0 MHz, set by
+  `-DLRAN_BOOT_FREQ_HZ` in each env, so the pair is never on 917.4 MHz and the production bridge stays up. LoRa
+  does not decode a signal offset by more than about a quarter of its bandwidth, so neither production radio
+  hears the pair 2.4 MHz away. Version 0.6 of this brief had the pair boot on 917.4 MHz and move over the air,
+  with the production bridge down until the move committed.
 - **Phase 2 has its own bridge and broker.** `heltec-sandbox` runs on the simnode's Heltec, against the sandbox
   broker and sandbox HA. Nothing from the bridge reaches production MQTT or HA.
 
@@ -358,23 +359,24 @@ the real MPPT, at the bench or at the gate, covers those.
 
 ### Phase 2: the node on its own channel
 
-**Keep the production bridge off whenever the spare or the sandbox bridge transmits on 917.4 MHz.** While it is off,
-the gate runs on the 1050 alone, and HA shows GateLink unavailable. The live GateLink keeps 917.4 MHz throughout: it
-rejects the sandbox bridge's `CONFIG` for want of the sandbox key's MAC, so it never retunes.
+**Both sandbox images boot on 915.0 MHz**, 2.4 MHz below Envelope A and inside the 902 to 928 MHz range the
+configuration table allows. The flag sets `kPhy` and the default of both `freq_hz` rows, so the boot banner and
+the PHY group agree. The production images keep D1's 917.4 MHz, and so does the live GateLink.
 
-1. **Power the production bridge down.** Leave the XIAO simnode unpowered.
-2. **Flash `heltec-sandbox` to the simnode's Heltec and `gatelink-sandbox` to the spare.** Both boot on 917.4 MHz,
-   Envelope A's default. Confirm the frequency in each boot banner.
-3. **Move the pair to 915.0 MHz**, 2.4 MHz below Envelope A and inside the 902 to 928 MHz range
-   the configuration table allows. Set `freq_hz` on the sandbox
-   bridge's `lran/bridge/config/set` (spec §12.4.1), and wait for its `config/ack`. The bridge refuses with
-   `phy_fleet_incomplete` while a node it polls is offline. Before the set, check that the sandbox bridge polls
-   0x01 alone, and set the `deployed` lever to 0 for any other row it polls. The live GateLink answers the
-   sandbox bridge's polls on 917.4 MHz too, so expect some mixed or colliding answers before the move.
-4. **Confirm the commit.** The bridge's `config/ack` reports it, and both boot banners read 915.0 MHz after a reset.
-   If the change abandons or reverts, both return to 917.4 MHz, so the production bridge stays off until a commit
-   is confirmed.
-5. **Power the production bridge back up**, and confirm in production HA that GateLink's state is the gate's.
+1. **Erase NVS on a board that has committed a group.** A committed PHY group in NVS wins over the flag. On the
+   spare, `phy reset` erases it. The bridge has no such command, so erase the Heltec's whole flash with
+   `pio run -d firmware/bridge -e heltec-sandbox -t erase` before flashing it.
+2. **Flash `heltec-sandbox` to the simnode's Heltec and `gatelink-sandbox` to the spare.** Leave the XIAO
+   simnode unpowered.
+3. **Confirm 915.0 MHz before anything transmits for long.** The bridge's banner prints it on its `PHY:` line and
+   again on `LoRa: radio up`; GateLink's `phy` command prints the group on the air. A board reading 917.4 MHz
+   has a committed group in NVS: power it down and erase it.
+4. **Set the `deployed` lever to 0 for every row but 0x01** on the sandbox bridge, so its polls go to the spare
+   alone.
+5. **Confirm in production HA that GateLink's state stays the gate's** throughout.
+
+The over-the-air move of spec §12.4.2 is no longer how the pair leaves the live link. It can still run on the
+bench as its own test, from 915.0 MHz to another channel away from 917.4 MHz.
 
 Log with `bench.py run --mqtt --secrets secrets.sandbox.h`, as in the GateLink handoff's *The soak's setup*. With no
 card, the node boots on its default configuration and reports the card not mounted. Then check that:
@@ -386,10 +388,10 @@ card, the node boots on its default configuration and reports the card not mount
 VE.Direct traffic needs the MPPT, which is at the gate, and no VE.Direct emulator exists. The loopback in phase 1
 stands in until the MPPT is connected.
 
-**The spare keeps 915.0 MHz until its NVS is erased.** GateLink stores its committed PHY group in NVS (`nvs_blob.h`),
-and a reflash does not clear it. That is what keeps the spare off the live link across a reset. Erase the spare's NVS
-before it serves at the gate. Never power it on 917.4 MHz while the production bridge is up. The simnode's Heltec
-also keeps the bridge's committed group in NVS, so erase it before the board goes back to simnode duty.
+**A committed PHY group in NVS outlives a reflash.** GateLink stores it in NVS (`nvs_blob.h`), and the bridge
+does the same. With the flag, neither board commits a group unless a move is run on the bench. If one is, erase
+the spare's NVS before it serves at the gate, and the Heltec's before it goes back to simnode duty. Never power a
+board on 917.4 MHz with a sandbox key while the production bridge is up.
 
 ### First-board checks
 
@@ -406,5 +408,5 @@ also keeps the bridge's committed group in NVS, so erase it before the board goe
 
 - a continuity reading in the checks above that differs from this brief
 - a 3.3 V rail that reads other than 3.3 V with U2 fitted
-- a spare that boots after phase 2 on a frequency other than the one last committed
+- a sandbox board that boots on a frequency other than 915.0 MHz with no group committed in its NVS
 - the production bridge decoding a frame from the pair on 915.0 MHz

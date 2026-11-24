@@ -113,6 +113,11 @@ StamPLC is in [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Br
 moves the sandbox pair to 915.0 MHz with the production bridge powered down, because GateLink's 0x01 `STATUS` carries
 no MAC and the production bridge would publish the bench unit as GateLink. It changed no firmware.
 
+**Updated 2026-11-24 by the sandbox-flash session.** `heltec-sandbox` and `gatelink-sandbox` now boot on 915.0 MHz
+through `-DLRAN_BOOT_FREQ_HZ`, which replaces phase 2's over-the-air move. The spare runs `gatelink-sandbox` and,
+with no v2.0 board fitted, resets on the task watchdog about 11 s after each boot. The cause is not confirmed; the
+likely one is `app_task` waiting on the SPI lock while `lora_task` retries a radio that is not there.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -173,7 +178,7 @@ over HTTP or registers `ha-prod` at user scope first.
 | 3 | **An MQTT logger on an always-on machine**, the HA host Mac: `bench.py run --mqtt` through the live soak. HA's recorder keeps entity states for about 10 days; the log keeps every message, `rxlog` and `boot_time` included. Operator's call whether it is worth it | `tools/bench/README.md`; engineering log, 2026-11-12 |
 | 4 | **The at-gate sequence and the proposed live soak**, with no input board (D92), and the at-gate checks above | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |
-| Parallel | **Expansion board v2.0 bench bring-up**, on the spare StamPLC: phase 0 is done, and phases 1 and 2 are next. **Phase 2 needs the production bridge off** until the sandbox pair commits to 915.0 MHz | Expansion board v2.0 brief, *Bench bring-up* |
+| Parallel | **Expansion board v2.0 bench bring-up**, on the spare StamPLC: phase 0 is done, and phases 1 and 2 are next. The sandbox images boot on 915.0 MHz, so phase 2 runs with the production bridge up | Expansion board v2.0 brief, *Bench bring-up* |
 | Parallel | **Input board v2.0 (D91)**: fabrication is underway. GateLink's images for it follow once the boards are in | v2.0 brief; Impl Plan §3.2 |
 
 **Keep the removed Q1, Q2 and Q3 for M27's remaining tests**

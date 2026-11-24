@@ -73,10 +73,18 @@ struct PhyConfig {
   uint8_t preamble_symbols;  // spec 15.1 computes airtime on 8
 };
 
+// The channel a board boots on with no committed PHY group, D1's 917.4 MHz. Only the
+// sandbox images override it, so a bench pair starts off the live link instead of moving
+// off it over the air. lran-config's table.h carries the same guard, because its freq_hz
+// rows are what the PHY group boots from.
+#ifndef LRAN_BOOT_FREQ_HZ
+#define LRAN_BOOT_FREQ_HZ 917400000
+#endif
+
 // The antenna term is the 3.0 dBi stick every board in the fleet so far carries. A board
 // with a different antenna needs its own PhyConfig, and the assert below then applies to it.
 inline constexpr PhyConfig kPhy = {
-    /* freq_hz            */ 917400000u,
+    /* freq_hz            */ LRAN_BOOT_FREQ_HZ,
     /* bw_khz10           */ 1250,
     /* sf                 */ 9,
     /* cr_denom           */ 5,
@@ -94,6 +102,10 @@ inline constexpr int kEirpCeilingDbm10 = -10;
 constexpr bool within_eirp_ceiling(const PhyConfig& phy) {
   return phy.conducted_dbm * 10 + phy.antenna_gain_dbi10 <= kEirpCeilingDbm10;
 }
+
+// spec 12.1 - the 902 to 928 MHz range freq_hz's rows allow.
+static_assert(kPhy.freq_hz >= 902000000u && kPhy.freq_hz <= 928000000u,
+              "LRAN_BOOT_FREQ_HZ is outside the 902 to 928 MHz band");
 
 static_assert(within_eirp_ceiling(kPhy),
               "D33 - conducted power plus antenna gain exceeds the EIRP ceiling");
