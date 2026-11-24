@@ -2220,3 +2220,27 @@ discarded)` before its timeout. Read from `bringup.cpp` and the v2.0 netlist, no
 
 **Falsified by:** the loopback printing no `hex <` line on a board whose J1-to-G4 and G5-to-J1 paths ring out, or a
 retuned spare booting on 917.4 MHz after a reflash.
+
+## 2026-11-24 — The v2.0 bench's phase 2: a sandbox key does not keep a bench 0x01 off production HA
+
+**The earlier entry today was wrong about phase 2's isolation.** It said each bridge would discard the other unit's
+frames as authentication failures. Spec §9.2 gives `STATUS`, `EVENT` and `POLL` no MAC, and GateLink's node ID is
+fixed at 0x01 (`main.cpp`). The production bridge would therefore publish a bench GateLink's gate and battery state
+into production HA, whichever key the bench unit holds. The deployment brief's B2 records the same hazard for a
+simnode running as 0x01. Only `COMMAND` and `CONFIG` fail between the two keys.
+
+**Phase 2 now runs on 915.0 MHz, by operator decision.** The production bridge is powered down while the sandbox
+pair is on 917.4 MHz, and powered up again once the pair has committed the move (spec §12.4.1). The live GateLink
+rejects the sandbox bridge's `CONFIG` for want of a valid MAC, so it stays on 917.4 MHz. The spare keeps 915.0 MHz in
+NVS across resets and reflashes until its NVS is erased. The v2.0 brief's *Bench bring-up*, version 0.6, carries the
+sequence.
+
+**Booting the simnode Heltec on its current image is not a hazard to production HA.** It holds 0xF0 and 0xF2, and the
+production bridge's `simnode_diag_enable` read 0 on 2026-11-02 (bridge handoff, *Hardware state*). The bridge then
+decodes and counts bench frames and does not publish them (spec §16.6, D65). Its frames still take airtime on 917.4 MHz.
+
+**Not established:** whether a fresh `heltec-sandbox` image polls 0x02 from boot and refuses the move with
+`phy_fleet_incomplete`. The 2026-09-24 bridge log saw that refusal with both production rows offline.
+
+**Falsified by:** the production bridge publishing GateLink state while the spare is on 915.0 MHz and the live
+GateLink is off the air.
