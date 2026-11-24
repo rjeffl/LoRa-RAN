@@ -107,17 +107,11 @@ for two reasons: IN1 and IN2 are wired to the relays' NC contacts, which inverts
 1050's OUT1 function is disabled after it lost part of its programming, with one programming button dead (engineering
 log, 2026-11-12, *At the gate*). The operator chose to rewire to NO. The FIRE and hard-shutdown automations are off.
 
-**Updated 2026-11-24 by the v2.0 bench-plan session.** The first v2.0 expansion board is built, and its rails read
-about 4.96 V and 3.26 V from a 13.4 V supply before the Wio and the shifter went on. The bring-up plan for the spare
-StamPLC is in [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), *Bench bring-up*. Its phase 2
-moves the sandbox pair to 915.0 MHz with the production bridge powered down, because GateLink's 0x01 `STATUS` carries
-no MAC and the production bridge would publish the bench unit as GateLink. It changed no firmware.
-
-**Updated 2026-11-24 by the sandbox-flash session.** `heltec-sandbox` and `gatelink-sandbox` boot on 915.0 MHz
-through `-DLRAN_BOOT_FREQ_HZ`, which replaces phase 2's over-the-air move. Both boards carry those images. With no
-v2.0 board fitted, the spare resets on the task watchdog about 11 s after each boot, because `radio_begin()` holds
-the SPI lock while it looks for a radio that is not there (engineering log, 2026-11-24, *The sandbox pair boots on
-915.0 MHz*).
+**Updated 2026-11-24 by the v2.0 bench session.** The first v2.0 expansion board passed all three bring-up phases
+on the spare StamPLC, with the Wio and the shifter fitted (engineering log, 2026-11-24, *phase 1* and *phase 2*). The
+sandbox pair linked on 915.0 MHz while the production bridge stayed up, and production HA saw nothing from it. +5V
+reads 4.94 V and +3V3 3.26 V under load. With the Wio fitted, the spare's watchdog loop stopped, so the missing radio
+caused it; the stuck-BUSY fix stays under *Open*. No firmware changed.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
