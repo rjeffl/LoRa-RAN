@@ -107,6 +107,12 @@ for two reasons: IN1 and IN2 are wired to the relays' NC contacts, which inverts
 1050's OUT1 function is disabled after it lost part of its programming, with one programming button dead (engineering
 log, 2026-11-12, *At the gate*). The operator chose to rewire to NO. The FIRE and hard-shutdown automations are off.
 
+**Updated 2026-11-24 by the v2.0 bench-plan session.** The first v2.0 expansion board is built, and its rails read
+about 4.96 V and 3.26 V from a 13.4 V supply before the Wio and the shifter went on. The bring-up plan for the spare
+StamPLC is in [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), *Bench bring-up*. Its phase 2
+moves the sandbox pair to 915.0 MHz with the production bridge powered down, because GateLink's 0x01 `STATUS` carries
+no MAC and the production bridge would publish the bench unit as GateLink. It changed no firmware.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -167,6 +173,7 @@ over HTTP or registers `ha-prod` at user scope first.
 | 3 | **An MQTT logger on an always-on machine**, the HA host Mac: `bench.py run --mqtt` through the live soak. HA's recorder keeps entity states for about 10 days; the log keeps every message, `rxlog` and `boot_time` included. Operator's call whether it is worth it | `tools/bench/README.md`; engineering log, 2026-11-12 |
 | 4 | **The at-gate sequence and the proposed live soak**, with no input board (D92), and the at-gate checks above | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |
+| Parallel | **Expansion board v2.0 bench bring-up**, on the spare StamPLC: phase 0 is done, and phases 1 and 2 are next. **Phase 2 needs the production bridge off** until the sandbox pair commits to 915.0 MHz | Expansion board v2.0 brief, *Bench bring-up* |
 | Parallel | **Input board v2.0 (D91)**: fabrication is underway. GateLink's images for it follow once the boards are in | v2.0 brief; Impl Plan §3.2 |
 
 **Keep the removed Q1, Q2 and Q3 for M27's remaining tests**
