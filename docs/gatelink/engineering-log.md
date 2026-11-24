@@ -2301,3 +2301,44 @@ The first read debounced to 0x1c, which is why it sent `FIRE_ASSERTED` at boot.
 
 **Falsified by:** a phase 1 `txloop` that drops +3V3 at J8 below 3.3 V's tolerance, or a production entity that
 changes with the spare's traffic.
+
+## 2026-11-24 — Expansion board v2.0, phase 1: every step passes but the card's
+
+**Phase 1 ran on the spare after phase 2, at `e166a52`.** The board, Wio and shifter were as in the previous entry.
+`gatelink-bringup` transmits on 917.4 MHz at −4 dBm, where the production bridge discards its test frames.
+
+**`pins`, `reset` and `begin` pass.** BUSY fell 1652 µs after reset was released, and `begin` returned RadioLib
+status 0. The sync word read back 0x1424. `pins` read NRESET high against its "expect low" label, and that reading
+is the pull-up on the Wio header board found on 2026-10-06. It holds against v2.0's R3 as it did against rev 0.3's
+R4.
+
+**`tx` passes, so J10 carries DIO1.** The edge arrived 171.4 ms after the transmit started, against 164.9 ms time
+on air, with `TX_DONE` set. That was the first test of J10 and of v2.0's DIO1 pull-down.
+
+**`txloop 100` passes, and +3V3 holds.** All 100 transmits saw DIO1's edge and `TX_DONE`. The operator read +3V3
+at J8 throughout on a meter, and it held at 3.26 V with no movement.
+
+**The previous entry's 3.25 V is wrong.** The operator's reading during phase 2 was 3.26 V, so +3V3 has read
+3.26 V in phase 0, phase 2 and phase 1.
+
+**`bus 30` passes for the LCD and the radio.** In 30 s the LCD drew 2002 frames and the radio ran 2008
+transactions, none bad. The longest LCD frame took 14.4 ms, the longest radio transaction 169 µs, and a transmit
+after the run succeeded. No microSD card was fitted, so the card's share of the bus is untested.
+
+**The VE.Direct loopback passes.** With J1.3 jumpered to J1.4, `ved ping` printed the brief's pass pattern:
+
+```text
+hex > :154
+hex < :154  (unmatched, discarded)
+hex: TIMEOUT after 1000 ms
+```
+
+The echo crossed both shifter channels, R1 and J7. The loopback says nothing about the MPPT's side of J1:
+the cable's crossover, the MPPT driving HV1, and GND on J1.2.
+
+**Still open from the brief's *First-board checks*:** the ring-outs of J12 pin 1, J10 and J7, R1's position against
+J1's markings, VE.Direct text frames from a real MPPT, and the card on the shared bus. The spare still runs
+`gatelink-bringup`.
+
+**Falsified by:** a later `txloop` with a card fitted that drops +3V3 at J8, or a first `ved ping` against the real
+MPPT that fails with the loopback still passing.

@@ -179,7 +179,7 @@ over HTTP or registers `ha-prod` at user scope first.
 | 3 | **An MQTT logger on an always-on machine**, the HA host Mac: `bench.py run --mqtt` through the live soak. HA's recorder keeps entity states for about 10 days; the log keeps every message, `rxlog` and `boot_time` included. Operator's call whether it is worth it | `tools/bench/README.md`; engineering log, 2026-11-12 |
 | 4 | **The at-gate sequence and the proposed live soak**, with no input board (D92), and the at-gate checks above | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |
-| Parallel | **Expansion board v2.0 bench bring-up**, on the spare StamPLC: phases 0 and 2 are done, and phase 1 is next. See *The next v2.0 bench session* below | Expansion board v2.0 brief, *Phase 1* and *Phase 2*; engineering log, 2026-11-24 |
+| Parallel | **Expansion board v2.0 bench bring-up**, on the spare StamPLC: all three phases passed. The ring-outs and the real MPPT remain. See *The next v2.0 bench session* below | Expansion board v2.0 brief, *First-board checks*; engineering log, 2026-11-24 |
 | Parallel | **Input board v2.0 (D91)**: fabrication is underway. GateLink's images for it follow once the boards are in | v2.0 brief; Impl Plan §3.2 |
 
 **Keep the removed Q1, Q2 and Q3 for M27's remaining tests**
@@ -196,15 +196,17 @@ and a bug there costs a USB reflash at the gate.
 
 ### The next v2.0 bench session
 
-**Run phase 1 on the spare: flash `gatelink-bringup` and work through the brief's *Phase 1* steps.** Phase 2 passed
-on 2026-11-24, before phase 1 (engineering log, 2026-11-24, *phase 2*). The spare has the v2.0 board seated with
-the Wio and the shifter fitted, and the sandbox bridge is still deployed for 0x01.
+**All three bring-up phases passed on the spare on 2026-11-24** (engineering log, 2026-11-24, *phase 1* and
+*phase 2*). +5V reads 4.94 V and +3V3 3.26 V, and neither moved under `txloop 100`. The spare still runs
+`gatelink-bringup`, and the sandbox bridge is still deployed for 0x01.
 
-- **Fit the antenna or a 50 Ω load to the Wio before the first `tx`.**
-- **Read +3V3 at J8 through `txloop`.** A meter saw no movement during phase 2's single transmits, so
-  back-to-back transmits are the rail's real test.
-- **The VE.Direct loopback needs a jumper from J1.3 to J1.4.**
-- **Reflash `gatelink-sandbox` afterwards** only if the spare is to stay on the sandbox link.
+What the brief's *First-board checks* still need:
+
+- **The ring-outs:** J12 pin 1 to the StamPLC's bus pin 1, J10 and J7 through the cables to be installed, and R1
+  against the J1 terminal marked for the MPPT's TX.
+- **A real MPPT on J1:** text frames at 1 Hz and a `ved ping`. The loopback cannot test the cable's crossover or
+  GND on J1.2.
+- **A microSD card on the shared bus**, if the card stays in the design: `bus` with three tasks.
 
 ### The soak's setup
 
