@@ -2197,3 +2197,25 @@ the four, and `max_temp_dc()` the hottest.
 
 **Falsified by:** sensor 2, not sensor 1, rising first during a heavy charge or discharge
 at night, with no sun on the enclosure.
+
+## 2026-11-24 — Expansion board v2.0: the supply rails pass, and the bench plan keeps off the live link
+
+**The operator confirmed the first v2.0 board's supply rails before fitting the Wio and the level shifter.** No
+readings were given to this session, so none are recorded here. That result is phase 0 of the bring-up plan, which
+is now in the v2.0 brief's *Bench bring-up*, version 0.5.
+
+**The board is brought up on the spare StamPLC while GateLink stays in service.** Phase 1 runs `gatelink-bringup`,
+which holds no key. Phase 2 runs `gatelink-sandbox` against a sandbox bridge and broker. The sandbox master key
+differs from production's: the two files' key lines hashed to different values, and neither key was printed. Each
+bridge therefore discards the other unit's frames as authentication failures. Airtime is still shared on 917.4 MHz,
+and a PHY change on the sandbox bridge can move the pair off it.
+
+**A VE.Direct loopback tests the board's whole path without the MPPT.** A jumper from J1.3 to J1.4 returns
+`ved ping`'s request through both shifter channels and R1, and the console prints it as `hex < :154 (unmatched,
+discarded)` before its timeout. Read from `bringup.cpp` and the v2.0 netlist, not yet run.
+
+**A retuned spare keeps the bench channel through a reflash**, because GateLink commits its PHY group to NVS
+(`nvs_blob.h`). Before the spare serves at the gate, it is returned to 917.4 MHz or its NVS is erased.
+
+**Falsified by:** the loopback printing no `hex <` line on a board whose J1-to-G4 and G5-to-J1 paths ring out, or a
+retuned spare booting on 917.4 MHz after a reflash.
