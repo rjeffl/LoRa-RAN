@@ -115,8 +115,11 @@ no MAC and the production bridge would publish the bench unit as GateLink. It ch
 
 **Updated 2026-11-24 by the sandbox-flash session.** `heltec-sandbox` and `gatelink-sandbox` now boot on 915.0 MHz
 through `-DLRAN_BOOT_FREQ_HZ`, which replaces phase 2's over-the-air move. The spare runs `gatelink-sandbox` and,
-with no v2.0 board fitted, resets on the task watchdog about 11 s after each boot. The cause is not confirmed; the
-likely one is `app_task` waiting on the SPI lock while `lora_task` retries a radio that is not there.
+with no v2.0 board fitted, resets on the task watchdog about 11 s after each boot. `radio_begin()` holds the SPI
+lock through RadioLib's `findChip()`, up to 10 attempts whose transfers each wait up to 1 s for BUSY. `app_task`
+blocks on that lock in `board_sd_append()` and stops feeding the watchdog. The console still read `radio: not
+started` 7 s after boot. `check_rst()` already reports BUSY stuck high, but `radio_begin()` and the 10 s retry call
+`begin()` anyway. At the gate, a radio with BUSY stuck high, or an unseated J10, would reset GateLink the same way.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
