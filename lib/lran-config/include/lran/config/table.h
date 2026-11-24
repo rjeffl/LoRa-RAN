@@ -20,6 +20,13 @@
 
 #include "lran/types.h"
 
+// The boot channel, D1's 917.4 MHz unless a sandbox image overrides it. lran-link's
+// radio_config.h carries the same guard for kPhy; the two must agree, or a board's banner
+// and its PHY group name different channels.
+#ifndef LRAN_BOOT_FREQ_HZ
+#define LRAN_BOOT_FREQ_HZ 917400000
+#endif
+
 namespace lran {
 namespace config {
 
@@ -97,7 +104,7 @@ inline constexpr ParamDef kBridgeParams[] = {
     // because the bridge clamps against these rows before it sends a node anything
     // (spec 12.4.1 step 1); phy_rows_agree() below checks it.
     {0x0010, "freq_hz", Owner::BridgeGlobal, Access::Phy, PType::U32, 902000000, 928000000,
-     917400000, "Hz", "Channel, spec 12.1 - fleet-wide"},
+     LRAN_BOOT_FREQ_HZ, "Hz", "Channel, spec 12.1 - fleet-wide"},
     {0x0011, "spreading_factor", Owner::BridgeGlobal, Access::Phy, PType::U8, 7, 12, 9,
      nullptr, "SF, spec 12.1 - fleet-wide"},
     {0x0012, "bandwidth_khz", Owner::BridgeGlobal, Access::Phy, PType::U16, 125, 500, 125,
@@ -150,7 +157,7 @@ inline constexpr ParamDef kNodeCommonParams[] = {
     // commit-and-revert and enables the trial, so HA can read the working point before it
     // can change it. The defaults are D1's.
     {0x0110, "freq_hz", Owner::Node, Access::Phy, PType::U32, 902000000, 928000000,
-     917400000, "Hz", "Channel, spec 12.1 - fleet-wide"},
+     LRAN_BOOT_FREQ_HZ, "Hz", "Channel, spec 12.1 - fleet-wide"},
     {0x0111, "spreading_factor", Owner::Node, Access::Phy, PType::U8, 7, 12, 9,
      nullptr, "SF, spec 12.1 - fleet-wide"},
     {0x0112, "bandwidth_khz", Owner::Node, Access::Phy, PType::U16, 125, 500, 125,

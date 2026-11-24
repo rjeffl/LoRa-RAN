@@ -91,8 +91,17 @@ void setup() {
 
   // D1, closed 2026-09-10 (Decision Register 3.4). Printed because a log with no
   // record of the channel is a log that cannot be compared with another one - the
-  // same reason the range test prints its own configuration.
-  Serial.println(F("PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi"));
+  // same reason the range test prints its own configuration. Read from kPhy, not a
+  // string, because a sandbox image boots on LRAN_BOOT_FREQ_HZ's channel instead.
+  Serial.printf("PHY: %lu.%lu MHz, SF%u, BW %u kHz, CR 4/%u, %d dBm conducted, %u.%u dBi\n",
+                static_cast<unsigned long>(bridge::kPhy.freq_hz / 1000000u),
+                static_cast<unsigned long>(bridge::kPhy.freq_hz / 100000u % 10u),
+                static_cast<unsigned>(bridge::kPhy.sf),
+                static_cast<unsigned>(bridge::kPhy.bw_khz10 / 10),
+                static_cast<unsigned>(bridge::kPhy.cr_denom),
+                static_cast<int>(bridge::kPhy.conducted_dbm),
+                static_cast<unsigned>(bridge::kPhy.antenna_gain_dbi10 / 10),
+                static_cast<unsigned>(bridge::kPhy.antenna_gain_dbi10 % 10));
 
   if (master_key_is_placeholder()) {
     Serial.println(F("*** LRAN_MASTER_KEY IS THE ALL-ZERO PLACEHOLDER ***"));

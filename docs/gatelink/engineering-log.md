@@ -2244,3 +2244,23 @@ decodes and counts bench frames and does not publish them (spec §16.6, D65). It
 
 **Falsified by:** the production bridge publishing GateLink state while the spare is on 915.0 MHz and the live
 GateLink is off the air.
+
+## 2026-11-24 — The sandbox pair boots on 915.0 MHz, and the spare resets with no radio fitted
+
+**The sandbox images boot on 915.0 MHz instead of moving there over the air.** `LRAN_BOOT_FREQ_HZ` sets `kPhy`
+and both `freq_hz` rows' default, and only `heltec-sandbox` and `gatelink-sandbox` set it. The Heltec, flashed at
+`b8c68a1`, printed `PHY: 915.0 MHz` and `LoRa: radio up - 915000000 Hz`, and connected to the sandbox broker. The
+production bridge no longer has to go down for phase 2. This supersedes the previous entry's plan to move the pair
+over the air.
+
+**The spare, flashed at `b8c68a1` with no v2.0 board, resets on the task watchdog about 11 s after each boot.** The
+console read `radio: not started` at 2 s and at 7 s, and `cfg` read the card not mounted. `radio_begin()` holds the
+SPI lock while RadioLib's `findChip()` runs up to 10 attempts, each transfer waiting up to 1 s for BUSY.
+`board_sd_append()` takes the same lock before it checks for a card, so `app_task` blocks in its `/ved.log` write
+and stops feeding the 10 s watchdog. The 915.0 MHz boot is therefore not confirmed on the spare.
+
+`check_rst()` already reports `BUSY stuck high`, but `radio_begin()` and `radio_service()`'s 10 s retry call
+`begin()` anyway. A radio stuck that way at the gate, or an unseated J10, would reset GateLink the same way. The
+operator deferred the fix; the handoff's *Open* carries it.
+
+**Falsified by:** the spare still resetting on the watchdog with the Wio fitted and answering `begin`.
