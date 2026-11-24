@@ -2264,3 +2264,81 @@ and stops feeding the 10 s watchdog. The 915.0 MHz boot is therefore not confirm
 operator deferred the fix; the handoff's *Open* carries it.
 
 **Falsified by:** the spare still resetting on the watchdog with the Wio fitted and answering `begin`.
+
+## 2026-11-24 — Expansion board v2.0, phase 2: the spare links on 915.0 MHz, and the rails hold
+
+**Phase 2 ran before phase 1, at the operator's choice.** The spare already carried `gatelink-sandbox` and the
+sandbox bridge already showed it online, so running phase 2 first saved a reflash. Phase 1 has not run. The spare
+had the v2.0 board seated with the Wio and the level shifter fitted, and the board was powered over USB. The
+sandbox bridge ran `heltec-sandbox` at `b8c68a1`, and the log is `~/lran-soak/2026-11-24-v2-bench/bench.log`.
+
+**With the Wio fitted, the watchdog loop of the previous entry stopped.** The spare ran more than 6 minutes with no
+reset after the logger opened its port. Before that, it ran 65 s on the console with no reset. `radio` read RadioLib
+status 0, `begin fails 0`, and `RST check passed`, and the boot line read `BUSY fell in 1652 us`. The missing radio
+was therefore the cause, and that entry's falsifier is not met. The stuck-BUSY fix stays open in the handoff.
+
+**Both boards boot on 915.0 MHz with no group committed.** The spare's `phy` read effective and committed
+915000000 Hz, SF9, BW 125, CR 4/5, −4 dBm, with `committed 0`. The bridge printed `PHY: 915.0 MHz` and
+`LoRa: radio up - 915000000 Hz`.
+
+**The link authenticates in both directions.** With `switch.gatelink_deployed` turned on in sandbox HA, the bridge
+rolled 0x01's context in one attempt, and the node logged the roll `ACCEPTED`. The bridge counted no
+`rx_rejected_ctx`, `rx_rejected_mac` or `rx_rejected_seq`. Every 60 s poll from 13:01 to 13:06 EST was answered,
+within 970 to 2008 ms, and `missed_polls` stayed 0. RSSI read −53 to −61 dBm and SNR 10 to 11 dB on the bench. The
+node answering the polls shows DIO1 working in receive as well as transmit.
+
+**The rails held under the node's full load.** The operator read +5V at J4 and +3V3 at J8 with a meter across
+several poll cycles. Neither moved from 4.94 V and 3.25 V. U1 is the OKI-78SR 5 V module and U2 the MCP1825S 3.3 V
+regulator. A meter does not resolve a transmit of a few hundred ms, so phase 1's `txloop` remains the test of the
+3.3 V rail through back-to-back transmits.
+
+**Production HA saw nothing from the pair.** `sensor.gatelink_rssi` stayed between −93 and −97 dBm through the
+session, which is the gate. The spare sent `FIRE_ASSERTED` at boot, and production's `event.gatelink_fire_asserted`
+still reads 2026-11-11.
+
+The spare's inputs float, because no input board is fitted and `input_mask` is 0 on its default configuration.
+The first read debounced to 0x1c, which is why it sent `FIRE_ASSERTED` at boot.
+
+**Falsified by:** a phase 1 `txloop` that drops +3V3 at J8 below 3.3 V's tolerance, or a production entity that
+changes with the spare's traffic.
+
+## 2026-11-24 — Expansion board v2.0, phase 1: every step passes but the card's
+
+**Phase 1 ran on the spare after phase 2, at `e166a52`.** The board, Wio and shifter were as in the previous entry.
+`gatelink-bringup` transmits on 917.4 MHz at −4 dBm, where the production bridge discards its test frames.
+
+**`pins`, `reset` and `begin` pass.** BUSY fell 1652 µs after reset was released, and `begin` returned RadioLib
+status 0. The sync word read back 0x1424. `pins` read NRESET high against its "expect low" label, and that reading
+is the pull-up on the Wio header board found on 2026-10-06. It holds against v2.0's R3 as it did against rev 0.3's
+R4.
+
+**`tx` passes, so J10 carries DIO1.** The edge arrived 171.4 ms after the transmit started, against 164.9 ms time
+on air, with `TX_DONE` set. That was the first test of J10 and of v2.0's DIO1 pull-down.
+
+**`txloop 100` passes, and +3V3 holds.** All 100 transmits saw DIO1's edge and `TX_DONE`. The operator read +3V3
+at J8 throughout on a meter, and it held at 3.26 V with no movement.
+
+**The previous entry's 3.25 V is wrong.** The operator's reading during phase 2 was 3.26 V, so +3V3 has read
+3.26 V in phase 0, phase 2 and phase 1.
+
+**`bus 30` passes for the LCD and the radio.** In 30 s the LCD drew 2002 frames and the radio ran 2008
+transactions, none bad. The longest LCD frame took 14.4 ms, the longest radio transaction 169 µs, and a transmit
+after the run succeeded. No microSD card was fitted, so the card's share of the bus is untested.
+
+**The VE.Direct loopback passes.** With J1.3 jumpered to J1.4, `ved ping` printed the brief's pass pattern:
+
+```text
+hex > :154
+hex < :154  (unmatched, discarded)
+hex: TIMEOUT after 1000 ms
+```
+
+The echo crossed both shifter channels, R1 and J7. The loopback says nothing about the MPPT's side of J1:
+the cable's crossover, the MPPT driving HV1, and GND on J1.2.
+
+**Still open from the brief's *First-board checks*:** the ring-outs of J12 pin 1, J10 and J7, R1's position against
+J1's markings, VE.Direct text frames from a real MPPT, and the card on the shared bus. The spare still runs
+`gatelink-bringup`.
+
+**Falsified by:** a later `txloop` with a card fitted that drops +3V3 at J8, or a first `ved ping` against the real
+MPPT that fails with the loopback still passing.

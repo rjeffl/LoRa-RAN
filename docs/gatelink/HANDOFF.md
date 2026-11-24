@@ -107,17 +107,11 @@ for two reasons: IN1 and IN2 are wired to the relays' NC contacts, which inverts
 1050's OUT1 function is disabled after it lost part of its programming, with one programming button dead (engineering
 log, 2026-11-12, *At the gate*). The operator chose to rewire to NO. The FIRE and hard-shutdown automations are off.
 
-**Updated 2026-11-24 by the v2.0 bench-plan session.** The first v2.0 expansion board is built, and its rails read
-about 4.96 V and 3.26 V from a 13.4 V supply before the Wio and the shifter went on. The bring-up plan for the spare
-StamPLC is in [`LRAN-Expansion-Board-v2.0-Brief`](./LRAN-Expansion-Board-v2.0-Brief.md), *Bench bring-up*. Its phase 2
-moves the sandbox pair to 915.0 MHz with the production bridge powered down, because GateLink's 0x01 `STATUS` carries
-no MAC and the production bridge would publish the bench unit as GateLink. It changed no firmware.
-
-**Updated 2026-11-24 by the sandbox-flash session.** `heltec-sandbox` and `gatelink-sandbox` boot on 915.0 MHz
-through `-DLRAN_BOOT_FREQ_HZ`, which replaces phase 2's over-the-air move. Both boards carry those images. With no
-v2.0 board fitted, the spare resets on the task watchdog about 11 s after each boot, because `radio_begin()` holds
-the SPI lock while it looks for a radio that is not there (engineering log, 2026-11-24, *The sandbox pair boots on
-915.0 MHz*).
+**Updated 2026-11-24 by the v2.0 bench session.** The first v2.0 expansion board passed all three bring-up phases
+on the spare StamPLC, with the Wio and the shifter fitted (engineering log, 2026-11-24, *phase 1* and *phase 2*). The
+sandbox pair linked on 915.0 MHz while the production bridge stayed up, and production HA saw nothing from it. +5V
+reads 4.94 V and +3V3 3.26 V under load. With the Wio fitted, the spare's watchdog loop stopped, so the missing radio
+caused it; the stuck-BUSY fix stays under *Open*. No firmware changed.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -179,7 +173,7 @@ over HTTP or registers `ha-prod` at user scope first.
 | 3 | **An MQTT logger on an always-on machine**, the HA host Mac: `bench.py run --mqtt` through the live soak. HA's recorder keeps entity states for about 10 days; the log keeps every message, `rxlog` and `boot_time` included. Operator's call whether it is worth it | `tools/bench/README.md`; engineering log, 2026-11-12 |
 | 4 | **The at-gate sequence and the proposed live soak**, with no input board (D92), and the at-gate checks above | brief, *At-gate sequence*; Decision Register §3.20 |
 | 4 | **The charge-inhibit close-out**: read `/ved.log` and `/bms8d.log` after the first freezing nights, against PRD R-6.4a and R-6.4b | PRD R-6.4; engineering log, 2026-11-11 |
-| Parallel | **Expansion board v2.0 bench bring-up**, on the spare StamPLC: phase 0 is done, and phases 1 and 2 are next. See *The next v2.0 bench session* below | Expansion board v2.0 brief, *Phase 1* and *Phase 2*; engineering log, 2026-11-24 |
+| Parallel | **Expansion board v2.0 bench bring-up**, on the spare StamPLC: all three phases passed. The ring-outs and the real MPPT remain. See *The next v2.0 bench session* below | Expansion board v2.0 brief, *First-board checks*; engineering log, 2026-11-24 |
 | Parallel | **Input board v2.0 (D91)**: fabrication is underway. GateLink's images for it follow once the boards are in | v2.0 brief; Impl Plan §3.2 |
 
 **Keep the removed Q1, Q2 and Q3 for M27's remaining tests**
@@ -196,19 +190,17 @@ and a bug there costs a USB reflash at the gate.
 
 ### The next v2.0 bench session
 
-**Fit the Wio and the shifter to the v2.0 board, seat it on the spare StamPLC, and run phase 1 first.** Phase 1 is
-`gatelink-bringup`, which holds no key and needs no frequency guard. Then flash `gatelink-sandbox` again for phase 2.
+**All three bring-up phases passed on the spare on 2026-11-24** (engineering log, 2026-11-24, *phase 1* and
+*phase 2*). +5V reads 4.94 V and +3V3 3.26 V, and neither moved under `txloop 100`. The spare still runs
+`gatelink-bringup`, and the sandbox bridge is still deployed for 0x01.
 
-- **Both boards already carry the sandbox images**: the simnode's Heltec runs `heltec-sandbox` and the spare runs
-  `gatelink-sandbox`, both built to boot on 915.0 MHz. The production bridge stays up throughout.
-- **Confirm 915.0 MHz on the spare before it transmits for long.** Its `phy` command or `boot:` line names the
-  channel. The Heltec already read 915.0 MHz on the air. A board on 917.4 MHz has a committed group in NVS: power
-  it down and erase it (brief, *Phase 2*, step 1).
-- **The spare's watchdog loop should stop once the Wio answers `begin`.** If it does not, the cause is something
-  other than the missing radio, and that comes before phase 2.
-- **Set `deployed` to 0 for every row but 0x01** on the sandbox bridge, so it polls the spare alone.
-- **Log with `bench.py run --mqtt --secrets secrets.sandbox.h`**, and read +5V at J4 and +3V3 at J8 while the radio
-  transmits.
+What the brief's *First-board checks* still need:
+
+- **The ring-outs:** J12 pin 1 to the StamPLC's bus pin 1, J10 and J7 through the cables to be installed, and R1
+  against the J1 terminal marked for the MPPT's TX.
+- **A real MPPT on J1:** text frames at 1 Hz and a `ved ping`. The loopback cannot test the cable's crossover or
+  GND on J1.2.
+- **A microSD card on the shared bus**, if the card stays in the design: `bus` with three tasks.
 
 ### The soak's setup
 

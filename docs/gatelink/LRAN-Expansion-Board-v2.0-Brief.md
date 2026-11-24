@@ -295,8 +295,8 @@ two design records:
 ## Bench bring-up
 
 **The first v2.0 board is brought up on the spare StamPLC, while GateLink stays in service at the gate.** The plan has
-three phases, and each one keeps the bench away from the live link in its own way. Phase 0 is done. Phases 1 and 2
-have not run. The goal is to confirm as much of the board as the bench can before GateLink's retrofit. A test that
+three phases, and each one keeps the bench away from the live link in its own way. All three phases
+have run, and each passed. The goal is to confirm as much of the board as the bench can before GateLink's retrofit. A test that
 exercises only the StamPLC, such as BMS emulation, is out of scope. This plan proves the board, not the production
 StamPLC fitted with it. That pair still gets the bench
 retest the GateLink handoff calls for before it goes back to the gate.
@@ -322,9 +322,12 @@ retest the GateLink handoff calls for before it goes back to the gate.
 
 **The supply rails read correctly with no Wio or level shifter fitted** (operator, 2026-11-24). From a 13.4 V bench
 supply, +5V read about 4.96 V and +3V3 about 3.26 V. Neither rail has been measured under load, so phase 1's
-`txloop` step and phase 2 do that. Of *First-board checks* below, the rails are the only result reported so far.
+`txloop` step and phase 2 do that. Phase 2 has measured them under load, as *First-board checks* records.
 
 ### Phase 1: the bring-up image
+
+**Phase 1 passed on 2026-11-24, after phase 2** (engineering log, 2026-11-24, *phase 1*). Every step below passed
+except the card's share of `bus`, which needs a microSD card.
 
 Flash `gatelink-bringup` to the spare StamPLC with the Wio and the shifter fitted. Fit the antenna or a 50 Ω load to
 the Wio before the first transmit, and keep the number of transmits small. Then run the console steps in rev 0.3
@@ -358,6 +361,10 @@ that the MPPT's TX drives HV1 and its RX accepts HV2. It also does not test GND 
 the real MPPT, at the bench or at the gate, covers those.
 
 ### Phase 2: the node on its own channel
+
+**Phase 2 passed on 2026-11-24, before phase 1** (engineering log, 2026-11-24, *phase 2*). The link authenticated,
+every poll was answered, the rails held, and production HA saw nothing from the pair. The steps below stay for the
+retrofit's bench retest.
 
 **Both sandbox images boot on 915.0 MHz**, 2.4 MHz below Envelope A and inside the 902 to 928 MHz range the
 configuration table allows. The flag sets `kPhy` and the default of both `freq_hz` rows, so the boot banner and
@@ -398,10 +405,11 @@ board on 917.4 MHz with a sandbox key while the production bridge is up.
 - J12 pin 1 rings out to the StamPLC's bus pin 1 with the boards seated.
 - With no Wio or shifter seated, +5V reads 5 V and +3V3 reads 3.3 V, not 3.0 V. Passed in phase 0: about 4.96 V and
   3.26 V from a 13.4 V supply.
-- Both rails hold under load, with the Wio and the shifter fitted. Not yet measured.
+- Both rails hold under load, with the Wio and the shifter fitted. Passed on a meter: +5V read 4.94 V and +3V3 3.26 V,
+  unmoved through phase 2's polls and through `txloop 100`.
 - J10.1 rings out to G1, J10.2 to G2, J7.1 to G4 and J7.2 to G5, through the cables to be installed.
 - R1 sits between the J1 terminal marked for the MPPT's TX and G4.
-- `ved ping` through a J1.3 to J1.4 jumper echoes the request, as in *Phase 1*.
+- `ved ping` through a J1.3 to J1.4 jumper echoes the request, as in *Phase 1*. Passed in phase 1.
 - VE.Direct text frames arrive at 1 Hz, as in rev 0.3 §11 step 5.
 
 **Falsified by** any of these:
