@@ -331,7 +331,8 @@ the Wio before the first transmit, and keep the number of transmits small. Then 
 2. `tx`. DIO1's edge arrives, timed, and is not inferred from TxDone (rev 0.3 §7.1.1). That transmit is the first test of
    J10 and the DIO1 pull-down v2.0 adds, R4.
 3. `txloop <n>`. The 3.3 V rail at J8 holds through back-to-back transmits.
-4. `sd`, then `bus <s>`. The LCD, the microSD card and the radio run together on the shared bus.
+4. `bus <s>`. The LCD and the radio run together on the shared bus. No microSD card is available for this bench,
+   so `bus` runs two tasks instead of three, and the card's share of the bus is not tested here.
 5. **The VE.Direct loopback.** Jumper J1.3 to J1.4 and run `ved ping`.
 
 **The loopback tests the whole VE.Direct path on the board, in both directions.** The ping leaves G5 through J7.2,
@@ -356,11 +357,11 @@ the real MPPT, at the bench or at the gate, covers those.
 ### Phase 2: the node on the sandbox
 
 Flash `gatelink-sandbox` to the spare and `heltec-sandbox` to the bridge's Heltec. Log with `bench.py run --mqtt
---secrets secrets.sandbox.h`, as in the GateLink handoff's *The soak's setup*. Then check that:
+--secrets secrets.sandbox.h`, as in the GateLink handoff's *The soak's setup*. With no card, the node boots on its
+default configuration and reports the card not mounted. Then check that:
 
 - the link authenticates in both directions, and STATUS arrives at a steady rate. The node answering the bridge's
   polls shows DIO1 working in receive as well as transmit
-- the microSD card takes writes while the radio carries traffic, on the bus the board shares
 - +5V at J4 and +3V3 at J8 hold under the node's full load, read with a meter while the radio transmits
 
 VE.Direct traffic needs the MPPT, which is at the gate, and no VE.Direct emulator exists. The loopback in phase 1
