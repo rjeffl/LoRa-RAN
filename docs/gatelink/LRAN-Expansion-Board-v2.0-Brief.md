@@ -1,10 +1,10 @@
 # LRAN — GateLink expansion board v2.0 brief
 
 **Document:** `LRAN-Expansion-Board-v2.0-Brief`
-**Version:** 0.4
-**Status:** The schematic, the PCB layout and the Gerbers are reviewed, and the board is ready to order (*Gerbers,
-2026-11-08*). Nothing here has been built, and no value here has been measured on a v2.0 board.
-**Last updated:** 2026-11-08
+**Version:** 0.5
+**Status:** The first board is built. With no Wio or level shifter fitted, its rails read about 4.96 V and 3.26 V from
+a 13.4 V supply (*Bench bring-up*). No other value here has been measured on a v2.0 board.
+**Last updated:** 2026-11-24
 
 ## Summary
 
@@ -292,13 +292,101 @@ two design records:
 - §7.1.1: the DIO1 pull-down as fitted, not optional.
 - §10 and §11: a first-board checklist for the PCB.
 
-## First-board checks
+## Bench bring-up
+
+**The first v2.0 board is brought up on the spare StamPLC, while GateLink stays in service at the gate.** The plan has
+three phases, and each one keeps the bench away from the live link in its own way. Phase 0 is done. Phases 1 and 2
+have not run. The goal is to confirm as much of the board as the bench can before GateLink's retrofit. A test that
+exercises only the StamPLC, such as BMS emulation, is out of scope. This plan proves the board, not the production
+StamPLC fitted with it. That pair still gets the bench
+retest the GateLink handoff calls for before it goes back to the gate.
+
+### How the bench stays off the live link
+
+- **Phase 1's image holds no key.** `gatelink-bringup` speaks no protocol. The production bridge counts its test
+  frames and discards them.
+- **Phase 2 runs on the sandbox key.** `gatelink-sandbox` reads `secrets.sandbox.h`, whose master key differs from
+  production's: on 2026-11-24 the two files' key lines hashed to different values. Both units are node 1, and
+  each bridge counts the other unit's frames as authentication failures and discards them. Expect the production
+  bridge's authentication-failure counter to rise while phase 2 runs.
+- **Phase 2 has its own bridge and broker.** `heltec-sandbox` runs on a spare Heltec against the sandbox broker
+  and sandbox HA, so nothing reaches production MQTT or HA. The simnode's Heltec runs that bridge, and the
+  XIAO simnode is also available.
+- **Airtime is the one thing the bench shares with the gate.** Both pairs start on 917.4 MHz, and a collision
+  costs the live link a retry. Moving the sandbox pair to another channel removes that, as *Phase 2* describes.
+
+### Phase 0: power, done
+
+**The supply rails read correctly with no Wio or level shifter fitted** (operator, 2026-11-24). From a 13.4 V bench
+supply, +5V read about 4.96 V and +3V3 about 3.26 V. Neither rail has been measured under load, so phase 1's
+`txloop` step and phase 2 do that. Of *First-board checks* below, the rails are the only result reported so far.
+
+### Phase 1: the bring-up image
+
+Flash `gatelink-bringup` to the spare StamPLC with the Wio and the shifter fitted. Fit the antenna or a 50 Ω load to
+the Wio before the first transmit, and keep the number of transmits small. Then run the console steps in rev 0.3
+§11's order:
+
+1. `pins`, `reset` and `begin`. The SX1262 answers before any transmit.
+2. `tx`. DIO1's edge arrives, timed, and is not inferred from TxDone (rev 0.3 §7.1.1). That transmit is the first test of
+   J10 and the DIO1 pull-down v2.0 adds, R4.
+3. `txloop <n>`. The 3.3 V rail at J8 holds through back-to-back transmits.
+4. `bus <s>`. The LCD and the radio run together on the shared bus. No microSD card is available for this bench,
+   so `bus` runs two tasks instead of three, and the card's share of the bus is not tested here.
+5. **The VE.Direct loopback.** Jumper J1.3 to J1.4 and run `ved ping`.
+
+**The loopback tests the whole VE.Direct path on the board, in both directions.** The ping leaves G5 through J7.2,
+J5.2, the shifter's LV2 to HV2 channel and J1.4. The jumper returns it through J1.3, R1, the HV1 to LV1 channel, J5.1
+and J7.1 to G4. A pass reads:
+
+```text
+hex > :154
+hex < :154  (unmatched, discarded)
+hex: TIMEOUT after … ms
+```
+
+The `hex <` line is the pass. The echoed request decodes cleanly, but it does not answer a ping, so the console
+discards it as unmatched and then times out. A timeout with no `hex <` line means an open path: read `ved stat`,
+then meter each hop. A `hex <` line with a parse error in brackets means bytes arrive garbled, which points at the
+shifter or a marginal level. `ved send :154` gives the same echo.
+
+**The loopback cannot test the MPPT's side of J1.** It does not show which way round the cable's crossover goes, or
+that the MPPT's TX drives HV1 and its RX accepts HV2. It also does not test GND on J1.2. The first `ved ping` with
+the real MPPT, at the bench or at the gate, covers those.
+
+### Phase 2: the node on the sandbox
+
+Flash `gatelink-sandbox` to the spare and `heltec-sandbox` to the bridge's Heltec. Log with `bench.py run --mqtt
+--secrets secrets.sandbox.h`, as in the GateLink handoff's *The soak's setup*. With no card, the node boots on its
+default configuration and reports the card not mounted. Then check that:
+
+- the link authenticates in both directions, and STATUS arrives at a steady rate. The node answering the bridge's
+  polls shows DIO1 working in receive as well as transmit
+- +5V at J4 and +3V3 at J8 hold under the node's full load, read with a meter while the radio transmits
+
+VE.Direct traffic needs the MPPT, which is at the gate, and no VE.Direct emulator exists. The loopback in phase 1
+stands in until the MPPT is connected.
+
+**To move the sandbox pair off 917.4 MHz**, set the PHY group's frequency on the sandbox bridge's
+`lran/bridge/config/set` (spec §12.4). The bench has committed a change to 917.0 MHz and back before (bridge engineering
+log, 2026-09-26). The bridge refuses a change with `phy_fleet_incomplete` until every provisioned node answers, so a
+simnode the sandbox bridge watches may need to transmit first or have its `deployed` lever set.
+
+**A retuned spare keeps the bench channel.** GateLink stores its committed PHY group in NVS (`nvs_blob.h`), so a
+reflash does not restore 917.4 MHz. Before the spare serves at the gate, commit the sandbox pair back to 917.4 MHz,
+or erase the spare's NVS.
+
+### First-board checks
 
 - J12 pin 1 rings out to the StamPLC's bus pin 1 with the boards seated.
-- With no Wio or shifter seated, +5V reads 5 V and +3V3 reads 3.3 V, not 3.0 V.
+- With no Wio or shifter seated, +5V reads 5 V and +3V3 reads 3.3 V, not 3.0 V. Passed in phase 0: about 4.96 V and
+  3.26 V from a 13.4 V supply.
+- Both rails hold under load, with the Wio and the shifter fitted. Not yet measured.
 - J10.1 rings out to G1, J10.2 to G2, J7.1 to G4 and J7.2 to G5, through the cables to be installed.
 - R1 sits between the J1 terminal marked for the MPPT's TX and G4.
+- `ved ping` through a J1.3 to J1.4 jumper echoes the request, as in *Phase 1*.
 - VE.Direct text frames arrive at 1 Hz, as in rev 0.3 §11 step 5.
 
-**Falsified by:** a continuity reading in the checks above that differs from this brief, or a 3.3 V rail that
-reads other than 3.3 V with U2 fitted.
+**Falsified by:** a continuity reading in the checks above that differs from this brief, a 3.3 V rail that reads
+other than 3.3 V with U2 fitted, or a spare that boots after phase 2 on a frequency other than the one last
+committed.
