@@ -2200,8 +2200,9 @@ at night, with no sun on the enclosure.
 
 ## 2026-11-24 — Expansion board v2.0: the supply rails pass, and the bench plan keeps off the live link
 
-**The operator confirmed the first v2.0 board's supply rails before fitting the Wio and the level shifter.** No
-readings were given to this session, so none are recorded here. That result is phase 0 of the bring-up plan, which
+**The first v2.0 board's supply rails read correctly before the Wio and the level shifter were fitted** (operator).
+From a 13.4 V bench supply, +5V read about 4.96 V and +3V3 about 3.26 V. Neither rail has been measured under load.
+That result is phase 0 of the bring-up plan, which
 is now in the v2.0 brief's *Bench bring-up*, version 0.5.
 
 **The board is brought up on the spare StamPLC while GateLink stays in service.** Phase 1 runs `gatelink-bringup`,

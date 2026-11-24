@@ -2,8 +2,8 @@
 
 **Document:** `LRAN-Expansion-Board-v2.0-Brief`
 **Version:** 0.5
-**Status:** The first board is built, and its supply rails passed before the Wio and the level shifter were fitted
-(*Bench bring-up*). No other value here has been measured on a v2.0 board.
+**Status:** The first board is built. With no Wio or level shifter fitted, its rails read about 4.96 V and 3.26 V from
+a 13.4 V supply (*Bench bring-up*). No other value here has been measured on a v2.0 board.
 **Last updated:** 2026-11-24
 
 ## Summary
@@ -296,7 +296,9 @@ two design records:
 
 **The first v2.0 board is brought up on the spare StamPLC, while GateLink stays in service at the gate.** The plan has
 three phases, and each one keeps the bench away from the live link in its own way. Phase 0 is done. Phases 1 and 2
-have not run. This plan proves the board, not the production StamPLC fitted with it. That pair still gets the bench
+have not run. The goal is to confirm as much of the board as the bench can before GateLink's retrofit. A test that
+exercises only the StamPLC, such as BMS emulation, is out of scope. This plan proves the board, not the production
+StamPLC fitted with it. That pair still gets the bench
 retest the GateLink handoff calls for before it goes back to the gate.
 
 ### How the bench stays off the live link
@@ -308,15 +310,16 @@ retest the GateLink handoff calls for before it goes back to the gate.
   each bridge counts the other unit's frames as authentication failures and discards them. Expect the production
   bridge's authentication-failure counter to rise while phase 2 runs.
 - **Phase 2 has its own bridge and broker.** `heltec-sandbox` runs on a spare Heltec against the sandbox broker
-  and sandbox HA, so nothing reaches production MQTT or HA. The BMS emulator runs on the `simnode-heltec` board
-  (Impl Plan L7), so the sandbox bridge needs a second Heltec if the emulator is wanted.
+  and sandbox HA, so nothing reaches production MQTT or HA. The simnode's Heltec runs that bridge, and the
+  XIAO simnode is also available.
 - **Airtime is the one thing the bench shares with the gate.** Both pairs start on 917.4 MHz, and a collision
   costs the live link a retry. Moving the sandbox pair to another channel removes that, as *Phase 2* describes.
 
 ### Phase 0: power, done
 
-**The operator confirmed the supply rails before fitting the Wio and the level shifter** (operator, 2026-11-24). No
-readings were recorded here. Of *First-board checks* below, the rails are the only result reported so far.
+**The supply rails read correctly with no Wio or level shifter fitted** (operator, 2026-11-24). From a 13.4 V bench
+supply, +5V read about 4.96 V and +3V3 about 3.26 V. Neither rail has been measured under load, so phase 1's
+`txloop` step and phase 2 do that. Of *First-board checks* below, the rails are the only result reported so far.
 
 ### Phase 1: the bring-up image
 
@@ -355,9 +358,10 @@ the real MPPT, at the bench or at the gate, covers those.
 Flash `gatelink-sandbox` to the spare and `heltec-sandbox` to the bridge's Heltec. Log with `bench.py run --mqtt
 --secrets secrets.sandbox.h`, as in the GateLink handoff's *The soak's setup*. Then check that:
 
-- the link authenticates and STATUS arrives at a steady rate
-- the card mounts, and `input_mask` persists across a power cycle
-- the BMS reads from the emulator, if one is running
+- the link authenticates in both directions, and STATUS arrives at a steady rate. The node answering the bridge's
+  polls shows DIO1 working in receive as well as transmit
+- the microSD card takes writes while the radio carries traffic, on the bus the board shares
+- +5V at J4 and +3V3 at J8 hold under the node's full load, read with a meter while the radio transmits
 
 VE.Direct traffic needs the MPPT, which is at the gate, and no VE.Direct emulator exists. The loopback in phase 1
 stands in until the MPPT is connected.
@@ -374,7 +378,9 @@ or erase the spare's NVS.
 ### First-board checks
 
 - J12 pin 1 rings out to the StamPLC's bus pin 1 with the boards seated.
-- With no Wio or shifter seated, +5V reads 5 V and +3V3 reads 3.3 V, not 3.0 V. Passed in phase 0.
+- With no Wio or shifter seated, +5V reads 5 V and +3V3 reads 3.3 V, not 3.0 V. Passed in phase 0: about 4.96 V and
+  3.26 V from a 13.4 V supply.
+- Both rails hold under load, with the Wio and the shifter fitted. Not yet measured.
 - J10.1 rings out to G1, J10.2 to G2, J7.1 to G4 and J7.2 to G5, through the cables to be installed.
 - R1 sits between the J1 terminal marked for the MPPT's TX and G4.
 - `ved ping` through a J1.3 to J1.4 jumper echoes the request, as in *Phase 1*.
